@@ -1,0 +1,284 @@
+#include <mpi.h>
+#include <math.h>
+#include <stdlib.h>
+#include "physics.H"
+#include "grid.H"
+#include "run.H"
+#include "exchange.H"
+
+/*
+  Add contributions from divB heating to Qres for diagnostic reasons.
+  Removed ef, since it does not work with the SR version.
+*/
+
+
+#define GLOOP(gs,i,j,d1,d2) \
+  for((j)=(gs)[(d2)][0];(j)<=(gs)[(d2)][1];(j)++) \
+  for((i)=(gs)[(d1)][0];(i)<=(gs)[(d1)][1];(i)++)
+
+#define XZ_LOOP(G,i,k) \
+  for((k)=(G).lbeg[2];(k)<=(G).lend[2];(k)++) \
+  for((i)=(G).lbeg[0];(i)<=(G).lend[0];(i)++)
+
+#define YZ_LOOP(G,j,k) \
+  for((k)=(G).lbeg[2];(k)<=(G).lend[2];(k)++) \
+  for((j)=(G).lbeg[1];(j)<=(G).lend[1];(j)++)
+
+void Clean_divB(const RunData&  Run, GridData& Grid, const PhysicsData&  Physics) {
+
+  double ttime, atime, etime, time;
+  ttime=MPI_Wtime();
+  etime = 0.0;
+  atime = 0.0;
+
+  static int divB_ini_flag = 1;
+
+  const int it_max      = (int) Physics.divB[i_divB_itmax];
+  const double divB_err = Physics.divB[i_divB_err];
+
+  static double divB_coeff = 1;
+  static double divB_damp  = 0.65;
+  /********************************************************************/
+  static int next_iter = 3;
+
+  register int i,j,k,v,iter;
+  register int off0,offBv,offp1,offp2,offn1,offn2;
+
+  const int nvar = Physics.NVAR;
+  const int i_beg = Grid.lbeg[0];
+  const int i_end = Grid.lend[0];
+
+  int blcksz;
+
+  const int need_diagnostics = Run.need_diagnostics;
+
+  int next[3];
+  double w1[3],w2[3];
+
+  double dxmin,dxmax,err_unit,err,conv;
+  double err_loc[2],err_glo[2];
+
+  static double divB_fac;
+
+  double invdt=1.0/Run.dt;
+    
+  blcksz=1;
+  err_unit=0.0;
+  for(v=0;v<3;v++){
+    next[v] = Grid.stride[v];
+    w1[v]  = 8./(12.*Grid.dx[v]);
+    w2[v]  =-1./(12.*Grid.dx[v]);
+    blcksz *= (Grid.lsize[v]+2*Grid.ghosts[v]);
+    err_unit += 1.0/Grid.dx[v];
+  }
+
+  err_unit = 0.5/err_unit*3.5449;
+ 
+
+ 
+  dxmin = min(Grid.dx[0],Grid.dx[1]);
+  dxmax = max(Grid.dx[0],Grid.dx[1]);
+  if (Grid.NDIM == 1){
+    dxmin = Grid.dx[0];
+    dxmax = Grid.dx[0];
+  }
+  if (Grid.NDIM == 3){
+    dxmin = min(dxmin,Grid.dx[2]);
+    dxmax = max(dxmin,Grid.dx[2]);
+  }
+  
+  double* divB = Grid.divB;
+  double* phi  = Grid.phi;
+  double* U    = (double*) Grid.U;
+
+  if (divB_ini_flag == 1){    
+    if (Run.rank == 0) { 
+      cout << "divB_ini: divB_coeff = "  << divB_coeff  << endl;
+      cout << "divB_ini: divB_damp  = "  << divB_damp   << endl; 
+      cout << "divB_ini: it_max     = "  << it_max      << endl;
+      cout << "divB_ini: divB_err   = "  << divB_err    << endl;
+    }
+    divB_ini_flag =0;
+  }
+
+  divB_fac = divB_coeff*min(dxmin,0.4*dxmax)*dxmin;
+
+  /********************************************************************/
+  
+  time=MPI_Wtime();
+  exchange_B(Grid);    
+  etime+=MPI_Wtime()-time;
+
+  err_loc[0] = 0.0;
+  YZ_LOOP(Grid,j,k){
+    off0 = j*next[1]+k*next[2];
+    
+    for(i=i_beg;i<=i_end;i++)
+      divB[off0+i]  = 0.0;
+    
+    for(v=0;v<Grid.NDIM;v++){
+      offBv = off0*nvar+5+v;
+      
+      offp1 = offBv + nvar*next[v];
+      offp2 = offBv + nvar*2*next[v];
+      offn1 = offBv - nvar*next[v];
+      offn2 = offBv - nvar*2*next[v];
+      
+      #pragma ivdep
+      for(i=i_beg;i<=i_end;i++){
+	
+	divB[off0+i] +=
+	  (w1[v]*(U[offp1+i*nvar]-U[offn1+i*nvar])+
+	   w2[v]*(U[offp2+i*nvar]-U[offn2+i*nvar]));
+	
+      }
+    }
+
+    err = 0.0;  
+    #pragma ivdep 
+    for(i=i_beg;i<=i_end;i++)
+      err = max(err,fabs(divB[off0+i]));
+
+    err_loc[0] = max(err_loc[0],err);
+    
+  }
+    
+  for(iter=0;iter<next_iter;iter++){
+
+    YZ_LOOP(Grid,j,k){
+      off0 = j*next[1]+k*next[2];
+      
+      #pragma ivdep
+      for(i=i_beg;i<=i_end;i++)
+	phi[off0+i] += divB_fac*divB[off0+i] - divB_damp*phi[off0+i];
+    }
+      
+    time=MPI_Wtime();    
+    exchange_single(Grid,phi);
+    etime+=MPI_Wtime()-time;
+    
+    /* vertical boundaries divB anti-symmetric */ 
+    // This can probably be done differently now that vertical is x
+
+    if( Grid.is_gbeg[0] ) {
+      YZ_LOOP(Grid,j,k){
+	i=Grid.lbeg[0];
+	phi[Grid.node(i-1,j,k)] = -phi[Grid.node(i,j,k)]; 
+	phi[Grid.node(i-2,j,k)] = -phi[Grid.node(i+1,j,k)];      
+      }
+    }
+    
+    if( Grid.is_gend[0] ) {
+      YZ_LOOP(Grid,j,k){
+	i=Grid.lend[0];
+	phi[Grid.node(i+1,j,k)] = -phi[Grid.node(i,j,k)]; 
+	phi[Grid.node(i+2,j,k)] = -phi[Grid.node(i-1,j,k)];   
+      }
+    }
+
+    YZ_LOOP(Grid,j,k){
+      off0 = j*next[1]+k*next[2];
+    
+      for(v=0;v<Grid.NDIM;v++){
+	offBv = off0*nvar+5+v;
+      
+	offp1 = off0 + next[v];
+	offp2 = off0 + 2*next[v];
+	offn1 = off0 - next[v];
+	offn2 = off0 - 2*next[v];
+	
+        #pragma ivdep
+	for(i=i_beg;i<=i_end;i++){
+	  
+	  U[offBv+i*nvar] +=
+	    (w1[v]*(phi[offp1+i]-phi[offn1+i])+
+	     w2[v]*(phi[offp2+i]-phi[offn2+i]));
+
+	}
+      }
+
+      #pragma ivdep
+      for(i=i_beg;i<=i_end;i++)
+	U[(off0+i)*nvar+4] += phi[off0+i]*divB[off0+i];
+
+      if(need_diagnostics){
+        #pragma ivdep
+	for(i=i_beg;i<=i_end;i++){	  
+	  Grid.Qres[off0+i] += phi[off0+i]*divB[off0+i]*invdt;	  	
+	}
+      }
+            
+    }
+
+    time=MPI_Wtime();
+    exchange_B(Grid);    
+    etime+=MPI_Wtime()-time;
+    
+    err_loc[1] = 0.0;
+    YZ_LOOP(Grid,j,k){
+      off0 = j*next[1]+k*next[2];
+    
+      for(i=i_beg;i<=i_end;i++)
+	divB[off0+i]  = 0.0;
+    
+      for(v=0;v<Grid.NDIM;v++){
+	offBv = off0*nvar+5+v;
+      
+	offp1 = offBv + nvar*next[v];
+	offp2 = offBv + nvar*2*next[v];
+	offn1 = offBv - nvar*next[v];
+	offn2 = offBv - nvar*2*next[v];
+	
+        #pragma ivdep
+	for(i=i_beg;i<=i_end;i++){
+	
+	  divB[off0+i] +=
+	    (w1[v]*(U[offp1+i*nvar]-U[offn1+i*nvar])+
+	     w2[v]*(U[offp2+i*nvar]-U[offn2+i*nvar]));
+	  
+	}
+      }
+
+      err = 0.0;
+      #pragma ivdep
+      for(i=i_beg;i<=i_end;i++)
+	err = max(err,fabs(divB[off0+i]));
+
+      err_loc[1] = max(err_loc[1],err);
+    }
+    
+  }
+
+  time=MPI_Wtime();      
+  MPI_Allreduce(err_loc,err_glo,2,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
+  atime+=MPI_Wtime()-time;
+  
+  err_glo[0] *= err_unit;
+  err_glo[1] *= err_unit;
+
+  err = err_glo[1]/err_glo[0];
+
+  conv = pow(err_glo[0]/err_glo[1],1./float(iter));
+
+  if(err > divB_err)
+    next_iter += 1;
+  else
+    next_iter -= 1;
+
+  next_iter = min(next_iter,it_max);
+  next_iter = max(1,next_iter);
+  
+  if ( (Run.rank == 0) && (Run.verbose  > 0) ){
+    cout << "divB_max [" << iter << "] " << err_glo[0] << " -> " << err_glo[1] << " [G]   ("  << conv << ")"  << endl;
+  }
+
+  ttime = MPI_Wtime() - ttime;
+
+  if (Run.rank == 0){
+    if(Run.verbose  > 2){
+      cout << "divB time : " << ttime << ' ' << etime << ' ' << atime << ' '
+           << (etime+atime)/ttime << endl;
+    }
+  }
+
+}
