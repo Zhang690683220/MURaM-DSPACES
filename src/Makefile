@@ -52,7 +52,7 @@ clean:
 
 distclean: 
 	@list='$(SUBDIRS)' ; for subdir in $$list ; do $(MAKE) distclean -C   $$subdir ; done
-	rm -f $(OBJS) core $(PROGRAM) $(MAKEFILE).bak $(MAKEFILE)
+	rm -f $(OBJS) core $(PROGRAM) 
 
 install:
 	cp -v $(PROGRAM) /usr/local/bin/

@@ -1,3 +1,5 @@
+include ../../../Make_defs
+############################################
 .SILENT:
 
 INCDIR = ../include
@@ -5,9 +7,6 @@ LIBDIR = ../lib
 CFDLIB = $(LIBDIR)/libcfd.a
 LIBS   = -L$(LIBDIR) -lcfd -lm
 
-OPT = -O2
-
-CCC = mpic++
 CCFLAGS = $(OPT) -I$(INCDIR)
 
 SHELL = /bin/sh
@@ -57,15 +56,3 @@ clean:
 distclean: clean
 	-rm -f $(LIBDIR)/$(CFDLIB)
 
-######### Suffix rules ########################################
-
-.SUFFIXES : .o .cpp .c++ .C
-.cpp.o:
-	echo "Compiling $<"
-	$(CCC) $(CCFLAGS) -c $<
-.c++.o:
-	echo "Compiling $<"
-	$(CCC) $(CCFLAGS) -c $<
-.C.o:
-	echo "Compiling $<"
-	$(CCC) $(CCFLAGS) -c $<

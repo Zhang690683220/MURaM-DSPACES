@@ -35,7 +35,7 @@ clean:
 
 distclean:
 		@list='$(SUBDIRS)' ; for subdir in $$list ; do $(MAKE) distclean -C   $$subdir; done
-		$(RM) -f $(OBJS) core $(LIBRARY) $(MAKEFILE)
+		$(RM) -f $(OBJS) core $(LIBRARY) 
 
 dep:		depend
 
