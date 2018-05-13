@@ -71,7 +71,7 @@ public:
 
   int NeedsOutput() const { return !(globiter%resfreq);  }
   int NeedsBackup() const { return !(globiter%backfreq); }
-  int NeedsSlice()  const { return !(globiter%slicefreq); }
+  int NeedsSlice()  const { return (!(globiter%slicefreq) || !(globiter%resfreq)); }
 
   void Synchronize(real);
   void Show() const;

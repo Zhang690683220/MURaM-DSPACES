@@ -39,7 +39,7 @@ void ComputeSolution(RunData& Run,GridData& Grid,const PhysicsData& Physics,RTS 
   int wtime_backup;
   double inv_it, inv_time;
 
-  int output_flag,pt_update;
+  int pt_update;
 
   double maxWtime,endWtime;
 
@@ -122,7 +122,7 @@ void ComputeSolution(RunData& Run,GridData& Grid,const PhysicsData& Physics,RTS 
           
 	  io_time+=MPI_Wtime()-clock;
 	  if (Run.rank == 0){
-	    if(Run.verbose >0) cout << "eos output in " << MPI_Wtime()-clock 
+	    if(Run.verbose >0) cout << "Output (EOS) in " << MPI_Wtime()-clock 
 		 << " seconds" << endl;
 	  }
 	}
@@ -256,30 +256,6 @@ void ComputeSolution(RunData& Run,GridData& Grid,const PhysicsData& Physics,RTS 
       io_time += MPI_Wtime()-clock;         
     }
 
-    output_flag = 0;
-    int needoutput = (((Run.NeedsOutput())&&(Run.outcad==0))||((Run.dt_rem()==0)&&(Run.outcad>0))||(Run.NeedsBackup()));
-    if(needoutput){
-      clock=MPI_Wtime();
-      OutputSolution(Run,Grid,Physics);
-      bc_time = MPI_Wtime()-clock;
-      if (Run.rank == 0){
-        if(Run.verbose >0) cout << "Output in " << MPI_Wtime()-clock 
-          << " seconds" << endl;
-        ofstream fptr("output.log",ios::out|ios::app);
-        fptr.precision(10);
-        fptr << Run.globiter << ' ' << Run.time << endl;
-        fptr.close();
-      }
-      io_time += MPI_Wtime()-clock;
-      output_flag = 1;
-      clock=MPI_Wtime();
-      if ((Run.dt_rem()==0)&&(Run.outcad>0)) eos_output(Run,Grid,Physics,rts); 
-      io_time+=MPI_Wtime()-clock;
-      if (Run.rank == 0){
-        if(Run.verbose >0) cout << "eos output in " << MPI_Wtime()-clock 
-          << " seconds" << endl;
-      }
-    }
     /* 
        Root determines if end of run backup needed (to avoid problems in the
        case that MPI_Wtime is not sufficiently syncronized)    
@@ -301,18 +277,29 @@ void ComputeSolution(RunData& Run,GridData& Grid,const PhysicsData& Physics,RTS 
     if ((wtime_backup == 1) && (Run.maxWtime < 0) ){
       endWtime = 1;  
     }   
-      
-    if( Run.NeedsBackup() or (wtime_backup == 1) ){
+
+    int needoutput = ( ((Run.NeedsOutput())&&(Run.outcad==0)) || ((Run.dt_rem()==0)&&(Run.outcad>0)) || 
+		       Run.NeedsBackup() || (wtime_backup == 1) );
+    if(needoutput){
       clock=MPI_Wtime();  
       BackupSolution(Run,Grid,Physics);
-      if (output_flag == 0){
-	bc_time = MPI_Wtime()-clock;
-      }
+      bc_time = MPI_Wtime()-clock;
+      
       if (Run.rank == 0){
-	if(Run.verbose >0) cout << "Backup in " << MPI_Wtime()-clock 
+	if(Run.verbose >0) cout << "Output(Res)in " << MPI_Wtime()-clock 
 				<< " seconds" << endl;
       }
       io_time += MPI_Wtime()-clock;
+
+      if ((Run.dt_rem()==0)&&(Run.outcad>0)) {
+	clock=MPI_Wtime();
+	eos_output(Run,Grid,Physics,rts); 
+	io_time+=MPI_Wtime()-clock;
+	if (Run.rank == 0){
+	  if(Run.verbose >0) cout << "Output (EOS) in " << MPI_Wtime()-clock 
+				  << " seconds" << endl;
+	}
+      }
     }
  
     if( Run.rank==0 ){

@@ -228,30 +228,35 @@ void BackupSolution(const RunData& Run,const GridData& Grid,
   int prevbackup;
   double time;
 
+  int max_vars = Physics.NVAR;
+  if(Physics.params[i_param_spitzer] > 0.0)
+    max_vars = Physics.NVAR+1;
+
   if( Run.rank==0 ) {
     ReadBackupFile(Run.backfile,0,&prevbackup,&time);
     if( prevbackup%Run.resfreq ) erase_flag = 1;
   }
 
-  // Output solution
-  if( Run.globiter%Run.resfreq ){
-    OutputSolution(Run,Grid,Physics);
-  }
+  OutputSolution(Run,Grid,Physics);
   
   if( Run.rank==0 ) {
     WriteBackupFile(Run.backfile,Run.globiter,Run.time);  
     WriteHeaderFile(Grid,Run);
   }
   
-  // erase old backup file after successful output of new file 
+  // erase old backup file after successful output of new file, use here a Barrier
+  // to ensure all processes are done writing before erasing previous
+  MPI_Barrier(MPI_COMM_WORLD);
   if( Run.rank==0 ) {
     if(erase_flag){
       cout << "erase: " << Run.globiter << " " << prevbackup << endl;
-      for(v=0;v<9;v++) {
+      for(v=0;v<max_vars;v++) {
 	sprintf(resfile,"%s%s_%s_%d.%06d",Run.path_3D,Run.resfile,
 		"prim",v,prevbackup);
 	remove(resfile);
       }
+      sprintf(resfile,"%s%s.%06d",Run.path_3D,"Header",prevbackup);
+      remove(resfile);
     }
   }
 }
