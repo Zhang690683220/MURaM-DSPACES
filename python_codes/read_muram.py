@@ -40,41 +40,142 @@ def read_Iout(dir,iter):
   size = tmp[1:3].astype(int)
   time = tmp[3]
 
-  return tmp[4:].reshape(size),size,time
+  return tmp[4:].reshape([size[1],size[0]]).swapaxes(0,1),size,time
 
-def read_tauslice(dir,depth,iter):
+def read_header(dir,iter):
 
-  tmp = np.fromfile(dir+'tau_slice_'+depth+'.'+inttostring(iter,ts_size=6),dtype=np.float32)
+    header = np.loadtxt(dir+'Header.'+inttostring(iter,ts_size=6))
 
-  nslices = tmp[0].astype(int)
-  size = tmp[1:3].astype(int)
-  time = tmp[3]
+    return header
 
-  return tmp[4:].reshape([nslices,size[1],size[0]]).swapaxes(1,2),nslices,size,time
+def read_var_3d(dir,var,iter,layout=None):
 
-def read_xyslice(dir,gridpt,iter):
+  h = read_header(dir,iter)
 
-  tmp = np.fromfile(dir+'xy_slice_'+gridpt+'.'+inttostring(iter,ts_size=6),dtype=np.float32)
+  size = h[0:3].astype(int)
+  dx   = h[3:6]
+  time = h[6]
 
-  nslices = tmp[0].astype(int)
-  size = tmp[1:3].astype(int)
-  time = tmp[3]
+  tmp = np.fromfile(dir+var+'.'+ inttostring(iter,ts_size=6),dtype=np.float32)
+  tmp = tmp.reshape([size[2],size[1],size[0]])
 
-  return tmp[4:].reshape([nslices,size[1],size[0]]).swapaxes(1,2),nslices,size,time
+  if layout != None :
+      tmp = tmp.transpose(layout)
 
-def read_yzslice(dir,gridpt,iter):
+  return tmp,dx,size,time
 
-  tmp = np.fromfile(dir+'yz_slice_'+gridpt+'.'+inttostring(iter,ts_size=6),dtype=np.float32)
 
-  nslices = tmp[0].astype(int)
-  size = tmp[1:3].astype(int)
-  time = tmp[3]
+def read_dem(path,dir,iter,max_bins=None):
 
-  return tmp[4:].reshape([nslices,size[1],size[0]]).swapaxes(1,2),nslices,size,time
+  tmp = np.fromfile(path+'corona_emission_adj_dem_'+dir+'.'+ inttostring(iter,ts_size=6),dtype=np.float32)
 
-def read_xzslice(dir,gridpt,iter):
+  bins   = tmp[0].astype(int)
+  size   = tmp[1:3].astype(int)
+  time   = tmp[3]
+  lgTmin = tmp[4]
+  dellgT = tmp[5]
 
-  tmp = np.fromfile(dir+'xz_slice_'+gridpt+'.'+ inttostring(iter,ts_size=6),dtype=np.float32)
+  dem = tmp[6:].reshape([bins,size[1],size[0]]).transpose(2,1,0)
+
+  taxis = lgTmin+dellgT*np.arange(0,bins+1)
+
+  X_H = 0.7
+  dem = dem*X_H*0.5*(1+X_H)*3.6e19
+
+  if max_bins != None:
+    if bins > max_bins :
+      dem = dem[:,:,0:max_bins]
+    else :
+      tmp=dem
+      dem=np.zeros([size[0],size[1],max_bins])
+      dem[:,:,0:bins]=tmp
+
+    taxis = lgTmin+dellgT*np.arange(0,max_bins+1)
+
+  return dem,taxis,time
+
+def read_vlos(path,dir,iter,max_bins=None):
+
+  tmp = np.fromfile(path+'corona_emission_adj_vlos_'+dir+'.'+ inttostring(iter,ts_size=6),dtype=np.float32)
+
+  bins   = tmp[0].astype(int)
+  size   = tmp[1:3].astype(int)
+  time   = tmp[3]
+  lgTmin = tmp[4]
+  dellgT = tmp[5]
+
+  vlos = tmp[6:].reshape([bins,size[1],size[0]]).transpose(2,1,0)
+
+  taxis = lgTmin+dellgT*np.arange(0,bins+1)
+
+  if max_bins != None:
+    if bins > max_bins :
+      vlos = vlos[:,:,0:max_bins]
+    else :
+      tmp=vlos
+      vlos=np.zeros([size[0],size[1],max_bins])
+      vlos[:,:,0:bins]=tmp
+
+    taxis = lgTmin+dellgT*np.arange(0,max_bins+1)
+
+  return vlos,taxis,time
+
+
+def read_vrms(path,dir,iter,max_bins=None):
+
+  tmp = np.fromfile(path+'corona_emission_adj_vrms_'+dir+'.'+ inttostring(iter,ts_size=6),dtype=np.float32)
+
+  bins   = tmp[0].astype(int)
+  size   = tmp[1:3].astype(int)
+  time   = tmp[3]
+  lgTmin = tmp[4]
+  dellgT = tmp[5]
+
+  vlos = tmp[6:].reshape([bins,size[1],size[0]]).transpose(2,1,0)
+
+  taxis = lgTmin+dellgT*np.arange(0,bins+1)
+
+  if max_bins != None:
+    if bins > max_bins :
+      vlos = vlos[:,:,0:max_bins]
+    else :
+      tmp=vlos
+      vlos=np.zeros([size[0],size[1],max_bins])
+      vlos[:,:,0:bins]=tmp
+
+    taxis = lgTmin+dellgT*np.arange(0,max_bins+1)
+
+  return vlos,taxis,time
+
+def read_fil(path,dir,iter,max_bins=None):
+
+  tmp = np.fromfile(path+'corona_emission_adj_fil_'+dir+'.'+ inttostring(iter,ts_size=6),dtype=np.float32)
+
+  bins   = tmp[0].astype(int)
+  size   = tmp[1:3].astype(int)
+  time   = tmp[3]
+  lgTmin = tmp[4]
+  dellgT = tmp[5]
+
+  vlos = tmp[6:].reshape([bins,size[1],size[0]]).transpose(2,1,0)
+
+  taxis = lgTmin+dellgT*np.arange(0,bins+1)
+
+  if max_bins != None:
+    if bins > max_bins :
+      vlos = vlos[:,:,0:max_bins]
+    else :
+      tmp=vlos
+      vlos=np.zeros([size[0],size[1],max_bins])
+      vlos[:,:,0:bins]=tmp
+
+    taxis = lgTmin+dellgT*np.arange(0,max_bins+1)
+
+  return vlos,taxis,time
+
+def read_slice(dir,var,depth,iter):
+
+  tmp = np.fromfile(dir+var+'_slice_'+depth+'.'+inttostring(iter,ts_size=6),dtype=np.float32)
 
   nslices = tmp[0].astype(int)
   size = tmp[1:3].astype(int)
