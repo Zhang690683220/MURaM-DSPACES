@@ -306,7 +306,7 @@ class MURaM_snap:
 
     self.dir = dir
 
-  def load(self,iter,primative=True,tooload=['rho','vx','vy','vz','bx','by','bz'],logfile='output.log'):
+  def load(self,iter,primative=True,tooload=['rho','vx','vy','vz','bx','by','bz']):
 
     def loadrho(iter,primative):
       if primative:
@@ -528,14 +528,10 @@ class MURaM_snap:
 
     self.iter = np.int(iter)
 
-    if iter is not '000000':
-      with open(self.dir+logfile,'r') as f:
-        for line in f:
-          if iter in line:    
-            self.time = float(line.split(" ")[1])
-    else:
-      self.time = 0.0
-
+    h = read_header(self.dir+'3D/',self.iter)
+    self.time = h[6]
+    
+    
     # If not primative, and vx,vy,vz are needed we must include rho in tooload
     if primative and bool(set(tooload) & set(['vx','vy','vz'])):
       tooload.insert(0,'rho')
