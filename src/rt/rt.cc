@@ -1012,14 +1012,14 @@ void RTS::driver(double DZ, double DX, double DY, int band){
 void RTS::interpol(int zi_i,int zi_f,int zstep,int xi_i,int xi_f,int xstep,
            int yi_i,int yi_f,int ystep,int l,double** coeff, double *** Ss)
 {
+  double source[nz],expo[nz],dt[nz],r_upw[nz],
+         k_upw[nz],S_upw[nz],r0[nz],k0[nz],S0[nz];
 
   double ds3=ds_upw[l]*inv3,ds6=ds_upw[l]*inv6;
   double c[]={a_00[ibase[l]][l],a_01[ibase[l]][l],a_10[ibase[l]][l],a_11[ibase[l]][l]};
 
   int zmin=(zi_i<zi_f)?zi_i:zi_f;
   int zmax=(zi_i>zi_f)?zi_i:zi_f;
-
-  double source[zmax+1],expo[zmax+1],dt[zmax+1],r_upw[zmax+1],k_upw[zmax+1],S_upw[zmax+1],r0[zmax+1],k0[zmax+1],S0[zmax+1];
 
   int i_nu=0;
 
