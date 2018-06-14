@@ -105,10 +105,33 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
     dxmax  = max(dxmax,Grid.dx[d]);
   }
 
-  double var[v_nvar][vsize], flx[v_nvar][vsize], res[v_nvar][vsize] curlBxB[3][vsize];
-  double lf1[vsize], msx[vsize], msy[vsize], msz[vsize], lrt[3][vsize], pres[vsize],
-    sflx[vsize],fcond[vsize],curlB[3][vsize], bb[vsize], vv[vsize], vv_amb[vsize],
-    v_amb[3][vsize], amb_fac[vsize], D_n[vsize], temp[vsize], BgradT[vsize], hyp_spt[vsize];
+  //double var[v_nvar][vsize]; // flx[v_nvar][vsize]; //, res[v_nvar][vsize]; // curlBxB[3][vsize];
+  //double lf1[vsize], msx[vsize], msy[vsize], msz[vsize]; // lrt[3][vsize], pres[vsize],
+    //sflx[vsize],fcond[vsize]; //,curlB[3][vsize]; //, bb[vsize], vv[vsize], vv_amb[vsize];
+    //v_amb[3][vsize]; //, amb_fac[vsize]; //, D_n[vsize], temp[vsize], BgradT[vsize], hyp_spt[vsize];
+
+  double *curlBxB = (double*) malloc(3*vsize*sizeof(double));
+  double *res     = (double*) malloc(v_nvar*vsize*sizeof(double));
+  double *flx     = (double*) malloc(v_nvar*vsize*sizeof(double));
+  double *var     = (double*) malloc(v_nvar*vsize*sizeof(double));
+  double *D_n     = (double*) malloc(vsize*sizeof(double));
+  double *temp    = (double*) malloc(vsize*sizeof(double));
+  double *BgradT  = (double*) malloc(vsize*sizeof(double));
+  double *hyp_spt = (double*) malloc(vsize*sizeof(double));
+  double *amb_fac = (double*) malloc(vsize*sizeof(double));
+  double *v_amb   = (double*) malloc(3*vsize*sizeof(double));
+  double *vv_amb  = (double*) malloc(vsize*sizeof(double));
+  double *vv      = (double*) malloc(vsize*sizeof(double));
+  double *bb      = (double*) malloc(vsize*sizeof(double));
+  double *curlB   = (double*) malloc(3*vsize*sizeof(double));
+  double *fcond   = (double*) malloc(vsize*sizeof(double));
+  double *sflx    = (double*) malloc(vsize*sizeof(double));
+  double *pres    = (double*) malloc(vsize*sizeof(double));
+  double *lrt     = (double*) malloc(3*vsize*sizeof(double));
+  double *msx     = (double*) malloc(vsize*sizeof(double));
+  double *msy     = (double*) malloc(vsize*sizeof(double));
+  double *msz     = (double*) malloc(vsize*sizeof(double));
+  double *lf1     = (double*) malloc(vsize*sizeof(double));
     
   // Estimate max characteristic velocity from previous time step (not defined at restart, use va_max instead) 
   if (Run.dt > 0.0) {
@@ -180,14 +203,14 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
 #pragma acc loop vector private(node)
         for(i=0;i<sz;i++){
 	        node = offset+i*str;
-	        var[0][i] = U[node].d;
-	        var[1][i] = U[node].M.x;
-	        var[2][i] = U[node].M.y;
-	        var[3][i] = U[node].M.z;
-	        var[4][i] = U[node].e;
-	        var[5][i] = U[node].B.x;
-	        var[6][i] = U[node].B.y;	
-	        var[7][i] = U[node].B.z;
+	        var[i*v_nvar+0] = U[node].d;
+	        var[i*v_nvar+1] = U[node].M.x;
+	        var[i*v_nvar+2] = U[node].M.y;
+	        var[i*v_nvar+3] = U[node].M.z;
+	        var[i*v_nvar+4] = U[node].e;
+	        var[i*v_nvar+5] = U[node].B.x;
+	        var[i*v_nvar+6] = U[node].B.y;	
+	        var[i*v_nvar+7] = U[node].B.z;
 
 	        pres[i]   = Grid.pres[node];
 	        temp[i]   = Grid.temp[node];
@@ -214,7 +237,7 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
 	          rho_i = Grid.rhoi[node];
 	          nu_in = Grid.amb[node];
 
-	          D_n[i] = max(0.0,1.0-rho_i/var[0][i]);
+	          D_n[i] = max(0.0,1.0-rho_i/var[i*v_nvar+0]);
 	          
 	          amb_fac[i] = 1.0/(rho_i*nu_in);
 	          
@@ -226,11 +249,13 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
 	          // test profile
 	          //amb_fac[i] = 1e12*max(0.0,min(1.0,5.0-1e-3*temp[i]));
 	          
-	          v_amb[0][i] = Grid.v_amb[node].x*D_n[i];
-	          v_amb[1][i] = Grid.v_amb[node].y*D_n[i];
-	          v_amb[2][i] = Grid.v_amb[node].z*D_n[i];
+	          v_amb[i*3+0] = Grid.v_amb[node].x*D_n[i];
+	          v_amb[i*3+1] = Grid.v_amb[node].y*D_n[i];
+	          v_amb[i*3+2] = Grid.v_amb[node].z*D_n[i];
 
-	          vv_amb[i] = sqrt(v_amb[0][i]*v_amb[0][i]+v_amb[1][i]*v_amb[1][i]+v_amb[2][i]*v_amb[2][i]);
+	          vv_amb[i] = sqrt(v_amb[i*3+0]*v_amb[i*3+0]
+                            +v_amb[i*3+1]*v_amb[i*3+1]
+                            +v_amb[i*3+2]*v_amb[i*3+2]);
 	        }
         } // end if(ambipolar)
       
@@ -239,25 +264,27 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
         //time = MPI_Wtime();
 #pragma acc loop vector private(vel, mag, dn, va2, ekin, pmag, x2, x4, s, lf, cs2, cmax, mflx)
         for(i=0;i<sz;i++){ 
-          res[0][i] = 0.0;
-          res[1][i] = 0.0;
-          res[2][i] = 0.0;
-          res[3][i] = 0.0;
-          res[4][i] = 0.0;
-          res[5][i] = 0.0;
-          res[6][i] = 0.0;
-          res[7][i] = 0.0;
+          res[i*v_nvar+0] = 0.0;
+          res[i*v_nvar+1] = 0.0;
+          res[i*v_nvar+2] = 0.0;
+          res[i*v_nvar+3] = 0.0;
+          res[i*v_nvar+4] = 0.0;
+          res[i*v_nvar+5] = 0.0;
+          res[i*v_nvar+6] = 0.0;
+          res[i*v_nvar+7] = 0.0;
               
-          vel = var[1+d1][i];
-          mag = var[5+d1][i];
+          vel = var[i*v_nvar+1+d1];
+          mag = var[i*v_nvar+5+d1];
 
-          dn   = 1.0/var[0][i];
+          dn   = 1.0/var[i*v_nvar+0];
 
-          vv[i] = var[1][i]*var[1][i]+var[2][i]*var[2][i]+var[3][i]*var[3][i];
-          bb[i] = var[5][i]*var[5][i]+var[6][i]*var[6][i]+var[7][i]*var[7][i];
+          vv[i] = var[i*v_nvar+1]*var[i*v_nvar+1]+var[i*v_nvar+2]*var[i*v_nvar+2]
+                + var[i*v_nvar+3]*var[i*v_nvar+3];
+          bb[i] = var[i*v_nvar+5]*var[i*v_nvar+5]+var[i*v_nvar+6]*var[i*v_nvar+6]
+                + var[i*v_nvar+7]*var[i*v_nvar+7];
 
           va2  = bb[i]*dn;
-          ekin = 0.5*var[0][i]*vv[i];
+          ekin = 0.5*var[i*v_nvar+0]*vv[i];
           pmag = 0.5*bb[i];
 
           // approximation of 1/sqrt(1+(va/c)^4)
@@ -273,32 +300,32 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
 
           lf1[i] = lf;
 
-          mflx = vel*var[0][i];
+          mflx = vel*var[i*v_nvar+0];
 
           // Mass, momentum and energy fluxes without Maxwell stress
-          flx[0][i] = mflx;
-          flx[1][i] = mflx*var[1][i] + p1*pres[i];
-          flx[2][i] = mflx*var[2][i] + p2*pres[i];
-          flx[3][i] = mflx*var[3][i] + p3*pres[i];
-          flx[4][i] = vel*(var[4][i]+ekin+pres[i]);
+          flx[i*v_nvar+0] = mflx;
+          flx[i*v_nvar+1] = mflx*var[i*v_nvar+1] + p1*pres[i];
+          flx[i*v_nvar+2] = mflx*var[i*v_nvar+2] + p2*pres[i];
+          flx[i*v_nvar+3] = mflx*var[i*v_nvar+3] + p3*pres[i];
+          flx[i*v_nvar+4] = vel*(var[i*v_nvar+4]+ekin+pres[i]);
 
           //Induction  equation
-          flx[5][i] = vel*var[5][i] - var[1][i]*mag;
-          flx[6][i] = vel*var[6][i] - var[2][i]*mag;
-          flx[7][i] = vel*var[7][i] - var[3][i]*mag;
+          flx[i*v_nvar+5] = vel*var[i*v_nvar+5] - var[i*v_nvar+1]*mag;
+          flx[i*v_nvar+6] = vel*var[i*v_nvar+6] - var[i*v_nvar+2]*mag;
+          flx[i*v_nvar+7] = vel*var[i*v_nvar+7] - var[i*v_nvar+3]*mag;
 
           // Maxwell stress
-          msx[i] = mag*var[5][i] - p1*pmag;
-          msy[i] = mag*var[6][i] - p2*pmag;
-          msz[i] = mag*var[7][i] - p3*pmag;
+          msx[i] = mag*var[i*v_nvar+5] - p1*pmag;
+          msy[i] = mag*var[i*v_nvar+6] - p2*pmag;
+          msz[i] = mag*var[i*v_nvar+7] - p3*pmag;
         }
 
         // Ambipolar induction
         if(ambipolar){
           for(i=0;i<sz;i++){
-            flx[5][i] += v_amb[d1][i]*var[5][i] - v_amb[0][i]*var[5+d1][i];
-            flx[6][i] += v_amb[d1][i]*var[6][i] - v_amb[1][i]*var[5+d1][i];
-            flx[7][i] += v_amb[d1][i]*var[7][i] - v_amb[2][i]*var[5+d1][i];
+            flx[i*v_nvar+5] += v_amb[i*3+d1]*var[i*v_nvar+5] - v_amb[i*3+0]*var[i*v_nvar+5+d1];
+            flx[i*v_nvar+6] += v_amb[i*3+d1]*var[i*v_nvar+6] - v_amb[i*3+1]*var[i*v_nvar+5+d1];
+            flx[i*v_nvar+7] += v_amb[i*3+d1]*var[i*v_nvar+7] - v_amb[i*3+2]*var[i*v_nvar+5+d1];
           }
         }
 
@@ -306,10 +333,10 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
         if(spitzer){
 #pragma acc loop vector
           for(i=0;i<sz;i++)
-            flx[4][i] += sflx[i]*var[5+d1][i];
+            flx[i*v_nvar+4] += sflx[i]*var[i*v_nvar+5+d1];
 #pragma acc loop vector
           for(i=gh;i<sz-gh;i++){
-            BgradT[i]  = var[5+d1][i]*(w1*(temp[i+1]-temp[i-1])+w2*(temp[i+2]-temp[i-2]));
+            BgradT[i]  = var[i*v_nvar+5+d1]*(w1*(temp[i+1]-temp[i-1])+w2*(temp[i+2]-temp[i-2]));
             hyp_spt[i] = (sflx[i+2]+sflx[i-2])-4.*(sflx[i+1]+sflx[i-1])+6.*sflx[i];
           }
         }
@@ -317,27 +344,27 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
 #pragma acc loop vector collapse(2)
         for (ivar=0;ivar<nvar;ivar++)
 	        for(i=gh;i<sz-gh;i++)
-	          res[ivar][i] -= 
-	            w1*(flx[ivar][i+1]-flx[ivar][i-1])+
-	            w2*(flx[ivar][i+2]-flx[ivar][i-2]);
+	          res[i*v_nvar+ivar] -= 
+	            w1*(flx[(i+1)*v_nvar+ivar]-flx[(i-1)*v_nvar+ivar])+
+	            w2*(flx[(i+2)*v_nvar+ivar]-flx[(i-2)*v_nvar+ivar]);
 
         if (need_diagnostics){
 	        if(spitzer){
 #pragma acc loop vector
 	          for(i=0;i<sz;i++)
-	            fcond[i] = sflx[i]*var[5+d1][i];
+	            fcond[i] = sflx[i]*var[i*v_nvar+5+d1];
 #pragma acc loop vector private(node, dn)
 	          for(i=gh;i<sz-gh;i++){
 	            node = offset+i*str;
 	            dn =-(w1*(fcond[i+1]-fcond[i-1])+w2*(fcond[i+2]-fcond[i-2]));
-	            Grid.tvar1[node] += res[4][i]-dn;
+	            Grid.tvar1[node] += res[i*v_nvar+4]-dn;
 	            Grid.tvar2[node] += dn;
 	          }
 	        } else {
 #pragma acc loop vector private(node)
 	          for(i=gh;i<sz-gh;i++){
 	            node = offset+i*str;
-	            Grid.tvar1[node] += res[4][i];
+	            Grid.tvar1[node] += res[i*v_nvar+4];
 	          }
 	        }
         } // end if(need_diagnostics)
@@ -345,43 +372,47 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
         // Special treatment of Lorentz force for Boris Correction
 #pragma acc loop vector private(dB2, dB3)
         for(i=gh;i<sz-gh;i++){
-	        dB2 = w1*(var[5+d2][i+1]-var[5+d2][i-1])+w2*(var[5+d2][i+2]-var[5+d2][i-2]);
-	        dB3 = w1*(var[5+d3][i+1]-var[5+d3][i-1])+w2*(var[5+d3][i+2]-var[5+d3][i-2]);
+	        dB2 = w1*(var[(i+1)*v_nvar+5+d2]-var[(i-1)*v_nvar+5+d2])+w2*(var[(i+2)*v_nvar+5+d2]-var[(i-2)*v_nvar+5+d2]);
+	        dB3 = w1*(var[(i+1)*v_nvar+5+d3]-var[(i-1)*v_nvar+5+d3])+w2*(var[(i+2)*v_nvar+5+d3]-var[(i-2)*v_nvar+5+d3]);
 
 	        // Lorentz force
-	        curlBxB[d1][i] =-var[5+d2][i]*dB2-var[5+d3][i]*dB3;
-	        curlBxB[d2][i] = var[5+d1][i]*dB2;
-	        curlBxB[d3][i] = var[5+d1][i]*dB3;
+	        curlBxB[i*3+d1] =-var[i*v_nvar+5+d2]*dB2-var[i*v_nvar+5+d3]*dB3;
+	        curlBxB[i*3+d2] = var[i*v_nvar+5+d1]*dB2;
+	        curlBxB[i*3+d3] = var[i*v_nvar+5+d1]*dB3;
 
 	        // curlB
-	        curlB[d1][i] = 0;
-	        curlB[d2][i] = sign[d1]*dB3;
-	        curlB[d3][i] =-sign[d1]*dB2;
+	        curlB[i*3+d1] = 0;
+	        curlB[i*3+d2] = sign[d1]*dB3;
+	        curlB[i*3+d3]=-sign[d1]*dB2;
         }
         
 #pragma acc loop vector private(lf)
         for(i=gh;i<sz-gh;i++){
-	        lrt[0][i] = w1*(msx[i+1]-msx[i-1])+w2*(msx[i+2]-msx[i-2]);
-	        lrt[1][i] = w1*(msy[i+1]-msy[i-1])+w2*(msy[i+2]-msy[i-2]);
-	        lrt[2][i] = w1*(msz[i+1]-msz[i-1])+w2*(msz[i+2]-msz[i-2]);
+	        lrt[i*3+0] = w1*(msx[i+1]-msx[i-1])+w2*(msx[i+2]-msx[i-2]);
+	        lrt[i*3+1] = w1*(msy[i+1]-msy[i-1])+w2*(msy[i+2]-msy[i-2]);
+	        lrt[i*3+2] = w1*(msz[i+1]-msz[i-1])+w2*(msz[i+2]-msz[i-2]);
 
 	        // Transition from stress to jxB based on lfac
 	        lf=lf1[i];
-	        lrt[0][i] = lf*lrt[0][i] + (1.0-lf)*curlBxB[0][i];
-	        lrt[1][i] = lf*lrt[1][i] + (1.0-lf)*curlBxB[1][i];
-	        lrt[2][i] = lf*lrt[2][i] + (1.0-lf)*curlBxB[2][i];
+	        lrt[i*3+0] = lf*lrt[i*3+0] + (1.0-lf)*curlBxB[i*3+0];
+	        lrt[i*3+1] = lf*lrt[i*3+1] + (1.0-lf)*curlBxB[i*3+1];
+	        lrt[i*3+2] = lf*lrt[i*3+2] + (1.0-lf)*curlBxB[i*3+2];
 	
-	        res[1][i] += lrt[0][i];
-	        res[2][i] += lrt[1][i];
-	        res[3][i] += lrt[2][i];
-	        res[4][i] += var[1][i]*lrt[0][i]+var[2][i]*lrt[1][i]+var[3][i]*lrt[2][i];
+	        res[i*v_nvar+1] += lrt[i*3+0];
+	        res[i*v_nvar+2] += lrt[i*3+1];
+	        res[i*v_nvar+3] += lrt[i*3+2];
+	        res[i*v_nvar+4] += var[i*v_nvar+1]*lrt[i*3+0]
+                          +  var[i*v_nvar+2]*lrt[i*3+1]
+                          +  var[i*v_nvar+3]*lrt[i*3+2];
         }
 
         // Ambipolar heating + hyperdiffusion
         if(ambipolar){
 #pragma acc loop vector
 	        for(i=gh;i<sz-gh;i++){
-	          res[4][i] += v_amb[0][i]*lrt[0][i]+v_amb[1][i]*lrt[1][i]+v_amb[2][i]*lrt[2][i]; 
+	          res[i*v_nvar+4] += v_amb[i*3+0]*lrt[i*3+0]
+                            +  v_amb[i*3+1]*lrt[i*3+1]
+                            +  v_amb[i*3+2]*lrt[i*3+2]; 
 	        }
         } 
 
@@ -389,13 +420,17 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
 #pragma acc loop vector private(node)
           for(i=gh;i<sz-gh;i++){
             node = offset+i*str;
-            Grid.tvar3[node] += var[1][i]*lrt[0][i]+var[2][i]*lrt[1][i]+var[3][i]*lrt[2][i];
+            Grid.tvar3[node] += var[i*v_nvar+1]*lrt[i*3+0]
+                             +  var[i*v_nvar+2]*lrt[i*3+1]
+                             +  var[i*v_nvar+3]*lrt[i*3+2];
           }
           if(ambipolar)
 #pragma acc loop vector private(node)
             for(i=gh;i<sz-gh;i++){
               node = offset+i*str;
-              Grid.Qamb[node]  += v_amb[0][i]*lrt[0][i]+v_amb[1][i]*lrt[1][i]+v_amb[2][i]*lrt[2][i];  
+              Grid.Qamb[node]  += v_amb[i*3+0]*lrt[i*3+0]
+                               +  v_amb[i*3+1]*lrt[i*3+1]
+                               +  v_amb[i*3+2]*lrt[i*3+2];  
             }
         } // end if(diagnostics)
 
@@ -403,9 +438,9 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
 #pragma acc loop vector colapse(2)
           for(ivar=5;ivar<=7;ivar++){
             for(i=2;i<sz-2;i++){	    
-              res[ivar][i] += eta*(ww0*var[ivar][i]+
-                 ww1*(var[ivar][i+1]+var[ivar][i-1])+
-                 ww2*(var[ivar][i+2]+var[ivar][i-2])
+              res[i*v_nvar+ivar] += eta*(ww0*var[i*v_nvar+ivar]+
+                 ww1*(var[(i+1)*v_nvar+ivar]+var[(i-1)*v_nvar+ivar])+
+                 ww2*(var[(i+2)*v_nvar+ivar]+var[(i-2)*v_nvar+ivar])
                  );	
             }
           }	      
@@ -418,14 +453,14 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
 #pragma acc loop vector private(node)
         for(i=gh;i<sz-gh;i++){
           node = offset+i*str;
-          R[node].d   += res[0][i];
-          R[node].M.x += res[1][i];
-          R[node].M.y += res[2][i];
-          R[node].M.z += res[3][i];
-          R[node].e   += res[4][i];
-          R[node].B.x += res[5][i];
-          R[node].B.y += res[6][i];
-          R[node].B.z += res[7][i];
+          R[node].d   += res[i*v_nvar+0];
+          R[node].M.x += res[i*v_nvar+1];
+          R[node].M.y += res[i*v_nvar+2];
+          R[node].M.z += res[i*v_nvar+3];
+          R[node].e   += res[i*v_nvar+4];
+          R[node].B.x += res[i*v_nvar+5];
+          R[node].B.y += res[i*v_nvar+6];
+          R[node].B.z += res[i*v_nvar+7];
         }
 
         // use this to temporarily store stuff while building up jxB
@@ -434,9 +469,9 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
 #pragma acc loop vector private(node)
           for(i=gh;i<sz-gh;i++){
             node = offset+i*str;
-            Grid.curlBxB[node].x += lrt[0][i];
-            Grid.curlBxB[node].y += lrt[1][i];
-            Grid.curlBxB[node].z += lrt[2][i];
+            Grid.curlBxB[node].x += lrt[i*3+0];
+            Grid.curlBxB[node].y += lrt[i*3+1];
+            Grid.curlBxB[node].z += lrt[i*3+2];
           }
         }
 
@@ -455,9 +490,9 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
 #pragma acc loop vector private(node)
           for(i=gh;i<sz-gh;i++){
             node = offset+i*str;
-            Grid.curlB[node].x += curlB[0][i];
-            Grid.curlB[node].y += curlB[1][i];
-            Grid.curlB[node].z += curlB[2][i];
+            Grid.curlB[node].x += curlB[i*3+0];
+            Grid.curlB[node].y += curlB[i*3+1];
+            Grid.curlB[node].z += curlB[i*3+2];
           }
         }
 
@@ -503,14 +538,14 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
               c_lim    = cmax_hyp - vv[i];
               tt32     = temp[i]*sqrt(temp[i]);
               kap_spt  = k0_spt*temp[i]*tt32;
-              F_sat    = sat_flx*var[0][i]*tt32;  
+              F_sat    = sat_flx*var[i*v_nvar+0]*tt32;  
               invBB    = 1.0/max(1e-100,bb[i]);
               F_spt    =-kap_spt*Grid.BgradT[node];
               f_lim    = F_sat/(F_sat+fabs(F_spt*sqrt(invBB)));
               F_spt   *= invBB*f_lim;
               kap_spt *= f_lim;
               
-              nu_hyp = min(c_lim*c_lim*var[4][i]/(temp[i]*kap_spt),nu_hyp_max);
+              nu_hyp = min(c_lim*c_lim*var[i*v_nvar+4]/(temp[i]*kap_spt),nu_hyp_max);
 
               Grid.Rflx[node] += nu_hyp*(F_spt-Grid.sflx[node]);
             }
@@ -580,6 +615,29 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
   //cout << "MHD: " << t_time/call_count << ' ' 
   // << c_time/call_count << ' ' 
   // << r_time/call_count << endl;
+
+  free(curlBxB);
+  free(res);
+  free(flx);
+  free(var);
+  free(D_n);
+  free(temp);
+  free(BgradT);
+  free(hyp_spt);
+  free(amb_fac);
+  free(v_amb);
+  free(vv_amb);
+  free(vv);
+  free(bb);
+  free(curlB);
+  free(fcond);
+  free(sflx);
+  free(pres);
+  free(lrt);
+  free(msx);
+  free(msy);
+  free(msz);
+  free(lf1);
 
   call_count += 1;
 
