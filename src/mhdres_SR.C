@@ -6,6 +6,7 @@
 #include "grid.H"
 #include "run.H"
 #include "limit_va.H"
+#include "openacc.h"
 
 #define OUTER_LOOP(G,i,j,d1,d2) \
   for((j)=(G)[(d2)][0];(j)<=(G)[(d2)][1];(j)++) \
@@ -74,7 +75,7 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
   double dt_amb,amb_diff,c_lim,cmax_hyp,amb_diff_max,amb_vel_max,nu_hyp,nu_hyp_max,rho_i,nu_in;
   double kap_spt,invBB,tt32,f_lim,F_sat,F_spt,hyp_diff;
 
-  double amb_diff_max_acc, amb_vel_max_acc; // NEW
+  double amb_diff_max_acc, amb_vel_max_acc, cmax_acc; // NEW
 
   double w1,w2,ww0,ww1,ww2;
   double dB2,dB3;
@@ -152,13 +153,12 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
     memset(Grid.curlBxB,0.0,Grid.bufsize*sizeof(Vector));
   
   cmax = 0.0;
+  cmax_acc = 0.0; // NEW
   amb_diff_max = 0.0;
   amb_diff_max_acc = 0.0; // NEW
   amb_vel_max  = 0.0;
   amb_vel_max_acc = 0.0; // NEW
-//cout << "********************************************************************" << endl;
-//cout << "*                         LOOP DIMENSIONS                          *" << endl;
-//cout << "********************************************************************" << endl;
+
   for (d=0;d<Grid.NDIM;d++){
     d1=loop_order[d][0];
     d2=loop_order[d][1];
@@ -192,15 +192,43 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
 
     amb_diff_max = 0.0; // NEW
     amb_vel_max = 0.0; // NEW
-#pragma acc parallel
+    cmax = 0.0; // NEW
+    const double ambfac_max = Physics.params[i_param_ambfac_max]; // NEW
+
+#pragma acc enter data copyin(Grid)
+#pragma acc enter data copyin(bounds[0:3][0:2], stride[0:3], \
+                            U[0:Grid.bufsize], Grid.pres[0:Grid.bufsize], \
+                            Grid.temp[0:Grid.bufsize], Grid.sflx[0:Grid.bufsize], \
+                            Grid.rhoi[0:Grid.bufsize], Grid.amb[0:Grid.bufsize], \
+                            Grid.v_amb[0:Grid.bufsize], \
+                            R[0:Grid.bufsize], Grid.tvar1[0:Grid.bufsize], \
+                            Grid.tvar2[0:Grid.bufsize], Grid.tvar3[0:Grid.bufsize], \
+                            Grid.Qamb[0:Grid.bufsize], Grid.curlBxB[0:Grid.bufsize], \
+                            Grid.BgradT[0:Grid.bufsize], Grid.Rflx[0:Grid.bufsize], \
+                            Grid.curlB[0:Grid.bufsize], Grid.R_amb[0:Grid.bufsize], \
+                            sign[0:3])
+
+#pragma acc parallel default(present)
 {
-#pragma acc loop gang collapse(2) private(offset) reduction(max:amb_diff_max, max:amb_vel_max)
+#pragma acc loop gang collapse(2) private(offset, curlBxB[0:3*vsize], res[0:v_nvar*vsize], \
+                                          flx[0:v_nvar*vsize], var[0:v_nvar*vsize], \
+                                          D_n[0:vsize], temp[0:vsize], BgradT[0:vsize], \
+                                          hyp_spt[0:vsize], amb_fac[0:vsize], v_amb[0:3*vsize], \
+                                          vv_amb[0:vsize], vv[0:vsize], bb[0:vsize], \
+                                          curlB[0:3*vsize], fcond[0:vsize], sflx[0:vsize], \
+                                          pres[0:vsize], lrt[0:3*vsize], msx[0:vsize], \
+                                          msy[0:vsize], msz[0:vsize], lf1[0:vsize], \
+                                          node, rho_i, nu_in, vel, mag, dn, va2, ekin, pmag, \
+                                          x2, x4, s, lf, cs2, mflx, dB2, dB3, amb_diff, c_lim, nu_hyp, \
+                                          tt32, kap_spt, F_sat, invBB, F_spt, f_lim, kap_spt) \
+                                  reduction(max:amb_diff_max) reduction(max:amb_vel_max) \
+                                  reduction(max:cmax)
     for(k=bounds[d3][0]; k<=bounds[d3][1]; k++) { // NEW
       for(j=bounds[d2][0]; j<=bounds[d2][1]; j++) { // NEW
         offset = j*stride[d2]+k*stride[d3];
         //time = MPI_Wtime();
         #pragma ivdep
-#pragma acc loop vector private(node)
+#pragma acc loop vector private(node) independent
         for(i=0;i<sz;i++){
 	        node = offset+i*str;
 	        var[i*v_nvar+0] = U[node].d;
@@ -221,7 +249,7 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
 
         if(spitzer){
           #pragma ivdep
-#pragma acc loop vector private(node)
+#pragma acc loop vector private(node) independent
 	        for(i=0;i<sz;i++){
 	          node = offset+i*str;
 	          sflx[i] = Grid.sflx[node];
@@ -230,7 +258,7 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
 
         if(ambipolar){
           #pragma ivdep
-#pragma acc loop vector private(node, rho_i, nu_in)
+#pragma acc loop vector private(node, rho_i, nu_in) independent
 	        for(i=0;i<sz;i++){
 	          node = offset+i*str;
 
@@ -244,7 +272,8 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
 	          // Switch off for T>1e4 as a saveguard for now
 	          amb_fac[i] *= max(0.0,min(1.0,10.0-1e-3*temp[i]));
 	          
-	          amb_fac[i] = min(amb_fac[i],Physics.params[i_param_ambfac_max]);
+	          //amb_fac[i] = min(amb_fac[i],Physics.params[i_param_ambfac_max]);
+            amb_fac[i] = min(amb_fac[i], ambfac_max); // NEW
 
 	          // test profile
 	          //amb_fac[i] = 1e12*max(0.0,min(1.0,5.0-1e-3*temp[i]));
@@ -262,7 +291,8 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
         //r_time += MPI_Wtime()-time;
 
         //time = MPI_Wtime();
-#pragma acc loop vector private(vel, mag, dn, va2, ekin, pmag, x2, x4, s, lf, cs2, cmax, mflx)
+#pragma acc loop vector private(vel, mag, dn, va2, ekin, pmag, x2, x4, s, lf, cs2, mflx) \
+          reduction(max:cmax) independent
         for(i=0;i<sz;i++){ 
           res[i*v_nvar+0] = 0.0;
           res[i*v_nvar+1] = 0.0;
@@ -322,6 +352,7 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
 
         // Ambipolar induction
         if(ambipolar){
+#pragma acc loop vector independent
           for(i=0;i<sz;i++){
             flx[i*v_nvar+5] += v_amb[i*3+d1]*var[i*v_nvar+5] - v_amb[i*3+0]*var[i*v_nvar+5+d1];
             flx[i*v_nvar+6] += v_amb[i*3+d1]*var[i*v_nvar+6] - v_amb[i*3+1]*var[i*v_nvar+5+d1];
@@ -331,17 +362,17 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
 
         // Heat conduction
         if(spitzer){
-#pragma acc loop vector
+#pragma acc loop vector independent
           for(i=0;i<sz;i++)
             flx[i*v_nvar+4] += sflx[i]*var[i*v_nvar+5+d1];
-#pragma acc loop vector
+#pragma acc loop vector independent
           for(i=gh;i<sz-gh;i++){
             BgradT[i]  = var[i*v_nvar+5+d1]*(w1*(temp[i+1]-temp[i-1])+w2*(temp[i+2]-temp[i-2]));
             hyp_spt[i] = (sflx[i+2]+sflx[i-2])-4.*(sflx[i+1]+sflx[i-1])+6.*sflx[i];
           }
         }
 	     
-#pragma acc loop vector collapse(2)
+#pragma acc loop vector collapse(2) independent
         for (ivar=0;ivar<nvar;ivar++)
 	        for(i=gh;i<sz-gh;i++)
 	          res[i*v_nvar+ivar] -= 
@@ -350,10 +381,10 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
 
         if (need_diagnostics){
 	        if(spitzer){
-#pragma acc loop vector
+#pragma acc loop vector independent
 	          for(i=0;i<sz;i++)
 	            fcond[i] = sflx[i]*var[i*v_nvar+5+d1];
-#pragma acc loop vector private(node, dn)
+#pragma acc loop vector private(node, dn) independent
 	          for(i=gh;i<sz-gh;i++){
 	            node = offset+i*str;
 	            dn =-(w1*(fcond[i+1]-fcond[i-1])+w2*(fcond[i+2]-fcond[i-2]));
@@ -361,7 +392,7 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
 	            Grid.tvar2[node] += dn;
 	          }
 	        } else {
-#pragma acc loop vector private(node)
+#pragma acc loop vector private(node) independent
 	          for(i=gh;i<sz-gh;i++){
 	            node = offset+i*str;
 	            Grid.tvar1[node] += res[i*v_nvar+4];
@@ -370,10 +401,12 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
         } // end if(need_diagnostics)
         
         // Special treatment of Lorentz force for Boris Correction
-#pragma acc loop vector private(dB2, dB3)
+#pragma acc loop vector private(dB2, dB3) independent
         for(i=gh;i<sz-gh;i++){
-	        dB2 = w1*(var[(i+1)*v_nvar+5+d2]-var[(i-1)*v_nvar+5+d2])+w2*(var[(i+2)*v_nvar+5+d2]-var[(i-2)*v_nvar+5+d2]);
-	        dB3 = w1*(var[(i+1)*v_nvar+5+d3]-var[(i-1)*v_nvar+5+d3])+w2*(var[(i+2)*v_nvar+5+d3]-var[(i-2)*v_nvar+5+d3]);
+	        dB2 = w1*(var[(i+1)*v_nvar+5+d2]-var[(i-1)*v_nvar+5+d2])
+              + w2*(var[(i+2)*v_nvar+5+d2]-var[(i-2)*v_nvar+5+d2]);
+	        dB3 = w1*(var[(i+1)*v_nvar+5+d3]-var[(i-1)*v_nvar+5+d3])
+              + w2*(var[(i+2)*v_nvar+5+d3]-var[(i-2)*v_nvar+5+d3]);
 
 	        // Lorentz force
 	        curlBxB[i*3+d1] =-var[i*v_nvar+5+d2]*dB2-var[i*v_nvar+5+d3]*dB3;
@@ -386,7 +419,7 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
 	        curlB[i*3+d3]=-sign[d1]*dB2;
         }
         
-#pragma acc loop vector private(lf)
+#pragma acc loop vector private(lf) independent
         for(i=gh;i<sz-gh;i++){
 	        lrt[i*3+0] = w1*(msx[i+1]-msx[i-1])+w2*(msx[i+2]-msx[i-2]);
 	        lrt[i*3+1] = w1*(msy[i+1]-msy[i-1])+w2*(msy[i+2]-msy[i-2]);
@@ -408,7 +441,7 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
 
         // Ambipolar heating + hyperdiffusion
         if(ambipolar){
-#pragma acc loop vector
+#pragma acc loop vector independent
 	        for(i=gh;i<sz-gh;i++){
 	          res[i*v_nvar+4] += v_amb[i*3+0]*lrt[i*3+0]
                             +  v_amb[i*3+1]*lrt[i*3+1]
@@ -417,7 +450,7 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
         } 
 
         if (need_diagnostics){
-#pragma acc loop vector private(node)
+#pragma acc loop vector private(node) independent
           for(i=gh;i<sz-gh;i++){
             node = offset+i*str;
             Grid.tvar3[node] += var[i*v_nvar+1]*lrt[i*3+0]
@@ -425,7 +458,7 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
                              +  var[i*v_nvar+3]*lrt[i*3+2];
           }
           if(ambipolar)
-#pragma acc loop vector private(node)
+#pragma acc loop vector private(node) independent
             for(i=gh;i<sz-gh;i++){
               node = offset+i*str;
               Grid.Qamb[node]  += v_amb[i*3+0]*lrt[i*3+0]
@@ -435,7 +468,7 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
         } // end if(diagnostics)
 
         if(eta>0.0){
-#pragma acc loop vector colapse(2)
+#pragma acc loop vector collapse(2) independent
           for(ivar=5;ivar<=7;ivar++){
             for(i=2;i<sz-2;i++){	    
               res[i*v_nvar+ivar] += eta*(ww0*var[i*v_nvar+ivar]+
@@ -450,7 +483,7 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
 
         //time = MPI_Wtime();
         #pragma ivdep
-#pragma acc loop vector private(node)
+#pragma acc loop vector private(node) independent
         for(i=gh;i<sz-gh;i++){
           node = offset+i*str;
           R[node].d   += res[i*v_nvar+0];
@@ -466,7 +499,7 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
         // use this to temporarily store stuff while building up jxB
         if(ambipolar){
           #pragma ivdep
-#pragma acc loop vector private(node)
+#pragma acc loop vector private(node) independent
           for(i=gh;i<sz-gh;i++){
             node = offset+i*str;
             Grid.curlBxB[node].x += lrt[i*3+0];
@@ -477,7 +510,7 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
 
         if(spitzer){
           #pragma ivdep
-#pragma acc loop vector private(node)
+#pragma acc loop vector private(node) independent
           for(i=gh;i<sz-gh;i++){
             node = offset+i*str;
             Grid.BgradT[node] += BgradT[i];
@@ -487,7 +520,7 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
         
         if(needs_curlB){
           #pragma ivdep
-#pragma acc loop vector private(node)
+#pragma acc loop vector private(node) independent
           for(i=gh;i<sz-gh;i++){
             node = offset+i*str;
             Grid.curlB[node].x += curlB[i*3+0];
@@ -501,7 +534,7 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
           // Ohmic heating
           if(eta > 0){
                   #pragma ivdep
-#pragma acc loop vector private(node)
+#pragma acc loop vector private(node) independent
             for(i=gh;i<sz-gh;i++){
               node = offset+i*str;
               R[node].e += eta*(Grid.curlB[node].x*Grid.curlB[node].x+
@@ -513,7 +546,8 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
         	// now curlBxB is fully computed, compute additional terms in Grid.R_amb
           if(ambipolar){
             #pragma ivdep
-#pragma acc loop vector private(node, amb_diff, c_lim, nu_hyp) reduction(max:amb_diff_max, max:amb_vel_max)
+#pragma acc loop vector private(node, amb_diff, c_lim, nu_hyp) independent \
+    reduction(max:amb_diff_max) reduction(max:amb_vel_max)
             for(i=gh;i<sz-gh;i++){
               node = offset+i*str;
 
@@ -531,7 +565,8 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
 
           if(spitzer){
             #pragma ivdep
-#pragma acc loop vector private(node, c_lim, tt32, kap_spt, F_sat, invBB, F_spt, f_lim, nu_hyp)
+#pragma acc loop vector independent \
+   private(node, c_lim, tt32, kap_spt, F_sat, invBB, F_spt, f_lim, nu_hyp)
             for(i=gh;i<sz-gh;i++){
               node = offset+i*str;
             
@@ -560,14 +595,25 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
 // NEED TO MAKE SURE OPENACC IS PROPERLY GETTING AMB_DIFF_MAX TO HOST
   amb_diff_max_acc = max(amb_diff_max_acc, amb_diff_max); // NEW
   amb_vel_max_acc = max(amb_vel_max_acc, amb_vel_max); // NEW
+  cmax_acc = max(cmax_acc, cmax); // NEW
+
+#pragma acc exit data copyout(R[0:Grid.bufsize], Grid.tvar1[0:Grid.bufsize], \
+                            Grid.tvar2[0:Grid.bufsize], Grid.tvar3[0:Grid.bufsize], \
+                            Grid.Qamb[0:Grid.bufsize], Grid.curlBxB[0:Grid.bufsize], \
+                            Grid.BgradT[0:Grid.bufsize], Grid.Rflx[0:Grid.bufsize], \
+                            Grid.curlB[0:Grid.bufsize], Grid.R_amb[0:Grid.bufsize])
+#pragma acc exit data delete(bounds[0:3][0:2], stride[0:3], \
+                            U[0:Grid.bufsize], Grid.pres[0:Grid.bufsize], \
+                            Grid.temp[0:Grid.bufsize], Grid.sflx[0:Grid.bufsize], \
+                            Grid.rhoi[0:Grid.bufsize], Grid.amb[0:Grid.bufsize], \
+                            Grid.v_amb[0:Grid.bufsize], sign[0:3])
+#pragma acc exit data delete(Grid)
 
   }// end for d
 
   amb_diff_max = amb_diff_max_acc; // NEW
   amb_vel_max = amb_vel_max_acc; // NEW
-//cout << "********************************************************************" << endl;
-//cout << "*                      END LOOP DIMENSIONS                         *" << endl;
-//cout << "********************************************************************" << endl;
+  cmax = cmax_acc; // NEW
 
   dt_cfl = dxmin/cmax;
   cout << dt_cfl << endl;
@@ -604,7 +650,6 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
       dt_res = 0.5/(1./(dx*dx)+1./(dy*dy)+1./(dz*dz)) / eta;
     }
     dt_res /= Run.CFL;
-    
     dt_cfl = min(dt_cfl,dt_res);
   }
 
