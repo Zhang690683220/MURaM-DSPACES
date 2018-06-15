@@ -6,7 +6,6 @@
 #include "grid.H"
 #include "run.H"
 #include "limit_va.H"
-#include "openacc.h"
 
 #define OUTER_LOOP(G,i,j,d1,d2) \
   for((j)=(G)[(d2)][0];(j)<=(G)[(d2)][1];(j)++) \
@@ -16,20 +15,6 @@
 const double hall_const = 2.99792458e10/(16.0*atan(1)*1.60217733E-19);
 
 //-------------------------------------------------------------
-
-
-
-
-/**************************************************************
-                             N O T E S                         
- **************************************************************
- * Jun 12
- * From profiles when using 1 MPI rank, MHD_Residual was the
- * most time-consuming at 30% runtime.
- * Array sign[3] is constant size, may not need to copy in.
- * Need to copyin R array
- ***************************************************************/
-
 double MHD_Residual(const RunData&  Run, GridData& Grid, 
 		    const PhysicsData& Physics) {
 
@@ -75,8 +60,6 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
   double dt_amb,amb_diff,c_lim,cmax_hyp,amb_diff_max,amb_vel_max,nu_hyp,nu_hyp_max,rho_i,nu_in;
   double kap_spt,invBB,tt32,f_lim,F_sat,F_spt,hyp_diff;
 
-  double amb_diff_max_acc, amb_vel_max_acc, cmax_acc; // NEW
-
   double w1,w2,ww0,ww1,ww2;
   double dB2,dB3;
 
@@ -92,7 +75,11 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
 
   const double sign[3] = {-1.,1.,-1.};
 
+  // Store this constant allows to avoid copying an entire array for one value.
+  const double ambfac_max = Physics.params[i_param_ambfac_max]; // NEW
+
   int bounds[3][2];
+  int k1, k2, j1, j2; // ints for storing loop bounds needed for OpenACC loop
 
   for(d=0;d<3;d++){
     bounds[d][0] = Grid.lbeg[d];
@@ -111,28 +98,28 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
     //sflx[vsize],fcond[vsize]; //,curlB[3][vsize]; //, bb[vsize], vv[vsize], vv_amb[vsize];
     //v_amb[3][vsize]; //, amb_fac[vsize]; //, D_n[vsize], temp[vsize], BgradT[vsize], hyp_spt[vsize];
 
-  double *curlBxB = (double*) malloc(3*vsize*sizeof(double));
+  double *curlBxB = (double*) malloc(3     *vsize*sizeof(double));
   double *res     = (double*) malloc(v_nvar*vsize*sizeof(double));
   double *flx     = (double*) malloc(v_nvar*vsize*sizeof(double));
   double *var     = (double*) malloc(v_nvar*vsize*sizeof(double));
-  double *D_n     = (double*) malloc(vsize*sizeof(double));
-  double *temp    = (double*) malloc(vsize*sizeof(double));
-  double *BgradT  = (double*) malloc(vsize*sizeof(double));
-  double *hyp_spt = (double*) malloc(vsize*sizeof(double));
-  double *amb_fac = (double*) malloc(vsize*sizeof(double));
-  double *v_amb   = (double*) malloc(3*vsize*sizeof(double));
-  double *vv_amb  = (double*) malloc(vsize*sizeof(double));
-  double *vv      = (double*) malloc(vsize*sizeof(double));
-  double *bb      = (double*) malloc(vsize*sizeof(double));
-  double *curlB   = (double*) malloc(3*vsize*sizeof(double));
-  double *fcond   = (double*) malloc(vsize*sizeof(double));
-  double *sflx    = (double*) malloc(vsize*sizeof(double));
-  double *pres    = (double*) malloc(vsize*sizeof(double));
-  double *lrt     = (double*) malloc(3*vsize*sizeof(double));
-  double *msx     = (double*) malloc(vsize*sizeof(double));
-  double *msy     = (double*) malloc(vsize*sizeof(double));
-  double *msz     = (double*) malloc(vsize*sizeof(double));
-  double *lf1     = (double*) malloc(vsize*sizeof(double));
+  double *D_n     = (double*) malloc(       vsize*sizeof(double));
+  double *temp    = (double*) malloc(       vsize*sizeof(double));
+  double *BgradT  = (double*) malloc(       vsize*sizeof(double));
+  double *hyp_spt = (double*) malloc(       vsize*sizeof(double));
+  double *amb_fac = (double*) malloc(       vsize*sizeof(double));
+  double *v_amb   = (double*) malloc(3     *vsize*sizeof(double));
+  double *vv_amb  = (double*) malloc(       vsize*sizeof(double));
+  double *vv      = (double*) malloc(       vsize*sizeof(double));
+  double *bb      = (double*) malloc(       vsize*sizeof(double));
+  double *curlB   = (double*) malloc(3     *vsize*sizeof(double));
+  double *fcond   = (double*) malloc(       vsize*sizeof(double));
+  double *sflx    = (double*) malloc(       vsize*sizeof(double));
+  double *pres    = (double*) malloc(       vsize*sizeof(double));
+  double *lrt     = (double*) malloc(3     *vsize*sizeof(double));
+  double *msx     = (double*) malloc(       vsize*sizeof(double));
+  double *msy     = (double*) malloc(       vsize*sizeof(double));
+  double *msz     = (double*) malloc(       vsize*sizeof(double));
+  double *lf1     = (double*) malloc(       vsize*sizeof(double));
     
   // Estimate max characteristic velocity from previous time step (not defined at restart, use va_max instead) 
   if (Run.dt > 0.0) {
@@ -153,11 +140,8 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
     memset(Grid.curlBxB,0.0,Grid.bufsize*sizeof(Vector));
   
   cmax = 0.0;
-  cmax_acc = 0.0; // NEW
   amb_diff_max = 0.0;
-  amb_diff_max_acc = 0.0; // NEW
   amb_vel_max  = 0.0;
-  amb_vel_max_acc = 0.0; // NEW
 
   for (d=0;d<Grid.NDIM;d++){
     d1=loop_order[d][0];
@@ -182,21 +166,13 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
 
     str = stride[d1];
 
-    // Replacing call to OUTER_LOOP with a regular double for loop
-    //OUTER_LOOP(bounds,j,k,d2,d3){
-//cout << "Grid " << d << endl;
-//cout << "for(k=" << bounds[d3][0] << "; k<=" << bounds[d3][1] << "; k++)" << endl;
-//cout << "for(j=" << bounds[d2][0] << "; j<=" << bounds[d2][1] << "; j++)" << endl;
-//cout << "sz=" << sz << endl;
-//cout << "gh=" << gh << endl;
-
-    amb_diff_max = 0.0; // NEW
-    amb_vel_max = 0.0; // NEW
-    cmax = 0.0; // NEW
-    const double ambfac_max = Physics.params[i_param_ambfac_max]; // NEW
+    k1 = bounds[d3][0]; // NEW
+    k2 = bounds[d3][1]; // NEW
+    j1 = bounds[d2][0]; // NEW
+    j2 = bounds[d2][1]; // NEW
 
 #pragma acc enter data copyin(Grid)
-#pragma acc enter data copyin(bounds[0:3][0:2], stride[0:3], \
+#pragma acc enter data copyin(stride[0:3], \
                             U[0:Grid.bufsize], Grid.pres[0:Grid.bufsize], \
                             Grid.temp[0:Grid.bufsize], Grid.sflx[0:Grid.bufsize], \
                             Grid.rhoi[0:Grid.bufsize], Grid.amb[0:Grid.bufsize], \
@@ -208,7 +184,8 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
                             Grid.curlB[0:Grid.bufsize], Grid.R_amb[0:Grid.bufsize], \
                             sign[0:3])
 
-#pragma acc parallel default(present)
+
+#pragma acc parallel default(present) copy(cmax, amb_diff_max, amb_vel_max)
 {
 #pragma acc loop gang collapse(2) private(offset, curlBxB[0:3*vsize], res[0:v_nvar*vsize], \
                                           flx[0:v_nvar*vsize], var[0:v_nvar*vsize], \
@@ -219,12 +196,14 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
                                           pres[0:vsize], lrt[0:3*vsize], msx[0:vsize], \
                                           msy[0:vsize], msz[0:vsize], lf1[0:vsize], \
                                           node, rho_i, nu_in, vel, mag, dn, va2, ekin, pmag, \
-                                          x2, x4, s, lf, cs2, mflx, dB2, dB3, amb_diff, c_lim, nu_hyp, \
-                                          tt32, kap_spt, F_sat, invBB, F_spt, f_lim, kap_spt) \
+                                          x2, x4, s, lf, cs2, mflx, dB2, dB3, amb_diff, c_lim, \
+                                          nu_hyp, tt32, kap_spt, F_sat, invBB, F_spt, f_lim, \
+                                          kap_spt) \
                                   reduction(max:amb_diff_max) reduction(max:amb_vel_max) \
-                                  reduction(max:cmax)
-    for(k=bounds[d3][0]; k<=bounds[d3][1]; k++) { // NEW
-      for(j=bounds[d2][0]; j<=bounds[d2][1]; j++) { // NEW
+                                  reduction(max:cmax) independent
+    //OUTER_LOOP(bounds,j,k,d2,d3){
+    for(k=k1; k<=k2; k++) { // NEW
+      for(j=j1; j<=j2; j++) { // NEW
         offset = j*stride[d2]+k*stride[d3];
         //time = MPI_Wtime();
         #pragma ivdep
@@ -592,17 +571,13 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
 
 } // END ACC PARALLEL REGION
 
-// NEED TO MAKE SURE OPENACC IS PROPERLY GETTING AMB_DIFF_MAX TO HOST
-  amb_diff_max_acc = max(amb_diff_max_acc, amb_diff_max); // NEW
-  amb_vel_max_acc = max(amb_vel_max_acc, amb_vel_max); // NEW
-  cmax_acc = max(cmax_acc, cmax); // NEW
 
 #pragma acc exit data copyout(R[0:Grid.bufsize], Grid.tvar1[0:Grid.bufsize], \
                             Grid.tvar2[0:Grid.bufsize], Grid.tvar3[0:Grid.bufsize], \
                             Grid.Qamb[0:Grid.bufsize], Grid.curlBxB[0:Grid.bufsize], \
                             Grid.BgradT[0:Grid.bufsize], Grid.Rflx[0:Grid.bufsize], \
                             Grid.curlB[0:Grid.bufsize], Grid.R_amb[0:Grid.bufsize])
-#pragma acc exit data delete(bounds[0:3][0:2], stride[0:3], \
+#pragma acc exit data delete(stride[0:3], \
                             U[0:Grid.bufsize], Grid.pres[0:Grid.bufsize], \
                             Grid.temp[0:Grid.bufsize], Grid.sflx[0:Grid.bufsize], \
                             Grid.rhoi[0:Grid.bufsize], Grid.amb[0:Grid.bufsize], \
@@ -610,10 +585,6 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
 #pragma acc exit data delete(Grid)
 
   }// end for d
-
-  amb_diff_max = amb_diff_max_acc; // NEW
-  amb_vel_max = amb_vel_max_acc; // NEW
-  cmax = cmax_acc; // NEW
 
   dt_cfl = dxmin/cmax;
   cout << dt_cfl << endl;
