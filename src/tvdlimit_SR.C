@@ -62,6 +62,8 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
   const int vsize = Grid.vsize;
   const int v_nvar = Grid.v_nvar;
  
+cout << "nvar=" << nvar << " v_nvar=" << v_nvar << endl;
+
   double h_bnd;
   if(Physics.tvd_h_bnd[0] < 1)
     h_bnd = Physics.tvd_h_bnd[0];
@@ -84,6 +86,8 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
 
   register int i,j,k,node,d,d1,d2,d3,ivar,offset,str,istart;
   int sz,gh;
+
+  int k1, k2, j1, j2; // NEW
 
   cState* U  = (cState*) Grid.U;
     
@@ -125,6 +129,9 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
   else
     need_tvd_coeff = 0;
 
+  int is_gend = Grid.is_gend[0]; // NEW
+  int is_gbeg = Grid.is_gbeg[0]; // NEW
+
   if (tvd_ini_flag == 1){
     hfb = new double [vsize];
     qft = new double [vsize];
@@ -139,9 +146,9 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
       hfb[i]  = min(1.0,vv*vv);
 
       if(hh < 1-2*h_bnd_top)
-	qft[i] = 1.0;
+	      qft[i] = 1.0;
       else
-	qft[i] = Qdiff_bnd;
+	      qft[i] = Qdiff_bnd;
     }
 
     if (Run.rank == 0) {
@@ -197,12 +204,37 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
     sz *= Grid.lsize[d]+2*Grid.ghosts[d];
   }
   
-  double var[v_nvar][vsize], slp[v_nvar][vsize], res[v_nvar][vsize], 
-    flx[v_nvar][vsize], uif[v_nvar][vsize], boris[4][vsize], vv_amb[vsize]; 
-  double qrho[vsize], hft1[vsize], hfb1[vsize], cm[vsize],
-    tvd_fac[vsize], bsqr[vsize], vsqr[vsize], BC2[vsize],pres[vsize],
-    hyperdiff[vsize], qres[vsize], qvis[vsize], qft1[vsize],
-    hyp_e[vsize],hyp_v[vsize],hyp_B[vsize],CZ_fac[vsize];
+  //double var[v_nvar][vsize], slp[v_nvar][vsize], res[v_nvar][vsize], flx[v_nvar][vsize], 
+  //  uif[v_nvar][vsize], boris[4][vsize], vv_amb[vsize]; 
+  //double qrho[vsize], hft1[vsize], hfb1[vsize], cm[vsize],
+  //  tvd_fac[vsize], bsqr[vsize], vsqr[vsize], BC2[vsize],pres[vsize],
+  //  hyperdiff[vsize], qres[vsize], qvis[vsize], qft1[vsize],
+  //  hyp_e[vsize],hyp_v[vsize],hyp_B[vsize],CZ_fac[vsize];
+
+  double *var       = (double*) malloc(v_nvar*vsize*sizeof(double));
+  double *slp       = (double*) malloc(v_nvar*vsize*sizeof(double));
+  double *res       = (double*) malloc(v_nvar*vsize*sizeof(double));
+  double *flx       = (double*) malloc(v_nvar*vsize*sizeof(double));
+  double *uif       = (double*) malloc(v_nvar*vsize*sizeof(double));
+  double *boris     = (double*) malloc(   4  *vsize*sizeof(double));
+  double *vv_amb    = (double*) malloc(       vsize*sizeof(double));
+  double *qrho      = (double*) malloc(       vsize*sizeof(double));
+  double *hft1      = (double*) malloc(       vsize*sizeof(double));
+  double *hfb1      = (double*) malloc(       vsize*sizeof(double));
+  double *cm        = (double*) malloc(       vsize*sizeof(double));
+  double *tvd_fac   = (double*) malloc(       vsize*sizeof(double));
+  double *bsqr      = (double*) malloc(       vsize*sizeof(double));
+  double *vsqr      = (double*) malloc(       vsize*sizeof(double));
+  double *BC2       = (double*) malloc(       vsize*sizeof(double));
+  double *pres      = (double*) malloc(       vsize*sizeof(double));
+  double *hyperdiff = (double*) malloc(       vsize*sizeof(double));
+  double *qres      = (double*) malloc(       vsize*sizeof(double));
+  double *qvis      = (double*) malloc(       vsize*sizeof(double));
+  double *qft1      = (double*) malloc(       vsize*sizeof(double));
+  double *hyp_e     = (double*) malloc(       vsize*sizeof(double));
+  double *hyp_v     = (double*) malloc(       vsize*sizeof(double));
+  double *hyp_B     = (double*) malloc(       vsize*sizeof(double));
+  double *CZ_fac    = (double*) malloc(       vsize*sizeof(double));
 
   /* y direction first to be consistent with vertical boundary */
   for (d=0;d<Grid.NDIM;d++){
@@ -216,408 +248,569 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
     gh = Grid.ghosts[d1];
 
     str=stride[d1];
-    OUTER_LOOP(bounds,j,k,d2,d3){
 
-      offset = j*stride[d2]+k*stride[d3];
-      //time = MPI_Wtime();
-      #pragma ivdep
-      for(i=0;i<sz;i++){
-	node = offset+i*str;
-	var[0][i] = max(rho_min,U[node].d);
-	var[1][i] = U[node].M.x;
-	var[2][i] = U[node].M.y;
-	var[3][i] = U[node].M.z;
-	var[4][i] = U[node].e;
-	var[5][i] = U[node].B.x;
-	var[6][i] = U[node].B.y;	
-	var[7][i] = U[node].B.z;
+    k1 = bounds[d3][0];
+    k2 = bounds[d3][1];
+    j1 = bounds[d2][0];
+    j2 = bounds[d2][1];
+
+
+#pragma acc enter data copyin(Grid)
+#pragma acc enter data copyin(stride[0:3], U[0:Grid.bufsize], Grid.Tau[0:Grid.bufsize], \
+  Grid.v_amb[0:Grid.bufsize], hfb[0:vsize], qft[0:vsize], hft[0:vsize], tvd_coeff[0:4], \
+  Grid.tvar8[0:Grid.bufsize], Grid.Qres[0:Grid.bufsize], Grid.Qvis[0:Grid.bufsize], \
+  Grid.tvar6[0:Grid.bufsize], Grid.tvar7[0:Grid.bufsize], idx[0:3], tvd_cs[0:4], tvd_h[0:4], \
+  Grid.pres[0:Grid.bufsize])
+#pragma acc parallel default(present)
+{
+#pragma acc loop collapse(2) gang independent private(offset, var[0:v_nvar*vsize], slp[0:v_nvar*vsize], \
+  pres[0:vsize], CZ_fac[0:vsize], vv_amb[0:vsize], hfb1[0:vsize], hft1[0:vsize], qft1[0:vsize], \
+  vsqr[0:vsize], bsqr[0:vsize], cm[0:vsize], hyp_e[0:vsize], hyp_v[0:vsize], hyp_B[0:vsize], \
+  BC2[0:vsize], hyperdiff[0:vsize], qrho[0:vsize], flx[0:v_nvar*vsize], uif[0:v_nvar*vsize], \
+  tvd_fac[0:vsize], res[0:v_nvar*vsize], boris[0:4*vsize], qres[0:vsize], qvis[0:vsize])
+    //OUTER_LOOP(bounds,j,k,d2,d3){
+    for(k = k1; k <= k2; k++) {
+      for(j = j1; j <= j2; j++) {
+
+        offset = j*stride[d2]+k*stride[d3];
+        //time = MPI_Wtime();
+        #pragma ivdep
+#pragma acc loop vector independent private(node)
+        for(i=0;i<sz;i++){
+	        node = offset+i*str;
+	        var[i*v_nvar+0] = max(rho_min,U[node].d);
+	        var[i*v_nvar+1] = U[node].M.x;
+	        var[i*v_nvar+2] = U[node].M.y;
+	        var[i*v_nvar+3] = U[node].M.z;
+	        var[i*v_nvar+4] = U[node].e;
+	        var[i*v_nvar+5] = U[node].B.x;
+	        var[i*v_nvar+6] = U[node].B.y;	
+	        var[i*v_nvar+7] = U[node].B.z;
 	
-	pres[i] = Grid.pres[node];
-	CZ_fac[i] = (double) (Grid.Tau[node] > 1.0e-5);
+	        pres[i] = Grid.pres[node];
+	        CZ_fac[i] = (double) (Grid.Tau[node] > 1.0e-5);
 
-	vv_amb[i] = 0.0;
-      }
+	        vv_amb[i] = 0.0;
+        }
 
-      if(ambipolar){
-	#pragma ivdep
-	for(i=0;i<sz;i++){
-	  node = offset+i*str;
-	  vv_amb[i] = sqrt(Grid.v_amb[node].x*Grid.v_amb[node].x+Grid.v_amb[node].y*Grid.v_amb[node].y+Grid.v_amb[node].z*Grid.v_amb[node].z);
-	}
-      }
+        if(ambipolar){
+	        #pragma ivdep
+#pragma acc loop vector independent private(node)
+	        for(i=0;i<sz;i++){
+	          node = offset+i*str;
+	          vv_amb[i] = sqrt(Grid.v_amb[node].x*Grid.v_amb[node].x
+                           + Grid.v_amb[node].y*Grid.v_amb[node].y
+                           + Grid.v_amb[node].z*Grid.v_amb[node].z);
+	        }
+        }
 	
-      if(d1 == 0){
-	for(i=0;i<sz;i++){
-	  hfb1[i] = hfb[i];
-	  hft1[i] = hft[i];
-	  qft1[i] = qft[i];
-	}
-      } else if (d2 == 0){
-	for(i=0;i<sz;i++){
-	  hfb1[i] = hfb[j];
-	  hft1[i] = hft[j];
-	  qft1[i] = qft[j];
-	}
-      } else if(d3 == 0){
-	for(i=0;i<sz;i++){
-	  hfb1[i] = hfb[k];
-	  hft1[i] = hft[k];
-	  qft1[i] = qft[k];
-	}
-      }
-      //r_time += MPI_Wtime()-time;
+        if(d1 == 0){
+#pragma acc loop vector independent
+	        for(i=0;i<sz;i++){
+	          hfb1[i] = hfb[i];
+	          hft1[i] = hft[i];
+	          qft1[i] = qft[i];
+	        }
+        } else if (d2 == 0){
+#pragma acc loop vector independent
+	        for(i=0;i<sz;i++){
+	          hfb1[i] = hfb[j];
+	          hft1[i] = hft[j];
+	          qft1[i] = qft[j];
+	        }
+        } else if(d3 == 0){
+#pragma acc loop vector independent
+	        for(i=0;i<sz;i++){
+	          hfb1[i] = hfb[k];
+	          hft1[i] = hft[k];
+	          qft1[i] = qft[k];
+	        }
+        }
+        //r_time += MPI_Wtime()-time;
 
-      //time = MPI_Wtime();
-      for(i=0;i<sz;i++){
-	dn        = 1.0/var[0][i];
-        var[1][i] = var[1][i]*dn;
-	var[2][i] = var[2][i]*dn;
-	var[3][i] = var[3][i]*dn;
+        //time = MPI_Wtime();
+#pragma acc loop vector independent private(dn, vv, bb)
+        for(i=0;i<sz;i++){
+	        dn = 1.0/var[i*v_nvar+0];
+          var[i*v_nvar+1] = var[i*v_nvar+1]*dn;
+	        var[i*v_nvar+2] = var[i*v_nvar+2]*dn;
+	        var[i*v_nvar+3] = var[i*v_nvar+3]*dn;
 	
-	vv        = (var[1][i]*var[1][i]+
-		     var[2][i]*var[2][i]+
-		     var[3][i]*var[3][i]);
-	     
-	bb        = (var[5][i]*var[5][i]+
-		     var[6][i]*var[6][i]+
-		     var[7][i]*var[7][i]);
+	        vv = (var[i*v_nvar+1]*var[i*v_nvar+1]+
+		            var[i*v_nvar+2]*var[i*v_nvar+2]+
+		            var[i*v_nvar+3]*var[i*v_nvar+3]);
+	             
+	        bb = (var[i*v_nvar+5]*var[i*v_nvar+5]+
+		            var[i*v_nvar+6]*var[i*v_nvar+6]+
+		            var[i*v_nvar+7]*var[i*v_nvar+7]);
 
-	var[4][i] = var[4][i]*dn-0.5*vv;
+	        var[i*v_nvar+4] = var[i*v_nvar+4]*dn-0.5*vv;
 
-	vsqr[i]   = vv;
-	bsqr[i]   = bb;
-      }
+	        vsqr[i] = vv;
+	        bsqr[i] = bb;
+        }
        
-      for(i=0;i<sz;i++){
-	dn   = 1.0/var[0][i];
-	vv   = sqrt(vsqr[i]);
-	va2  = bsqr[i]*dn;
+#pragma acc loop vector independent private(dn, vv, va2, x2, x4, s, lf, cs2, cfast, CME_mode, \
+  rf, hh, cf, cs2)
+        for(i=0;i<sz;i++){
+	        dn   = 1.0/var[i*v_nvar+0];
+	        vv   = sqrt(vsqr[i]);
+	        va2  = bsqr[i]*dn;
 	
-	x2 = va2*inv_va2max;
-	x4 = x2*x2;
-	s  = 1.0+x2;
-	lf = s/(s+x4);
+	        x2 = va2*inv_va2max;
+	        x4 = x2*x2;
+	        s  = 1.0+x2;
+	        lf = s/(s+x4);
 
-	cs2  = 5.0/3.0*pres[i]*dn;
+	        cs2  = 5.0/3.0*pres[i]*dn;
 
-	cfast = sqrt(va2+cs2);
+	        cfast = sqrt(va2+cs2);
 
-	CME_mode = (1.0-CZ_fac[i])*( (double) (vv >= CME_thresh*cfast) );
+	        CME_mode = (1.0-CZ_fac[i])*( (double) (vv >= CME_thresh*cfast) );
 	
-	dn = var[0][i]*var[0][i];
-	rf = min(lf,dn/(dn+rho_lev));
+	        dn = var[i*v_nvar+0]*var[i*v_nvar+0];
+	        rf = min(lf,dn/(dn+rho_lev));
 	
-	hh   = 1.0-hfb1[i]-hft1[i];
-	cf   = hfb1[i]*tvd_cs[0]+(rf*tvd_cs[1]+(1.0-rf)*tvd_cs[2])*hh+hft1[i]*tvd_cs[3];
+	        hh   = 1.0-hfb1[i]-hft1[i];
+	        cf   = hfb1[i]*tvd_cs[0]+(rf*tvd_cs[1]+(1.0-rf)
+                 *tvd_cs[2])*hh+hft1[i]*tvd_cs[3];
 
-	cf   = max(cf,CME_mode);
+	        cf   = max(cf,CME_mode);
 	
-	cs2 *= cf*cf;
+	        cs2 *= cf*cf;
 	
-	cm[i]   = vv_amb[i]+vv+sqrt(max(cs2,lf*(cs2+va2)));
+	        cm[i]   = vv_amb[i]+vv+sqrt(max(cs2,lf*(cs2+va2)));
 	
-	hyp_e[i]  = hfb1[i]*tvd_h[0]+(rf*tvd_h[1]+(1.0-rf)*tvd_h[2])*hh+hft1[i]*tvd_h[3];
-	hyp_v[i]  = hfb1[i]*tvd_h[0]+(rf*tvd_h[1]+(1.0-rf)*tvd_h[2]*tvd_pm_v)*hh+hft1[i]*tvd_h[3]*tvd_pm_v;
-	hyp_B[i]  = hfb1[i]*tvd_h[0]+(rf*tvd_h[1]+(1.0-rf)*tvd_h[2]*tvd_pm_B)*hh+hft1[i]*tvd_h[3]*tvd_pm_B;
+	        hyp_e[i]  = hfb1[i]*tvd_h[0]+(rf*tvd_h[1]+(1.0-rf)
+                      *tvd_h[2])*hh+hft1[i]*tvd_h[3];
+	        hyp_v[i]  = hfb1[i]*tvd_h[0]+(rf*tvd_h[1]+(1.0-rf)
+                      *tvd_h[2]*tvd_pm_v)*hh+hft1[i]*tvd_h[3]*tvd_pm_v;
+	        hyp_B[i]  = hfb1[i]*tvd_h[0]+(rf*tvd_h[1]+(1.0-rf)
+                      *tvd_h[2]*tvd_pm_B)*hh+hft1[i]*tvd_h[3]*tvd_pm_B;
 
-	hyp_e[i] *= (1.0-CME_mode);
-	hyp_v[i] *= (1.0-CME_mode);
+	        hyp_e[i] *= (1.0-CME_mode);
+	        hyp_v[i] *= (1.0-CME_mode);
 	
-	BC2[i]  = 1.0-lf;
-      }
+	        BC2[i]  = 1.0-lf;
+        }
       
-      if( (d1 == 0) && (vhyp > 0.0) ){
-	for(i=0;i<sz;i++){
-	  hyperdiff[i] = vhyp*sqrt(vsqr[i]);	  
-	  hyperdiff[i] = 0.5*idx[d1]*max(0.0,min(hyperdiff[i],cmax-cm[i]));
-	}
-      }
+        if( (d1 == 0) && (vhyp > 0.0) ){
+#pragma acc loop vector independent
+	        for(i=0;i<sz;i++){
+	          hyperdiff[i] = vhyp*sqrt(vsqr[i]);	  
+	          hyperdiff[i] = 0.5*idx[d1]*max(0.0,min(hyperdiff[i],cmax-cm[i]));
+	        }
+        }
 
-      if(rho_log){
-	for(i=0;i<sz;i++){ 
-	  var[0][i] = log(var[0][i]);
-	  var[4][i] = log(var[4][i]);
-	}
-	for(i=0;i<sz-1;i++)
-	  qrho[i] = fabs(var[0][i]-var[0][i+1]);
-      } else {
-	for(i=0;i<sz-1;i++)
-	  qrho[i] = fabs(log(var[0][i])-log(var[0][i+1])); 
-      }
+        if(rho_log){
+#pragma acc loop vector independent
+	        for(i=0;i<sz;i++){ 
+	          var[i*v_nvar+0] = log(var[i*v_nvar+0]);
+	          var[i*v_nvar+4] = log(var[i*v_nvar+4]);
+	        }
+#pragma acc loop vector independent
+	        for(i=0;i<sz-1;i++)
+	          qrho[i] = fabs(var[i*v_nvar+0]-var[(i+1)*v_nvar+0]);
+        } else {
+#pragma acc loop vector independent
+	        for(i=0;i<sz-1;i++)
+	          qrho[i] = fabs(log(var[i*v_nvar+0])-log(var[(i+1)*v_nvar+0])); 
+        }
 	
-      // reconstruction slopes
-      for(ivar=0;ivar<nvar;ivar++){
-	for(i=1;i<sz-1;i++){
-	  sl    = var[ivar][i]-var[ivar][i-1];
-	  sr    = var[ivar][i+1]-var[ivar][i];
-	  slm   = 0.25*(sl+sr);
-	  lower = min(min(sl,sr),slm);
-	  upper = max(max(sl,sr),slm);
-	  slp[ivar][i]=max(0.0,lower)+min(0.0,upper);
-	}
-      }
+        // reconstruction slopes
+#pragma acc loop collapse(2) vector independent private(sl, sr, slm, lower, upper)
+        for(ivar=0;ivar<nvar;ivar++){
+	        for(i=1;i<sz-1;i++){
+	          sl    = var[i*v_nvar+ivar]-var[(i-1)*v_nvar+ivar];
+	          sr    = var[(i+1)*v_nvar+ivar]-var[i*v_nvar+ivar];
+	          slm   = 0.25*(sl+sr);
+	          lower = min(min(sl,sr),slm);
+	          upper = max(max(sl,sr),slm);
+	          slp[i*v_nvar+ivar]=max(0.0,lower)+min(0.0,upper);
+	        }
+        }
 
-      // more diffusivity at vertical boundaries
-      if( (visc_slope_bot > 0.0) or ( visc_slope_top > 0.0) ){
-	for(i=1;i<sz-1;i++){
-	  cf =(1.0-visc_slope_bot*hfb1[i])*(1.0-visc_slope_top*hft1[i]);
-	  slp[1][i] *= cf; slp[2][i] *= cf; slp[3][i] *= cf;	
-	}
-      }
+        // more diffusivity at vertical boundaries
+        if( (visc_slope_bot > 0.0) or ( visc_slope_top > 0.0) ){
+#pragma acc loop vector independent private(cf)
+	        for(i=1;i<sz-1;i++){
+	          cf =(1.0-visc_slope_bot*hfb1[i])*(1.0-visc_slope_top*hft1[i]);
+	          slp[i*v_nvar+1] *= cf; slp[i*v_nvar+2] *= cf; slp[i*v_nvar+3] *= cf;	
+	        }
+        }
 
-      if( (eta_slope_bot > 0.0) or ( eta_slope_top > 0.0) ){
-	for(i=1;i<sz-1;i++){
-	  cf =(1.0-eta_slope_bot*hfb1[i])*(1.0-eta_slope_top*hft1[i]);
-	  slp[5][i] *= cf; slp[6][i] *= cf; slp[7][i] *= cf;	
-	}
-      }
+        if( (eta_slope_bot > 0.0) or ( eta_slope_top > 0.0) ){
+#pragma acc loop vector independent private(cf)
+	        for(i=1;i<sz-1;i++){
+	          cf =(1.0-eta_slope_bot*hfb1[i])*(1.0-eta_slope_top*hft1[i]);
+	          slp[i*v_nvar+5] *= cf; slp[i*v_nvar+6] *= cf; slp[i*v_nvar+7] *= cf;	
+	        }
+        }
 
-      // more diffusivity around large density jumps
-      for(i=1;i<sz-1;i++){
-	if(qrho[i] > q_rho_max)
-	  slp[0][i] = 0.0;
-      }
+        // more diffusivity around large density jumps
+#pragma acc loop vector independent
+        for(i=1;i<sz-1;i++){
+	        if(qrho[i] > q_rho_max)
+	          slp[i*v_nvar+0] = 0.0;
+        }
 
-      // more diffusivity for very fast flows
-      if(vmax_lim > 0.0){
-	for(i=1;i<sz-1;i++){
-	  if(vsqr[i] > vsqr_diff){
-	    slp[1][i] = 0.0;
-	    slp[2][i] = 0.0;
-	    slp[3][i] = 0.0;
-	  }
-	}
-      }
+        // more diffusivity for very fast flows
+        if(vmax_lim > 0.0){
+#pragma acc loop vector independent
+	        for(i=1;i<sz-1;i++){
+	          if(vsqr[i] > vsqr_diff){
+	            slp[i*v_nvar+1]  = 0.0;
+	            slp[i*v_nvar+2]  = 0.0;
+	            slp[i*v_nvar+3]  = 0.0;
+	          }
+	        }
+        }
 
-      for(ivar=0;ivar<nvar;ivar++){
-	if( (ivar >=1) && (ivar <= 3) ){
-	  for(i=1;i<sz-2;i++){
-	    sl     = var[ivar][i+1]-var[ivar][i];
-	    sl_lim = var[ivar][i+1]-var[ivar][i]-(slp[ivar][i]+slp[ivar][i+1]);
-	    dn     = hyp_v[i];
-	    rf     = fabs(sl_lim)/max(1e-100,fabs(sl));
-	    cf     = max(0.0,min(sl_lim,sl))+min(0.0,max(sl_lim,sl));
-	    flx[ivar][i] = max(0.0,1.0+dn*(rf-1.0))*cf;
-	    uif[ivar][i] = 0.5*(var[ivar][i]+slp[ivar][i]+
-				var[ivar][i+1]-slp[ivar][i+1]);
-	  }
-	} else if( (ivar >=5) && (ivar <= 7) ){
-	  for(i=1;i<sz-2;i++){
-	    sl     = var[ivar][i+1]-var[ivar][i];
-	    sl_lim = var[ivar][i+1]-var[ivar][i]-(slp[ivar][i]+slp[ivar][i+1]);
-	    dn     = hyp_B[i];
-	    rf     = fabs(sl_lim)/max(1e-100,fabs(sl));
-	    cf     = max(0.0,min(sl_lim,sl))+min(0.0,max(sl_lim,sl));
-	    flx[ivar][i] = max(0.0,1.0+dn*(rf-1.0))*cf;
-	    uif[ivar][i] = 0.5*(var[ivar][i]+slp[ivar][i]+
-				var[ivar][i+1]-slp[ivar][i+1]);
-	  }
-	} else {
-	  for(i=1;i<sz-2;i++){
-	    sl     = var[ivar][i+1]-var[ivar][i];
-	    sl_lim = var[ivar][i+1]-var[ivar][i]-(slp[ivar][i]+slp[ivar][i+1]);
-	    dn     = hyp_e[i];
-	    rf     = fabs(sl_lim)/max(1e-100,fabs(sl));
-	    cf     = max(0.0,min(sl_lim,sl))+min(0.0,max(sl_lim,sl));
-	    flx[ivar][i] = max(0.0,1.0+dn*(rf-1.0))*cf;
-	    uif[ivar][i] = 0.5*(var[ivar][i]+slp[ivar][i]+
-				var[ivar][i+1]-slp[ivar][i+1]);
-	  }
-	}
-      }
+        // This loop is kinda weird and seems unnecessary.
+        // I'm pretty sure nvar will always be size 8, and I'll test it.
+        //for(ivar=0;ivar<nvar;ivar++){
+	      //  if( (ivar >=1) && (ivar <= 3) ){
+	      //   for(i=1;i<sz-2;i++){
+	      //      sl     = var[(i+1)*v_nvar+ivar]-var[i*v_nvar+ivar];
+	      //      sl_lim = var[(i+1)*v_nvar+ivar]-var[i*v_nvar+ivar]-(slp[i*v_nvar+ivar] +slp[(i+1)*v_nvar+ivar]);
+	      //      dn     = hyp_v[i];
+	      //      rf     = fabs(sl_lim)/max(1e-100,fabs(sl));
+	      //      cf     = max(0.0,min(sl_lim,sl))+min(0.0,max(sl_lim,sl));
+	      //      flx[i*v_nvar+ivar] = max(0.0,1.0+dn*(rf-1.0))*cf;
+	      //      uif[i*v_nvar+ivar] = 0.5*(var[i*v_nvar+ivar]+slp[i*v_nvar+ivar]+
+				//        var[(i+1)*v_nvar+ivar]-slp[(i+1)*v_nvar+ivar]);
+	      //    }
+	      //  } else if( (ivar >=5) && (ivar <= 7) ){
+	      //    for(i=1;i<sz-2;i++){
+	      //      sl     = var[(i+1)*v_nvar+ivar]-var[i*v_nvar+ivar];
+	      //      sl_lim = var[(i+1)*v_nvar+ivar]-var[i*v_nvar+ivar]-(slp[i*v_nvar+ivar]+slp[(i+1)*v_nvar+ivar]);
+	      //      dn     = hyp_B[i];
+	      //      rf     = fabs(sl_lim)/max(1e-100,fabs(sl));
+	      //      cf     = max(0.0,min(sl_lim,sl))+min(0.0,max(sl_lim,sl));
+	      //      flx[i*v_nvar+ivar] = max(0.0,1.0+dn*(rf-1.0))*cf;
+	      //      uif[i*v_nvar+ivar] = 0.5*(var[i*v_nvar+ivar]+slp[i*v_nvar+ivar]+
+				//        var[(i+1)*v_nvar+ivar]-slp[(i*1)*v_nvar+ivar]);
+	      //    }
+	      //  } else {
+	      //    for(i=1;i<sz-2;i++){
+	      //      sl     = var[(i+1)*v_nvar+ivar]-var[i*v_nvar+ivar];
+	      //      sl_lim = var[(i+1)*v_nvar+ivar]-var[i*v_nvar+ivar]-(slp[i*v_nvar+ivar]+slp[(i+1)*v_nvar+ivar]);
+	      //     dn     = hyp_e[i];
+	      //      rf     = fabs(sl_lim)/max(1e-100,fabs(sl));
+	      //      cf     = max(0.0,min(sl_lim,sl))+min(0.0,max(sl_lim,sl));
+	      //      flx[i*v_nvar+ivar] = max(0.0,1.0+dn*(rf-1.0))*cf;
+	      //      uif[i*v_nvar+ivar] = 0.5*(var[i*v_nvar+ivar]+slp[i*v_nvar+ivar]+
+				//        var[(i+1)*v_nvar+ivar]-slp[(i+1)*v_nvar+ivar]);
+	      //    }
+	      // }
+        //}
 
-      // diffusion coefficient
-      for(i=0;i<sz-1;i++)
-	tvd_fac[i] = 0.5*idx[d1]*min(cmax,max(cm[i],cm[i+1]));
+// Experimental change -- probably okay but does need to be double checked
+#pragma acc loop vector independent private(sl, sl_lim, dn, rf, cf)
+        for(i=1;i<sz-2;i++){
+          // ivar = 0
+      	  sl     = var[(i+1)*v_nvar+0]-var[i*v_nvar+0];
+          sl_lim = var[(i+1)*v_nvar+0]-var[i*v_nvar+0]-(slp[i*v_nvar+0] +slp[(i+1)*v_nvar+0]);
+          dn     = hyp_e[i];
+          rf     = fabs(sl_lim)/max(1e-100,fabs(sl));
+          cf     = max(0.0,min(sl_lim,sl))+min(0.0,max(sl_lim,sl));
+          flx[i*v_nvar+0] = max(0.0,1.0+dn*(rf-1.0))*cf;
+          uif[i*v_nvar+0] = 0.5*(var[i*v_nvar+0]+slp[i*v_nvar+0]+
+		        var[(i+1)*v_nvar+0]-slp[(i+1)*v_nvar+0]);
+          // ivar = 1
+      	  sl     = var[(i+1)*v_nvar+1]-var[i*v_nvar+1];
+          sl_lim = var[(i+1)*v_nvar+1]-var[i*v_nvar+1]-(slp[i*v_nvar+1] +slp[(i+1)*v_nvar+1]);
+          dn     = hyp_v[i];
+          rf     = fabs(sl_lim)/max(1e-100,fabs(sl));
+          cf     = max(0.0,min(sl_lim,sl))+min(0.0,max(sl_lim,sl));
+          flx[i*v_nvar+1] = max(0.0,1.0+dn*(rf-1.0))*cf;
+          uif[i*v_nvar+1] = 0.5*(var[i*v_nvar+1]+slp[i*v_nvar+1]+
+		        var[(i+1)*v_nvar+1]-slp[(i+1)*v_nvar+1]);
+          // ivar = 2
+      	  sl     = var[(i+1)*v_nvar+2]-var[i*v_nvar+2];
+          sl_lim = var[(i+1)*v_nvar+2]-var[i*v_nvar+2]-(slp[i*v_nvar+2] +slp[(i+1)*v_nvar+2]);
+          dn     = hyp_v[i];
+          rf     = fabs(sl_lim)/max(1e-100,fabs(sl));
+          cf     = max(0.0,min(sl_lim,sl))+min(0.0,max(sl_lim,sl));
+          flx[i*v_nvar+2] = max(0.0,1.0+dn*(rf-1.0))*cf;
+          uif[i*v_nvar+2] = 0.5*(var[i*v_nvar+2]+slp[i*v_nvar+2]+
+		        var[(i+1)*v_nvar+2]-slp[(i+1)*v_nvar+2]);
+          // ivar = 3
+      	  sl     = var[(i+1)*v_nvar+3]-var[i*v_nvar+3];
+          sl_lim = var[(i+1)*v_nvar+3]-var[i*v_nvar+3]-(slp[i*v_nvar+3] +slp[(i+1)*v_nvar+3]);
+          dn     = hyp_v[i];
+          rf     = fabs(sl_lim)/max(1e-100,fabs(sl));
+          cf     = max(0.0,min(sl_lim,sl))+min(0.0,max(sl_lim,sl));
+          flx[i*v_nvar+3] = max(0.0,1.0+dn*(rf-1.0))*cf;
+          uif[i*v_nvar+3] = 0.5*(var[i*v_nvar+3]+slp[i*v_nvar+3]+
+		        var[(i+1)*v_nvar+3]-slp[(i+1)*v_nvar+3]);
+          // ivar = 4
+      	  sl     = var[(i+1)*v_nvar+4]-var[i*v_nvar+4];
+          sl_lim = var[(i+1)*v_nvar+4]-var[i*v_nvar+4]-(slp[i*v_nvar+4] +slp[(i+1)*v_nvar+4]);
+          dn     = hyp_e[i];
+          rf     = fabs(sl_lim)/max(1e-100,fabs(sl));
+          cf     = max(0.0,min(sl_lim,sl))+min(0.0,max(sl_lim,sl));
+          flx[i*v_nvar+4] = max(0.0,1.0+dn*(rf-1.0))*cf;
+          uif[i*v_nvar+4] = 0.5*(var[i*v_nvar+4]+slp[i*v_nvar+4]+
+		        var[(i+1)*v_nvar+4]-slp[(i+1)*v_nvar+4]);
+          // ivar = 5
+      	  sl     = var[(i+1)*v_nvar+5]-var[i*v_nvar+5];
+          sl_lim = var[(i+1)*v_nvar+5]-var[i*v_nvar+5]-(slp[i*v_nvar+5] +slp[(i+1)*v_nvar+5]);
+          dn     = hyp_B[i];
+          rf     = fabs(sl_lim)/max(1e-100,fabs(sl));
+          cf     = max(0.0,min(sl_lim,sl))+min(0.0,max(sl_lim,sl));
+          flx[i*v_nvar+5] = max(0.0,1.0+dn*(rf-1.0))*cf;
+          uif[i*v_nvar+5] = 0.5*(var[i*v_nvar+5]+slp[i*v_nvar+5]+
+		        var[(i+1)*v_nvar+5]-slp[(i+1)*v_nvar+5]);
+          // ivar = 6
+      	  sl     = var[(i+1)*v_nvar+6]-var[i*v_nvar+6];
+          sl_lim = var[(i+1)*v_nvar+6]-var[i*v_nvar+6]-(slp[i*v_nvar+6] +slp[(i+1)*v_nvar+6]);
+          dn     = hyp_B[i];
+          rf     = fabs(sl_lim)/max(1e-100,fabs(sl));
+          cf     = max(0.0,min(sl_lim,sl))+min(0.0,max(sl_lim,sl));
+          flx[i*v_nvar+6] = max(0.0,1.0+dn*(rf-1.0))*cf;
+          uif[i*v_nvar+6] = 0.5*(var[i*v_nvar+6]+slp[i*v_nvar+6]+
+		        var[(i+1)*v_nvar+6]-slp[(i+1)*v_nvar+6]);
+          // ivar = 7
+      	  sl     = var[(i+1)*v_nvar+7]-var[i*v_nvar+7];
+          sl_lim = var[(i+1)*v_nvar+7]-var[i*v_nvar+7]-(slp[i*v_nvar+7] +slp[(i+1)*v_nvar+7]);
+          dn     = hyp_B[i];
+          rf     = fabs(sl_lim)/max(1e-100,fabs(sl));
+          cf     = max(0.0,min(sl_lim,sl))+min(0.0,max(sl_lim,sl));
+          flx[i*v_nvar+7] = max(0.0,1.0+dn*(rf-1.0))*cf;
+          uif[i*v_nvar+7] = 0.5*(var[i*v_nvar+7]+slp[i*v_nvar+7]+
+		        var[(i+1)*v_nvar+7]-slp[(i+1)*v_nvar+7]);
+        }
+
+
+
+        // diffusion coefficient
+#pragma acc loop vector independent
+        for(i=0;i<sz-1;i++)
+	        tvd_fac[i] = 0.5*idx[d1]*min(cmax,max(cm[i],cm[i+1]));
       
-      for(ivar=0;ivar<nvar;ivar++)
-	for(i=1;i<sz-2;i++)
-	  flx[ivar][i] *= tvd_fac[i];
+#pragma acc loop collapse(2) vector independent
+        for(ivar=0;ivar<nvar;ivar++)
+	        for(i=1;i<sz-2;i++)
+	          flx[i*v_nvar+ivar] *= tvd_fac[i];
       
-      // avoid terms that produce large divB error -> dBx/dx, dBy/dy, dBz/dz
-      for(i=1;i<sz-2;i++)
-	flx[5+d1][i] *= B_par_diff;
+        // avoid terms that produce large divB error -> dBx/dx, dBy/dy, dBz/dz
+#pragma acc loop vector independent
+        for(i=1;i<sz-2;i++)
+	        flx[i*v_nvar+5+d1] *= B_par_diff;
 
-      if(need_tvd_coeff){
-	for(i=1;i<sz-2;i++){
-	  flx[0][i] *= tvd_coeff[0];
+        if(need_tvd_coeff){
+#pragma acc loop vector independent private(cf)
+	        for(i=1;i<sz-2;i++){
+	          flx[i*v_nvar+0] *= tvd_coeff[0];
+	          
+	          cf = max(tvd_coeff[1],visc_coeff_bot*hfb1[i]+visc_coeff_top*hft1[i]);
+	          flx[i*v_nvar+1] *= cf;
+	          flx[i*v_nvar+2] *= cf;
+	          flx[i*v_nvar+3] *= cf;
+	          
+	          flx[i*v_nvar+4] *= tvd_coeff[2];
+	          
+	          cf = max(tvd_coeff[3],eta_coeff_bot*hfb1[i]+eta_coeff_top*hft1[i]);
+	          flx[i*v_nvar+5] *= cf;
+	          flx[i*v_nvar+6] *= cf;
+	          flx[i*v_nvar+7] *= cf; 
+	        }
+        } 
+
+        // additional 4th order hyperdiffusion for HD varibales in the
+        // y-direction to damp spurious oscillations
+        if( (d1 == 0) && (vhyp > 0.0) ){
+	        istart = 1;
+	        if(Grid.is_gbeg[0]) istart += gh;
+#pragma acc loop vector independent private(dn, ivar)
+	        for(i=istart;i<sz-2;i++){
+	          dn = max(hyperdiff[i],hyperdiff[i+1]);
+	          ivar = 0;
+	          flx[i*v_nvar+ivar] -= dn*(0.125*(var[(i+2)*v_nvar+ivar]-var[(i-1)*v_nvar+ivar]) -
+			              0.375*(var[(i+1)*v_nvar+ivar]-var[i*v_nvar+ivar]));
+	          ivar = 1;
+	          flx[i*v_nvar+ivar] -= dn*(0.125*(var[(i+2)*v_nvar+ivar]-var[(i-1)*v_nvar+ivar]) -
+			              0.375*(var[(i+1)*v_nvar+ivar]-var[i*v_nvar+ivar]));
+	          ivar = 4;
+	          flx[i*v_nvar+ivar] -= dn*(0.125*(var[(i+2)*v_nvar+ivar]-var[(i-1)*v_nvar+ivar]) -
+			              0.375*(var[(i+1)*v_nvar+ivar]-var[i*v_nvar+ivar]));
+	        }
+        }
+      
+        if(rho_log){
+#pragma acc loop vector independent
+	        for(i=1;i<sz-2;i++){   
+	          uif[i*v_nvar+0]  = exp(uif[i*v_nvar+0]);
+	          flx[i*v_nvar+0] *= uif[i*v_nvar+0];
+
+	          uif[i*v_nvar+4]  = exp(uif[i*v_nvar+4]);
+	          flx[i*v_nvar+4] *= uif[i*v_nvar+4];
+	        }
+        }
+
+#pragma acc loop collapse(2) vector independent
+        for(ivar=1;ivar<=4;ivar++){
+	        for(i=1;i<sz-2;i++){
+	          flx[i*v_nvar+ivar] *= uif[i*v_nvar+0];
+	        }
+        }
+
+        // correction of momentum and energy flux for mass diffusion
+#pragma acc loop collapse(2) vector independent
+        for(ivar=1;ivar<=4;ivar++){
+	        for(i=1;i<sz-2;i++){
+	          flx[i*v_nvar+ivar] += uif[i*v_nvar+ivar]*flx[i*v_nvar+0]*min(CZ_fac[i],CZ_fac[i+1]);
+	        }
+        } 
 	  
-	  cf = max(tvd_coeff[1],visc_coeff_bot*hfb1[i]+visc_coeff_top*hft1[i]);
-	  flx[1][i] *= cf;
-	  flx[2][i] *= cf;
-	  flx[3][i] *= cf;
-	  
-	  flx[4][i] *= tvd_coeff[2];
-	  
-	  cf = max(tvd_coeff[3],eta_coeff_bot*hfb1[i]+eta_coeff_top*hft1[i]);
-	  flx[5][i] *= cf;
-	  flx[6][i] *= cf;
-	  flx[7][i] *= cf; 
-	}
-      } 
+        // viscous energy flux
+#pragma acc loop vector independent
+        for(i=1;i<sz-2;i++)   
+	        flx[i*v_nvar+4] += qft1[i]*(uif[i*v_nvar+1]*flx[i*v_nvar+1]+uif[i*v_nvar+2]*flx[i*v_nvar+2]+uif[i*v_nvar+3]*flx[i*v_nvar+3]);
 
-      // additional 4th order hyperdiffusion for HD varibales in the
-      // y-direction to damp spurious oscillations
-      if( (d1 == 0) && (vhyp > 0.0) ){
-	istart = 1;
-	if(Grid.is_gbeg[0]) istart += gh;
-	for(i=istart;i<sz-2;i++){
-	  dn = max(hyperdiff[i],hyperdiff[i+1]);
-	  ivar = 0;
-	  flx[ivar][i] -= dn*(0.125*(var[ivar][i+2]-var[ivar][i-1]) -
-			      0.375*(var[ivar][i+1]-var[ivar][i]));
-	  ivar = 1;
-	  flx[ivar][i] -= dn*(0.125*(var[ivar][i+2]-var[ivar][i-1]) -
-			      0.375*(var[ivar][i+1]-var[ivar][i]));
-	  ivar = 4;
-	  flx[ivar][i] -= dn*(0.125*(var[ivar][i+2]-var[ivar][i-1]) -
-			      0.375*(var[ivar][i+1]-var[ivar][i]));
-	}
-      }
+        // no diffusion for vertical field at boundaries (conserve vertical magnetic flux)
+        if( d1 == 0) {
+	        //if( Grid.is_gend[0] ) flx[(sz-gh-1)*v_nvar+5] = 0.0;
+	        //if( Grid.is_gbeg[0] ) flx[(gh-1)*v_nvar+5] = 0.0;
+	        if(is_gend) flx[(sz-gh-1)*v_nvar+5] = 0.0;
+	        if(is_gbeg) flx[(gh-1)*v_nvar+5] = 0.0;
+        } 
       
-      if(rho_log){
-	for(i=1;i<sz-2;i++){   
-	  uif[0][i]  = exp(uif[0][i]);
-	  flx[0][i] *= uif[0][i];
+#pragma acc loop collapse(2) vector independent
+        for(ivar=0;ivar<nvar;ivar++){
+	        for(i=gh;i<sz-gh;i++){
+	          res[i*v_nvar+ivar] = dt_tvd*(flx[i*v_nvar+ivar]-flx[(i-1)*v_nvar+ivar]);
+	        }
+        }
 
-	  uif[4][i]  = exp(uif[4][i]);
-	  flx[4][i] *= uif[4][i];
-	}
-      }
+        // Remove viscous heating at top boundary
+#pragma acc loop vector independent
+        for(i=gh;i<sz-gh;i++)
+	        res[i*v_nvar+4] += (1.0-qft1[i])*(res[i*v_nvar+1]*var[i*v_nvar+1] + res[i*v_nvar+2]*var[i*v_nvar+2] + res[i*v_nvar+3]*var[i*v_nvar+3]);
 
-      for(ivar=1;ivar<=4;ivar++){
-	for(i=1;i<sz-2;i++){
-	  flx[ivar][i] *= uif[0][i];
-	}
-      }
+        if(need_diagnostics){
+          #pragma ivdep
+#pragma acc loop vector independent private(node)
+	        for(i=gh;i<sz-gh;i++){
+	          node = offset+i*str;
+	          Grid.tvar8[node] += res[i*v_nvar+4]*idt_full;
+	        }
+        }
 
-      // correction of momentum and energy flux for mass diffusion
-      for(ivar=1;ivar<=4;ivar++){
-	for(i=1;i<sz-2;i++){
-	  flx[ivar][i] += uif[ivar][i]*flx[0][i]*min(CZ_fac[i],CZ_fac[i+1]);
-	}
-      } 
-	  
-      // viscous energy flux
-      for(i=1;i<sz-2;i++)   
-	flx[4][i] += qft1[i]*(uif[1][i]*flx[1][i]+uif[2][i]*flx[2][i]+uif[3][i]*flx[3][i]);
+        // projection of fvisc for consistency with SR treatment
+#pragma acc loop vector independent private(dn)
+        for(i=gh;i<sz-gh;i++){
+	        dn = (res[i*v_nvar+1]*var[i*v_nvar+5] + res[i*v_nvar+2]*var[i*v_nvar+6] + res[i*v_nvar+3]*var[i*v_nvar+7])/max(1e-100,bsqr[i]);
 
-      // no diffusion for vertical field at boundaries (conserve vertical magnetic flux)
-      if( d1 == 0) {
-	if( Grid.is_gend[0] ) flx[5][sz-gh-1] = 0.0;
-	if( Grid.is_gbeg[0] ) flx[5][gh-1] = 0.0;
-      } 
+	        boris[i*4+0] = -BC2[i]*(res[i*v_nvar+1]-dn*var[i*v_nvar+5]);
+	        boris[i*4+1] = -BC2[i]*(res[i*v_nvar+2]-dn*var[i*v_nvar+6]);
+	        boris[i*4+2] = -BC2[i]*(res[i*v_nvar+3]-dn*var[i*v_nvar+7]);
+	        boris[i*4+3] =  boris[i*4+0]*var[i*v_nvar+1]+boris[i*4+1]*var[i*v_nvar+2]+boris[i*4+2]*var[i*v_nvar+3];	
+        }
+
+#pragma acc loop vector independent
+        for(i=gh;i<sz-gh;i++){
+	        res[i*v_nvar+1] += boris[i*4+0];
+	        res[i*v_nvar+2] += boris[i*4+1];
+	        res[i*v_nvar+3] += boris[i*4+2];
+	        res[i*v_nvar+4] += boris[i*4+3];
+        }
       
-      for(ivar=0;ivar<nvar;ivar++){
-	for(i=gh;i<sz-gh;i++){
-	  res[ivar][i] = dt_tvd*(flx[ivar][i]-flx[ivar][i-1]);
-	}
-      }
-
-      // Remove viscous heating at top boundary
-      for(i=gh;i<sz-gh;i++)
-	res[4][i] += (1.0-qft1[i])*(res[1][i]*var[1][i] + res[2][i]*var[2][i] + res[3][i]*var[3][i]);
-
-      if(need_diagnostics){
-        #pragma ivdep
-	for(i=gh;i<sz-gh;i++){
-	  node = offset+i*str;
-	  Grid.tvar8[node] += res[4][i]*idt_full;
-	}
-      }
-
-      // projection of fvisc for consistency with SR treatment
-      for(i=gh;i<sz-gh;i++){
-	dn = (res[1][i]*var[5][i] + res[2][i]*var[6][i] + res[3][i]*var[7][i])/max(1e-100,bsqr[i]);
-
-	boris[0][i] = -BC2[i]*(res[1][i]-dn*var[5][i]);
-	boris[1][i] = -BC2[i]*(res[2][i]-dn*var[6][i]);
-	boris[2][i] = -BC2[i]*(res[3][i]-dn*var[7][i]);
-	boris[3][i] =  boris[0][i]*var[1][i]+boris[1][i]*var[2][i]+boris[2][i]*var[3][i];	
-      }
-
-      for(i=gh;i<sz-gh;i++){
-	res[1][i] += boris[0][i];
-	res[2][i] += boris[1][i];
-	res[3][i] += boris[2][i];
-	res[4][i] += boris[3][i];
-      }
+        // resistive heating 
+#pragma acc loop vector independent
+        for(i=1;i<sz-2;i++){
+	        qrho[i] = 
+	          (var[(i+1)*v_nvar+5]-var[i*v_nvar+5])*flx[i*v_nvar+5] +
+	          (var[(i+1)*v_nvar+6]-var[i*v_nvar+6])*flx[i*v_nvar+6] +
+	          (var[(i+1)*v_nvar+6]-var[i*v_nvar+7])*flx[i*v_nvar+7];
+        }
       
-      // resistive heating 
-      for(i=1;i<sz-2;i++){
-	qrho[i] = 
-	  (var[5][i+1]-var[5][i])*flx[5][i] +
-	  (var[6][i+1]-var[6][i])*flx[6][i] +
-	  (var[7][i+1]-var[7][i])*flx[7][i];
-      }
-      
-      for(i=gh;i<sz-gh;i++){
-	qres[i] = 0.5*(qrho[i]+qrho[i-1])*qft1[i];
-	res[4][i] += dt_tvd*qres[i];
-      }
-      
-      // viscous heating for diagnostics
-      if(need_diagnostics){
-	for(i=1;i<sz-2;i++){
-	  qrho[i] = 
-	    (var[1][i+1]-var[1][i])*flx[1][i] +
-	    (var[2][i+1]-var[2][i])*flx[2][i] +
-	    (var[3][i+1]-var[3][i])*flx[3][i];
-	}
+#pragma acc loop vector independent
+        for(i=gh;i<sz-gh;i++){
+	        qres[i] = 0.5*(qrho[i]+qrho[i-1])*qft1[i];
+	        res[i*v_nvar+4] += dt_tvd*qres[i];
+        }
+        
+        // viscous heating for diagnostics
+        if(need_diagnostics){
+#pragma acc loop vector independent
+	        for(i=1;i<sz-2;i++){
+	          qrho[i] = 
+	            (var[(i+1)*v_nvar+1]-var[i*v_nvar+1])*flx[i*v_nvar+1] +
+	            (var[(i+1)*v_nvar+2]-var[i*v_nvar+2])*flx[i*v_nvar+2] +
+	            (var[(i+1)*v_nvar+3]-var[i*v_nvar+3])*flx[i*v_nvar+3];
+	        }
 
-	for(i=gh;i<sz-gh;i++){
-	  qvis[i] = 0.5*(qrho[i]+qrho[i-1])*qft1[i];
-	}
-      }
+#pragma acc loop vector independent
+	        for(i=gh;i<sz-gh;i++){
+	          qvis[i] = 0.5*(qrho[i]+qrho[i-1])*qft1[i];
+	        }
+        }
  
-      //c_time += MPI_Wtime()-time;
+        //c_time += MPI_Wtime()-time;
 
-      //time = MPI_Wtime();
-      #pragma ivdep
-      for(i=gh;i<sz-gh;i++){
-	node = offset+i*str;
-	U[node].d   += res[0][i];
-	U[node].M.x += res[1][i];
-	U[node].M.y += res[2][i];
-	U[node].M.z += res[3][i];
-	U[node].e   += res[4][i];
-	U[node].B.x += res[5][i];
-	U[node].B.y += res[6][i];
-	U[node].B.z += res[7][i];
-	U[node].d    = max(rho_min,U[node].d);
-      }
-
-      if (need_diagnostics){ 
+        //time = MPI_Wtime();
         #pragma ivdep
-	for(i=gh;i<sz-gh;i++){
-	  node = offset+i*str;
-	  Grid.Qres[node] += dt_fac*qres[i];
-	  Grid.Qvis[node] += dt_fac*qvis[i];
+#pragma acc loop vector independent private(node)
+        for(i=gh;i<sz-gh;i++){
+	        node = offset+i*str;
+	        U[node].d   += res[i*v_nvar+0];
+	        U[node].M.x += res[i*v_nvar+1];
+	        U[node].M.y += res[i*v_nvar+2];
+	        U[node].M.z += res[i*v_nvar+3];
+	        U[node].e   += res[i*v_nvar+4];
+	        U[node].B.x += res[i*v_nvar+5];
+	        U[node].B.y += res[i*v_nvar+6];
+	        U[node].B.z += res[i*v_nvar+7];
+	        U[node].d    = max(rho_min,U[node].d);
+        }
+
+        if (need_diagnostics){ 
+          #pragma ivdep
+#pragma acc loop vector independent private(node)
+	        for(i=gh;i<sz-gh;i++){
+	          node = offset+i*str;
+	          Grid.Qres[node] += dt_fac*qres[i];
+	          Grid.Qvis[node] += dt_fac*qvis[i];
 	
-	  Grid.tvar6[node] += boris[3][i]*idt_full;
-	}
-      }
+	          Grid.tvar6[node] += boris[i*4+3]*idt_full;
+	        }
+        }
 
-      #pragma ivdep
-      for(i=gh;i<sz-gh;i++){
-	node = offset+i*str;
-	bsqr[i] = U[node].e;
-	U[node].e = max(U[node].e,eps_min*U[node].d+0.5*U[node].M.sqr()/U[node].d);
-      }
-
-      if (need_diagnostics){ 
         #pragma ivdep
-	for(i=gh;i<sz-gh;i++){
-	  node = offset+i*str;     
-	  Grid.tvar7[node] += (U[node].e-bsqr[i])*idt_full;
-	}
-      }
-      //r_time += MPI_Wtime()-time;
-    }
+#pragma acc loop vector independent private(node)
+        for(i=gh;i<sz-gh;i++){
+	        node = offset+i*str;
+	        bsqr[i] = U[node].e;
+	        U[node].e = max(U[node].e,eps_min*U[node].d+0.5*U[node].M.sqr()/U[node].d);
+        }
+
+        if (need_diagnostics){ 
+          #pragma ivdep
+#pragma acc loop vector independent private(node)
+	        for(i=gh;i<sz-gh;i++){
+	          node = offset+i*str;     
+	          Grid.tvar7[node] += (U[node].e-bsqr[i])*idt_full;
+	        }
+        }
+        //r_time += MPI_Wtime()-time;
+      } // end J loop
+    } // end K loop
+
+} // END PARALLEL
+
+#pragma acc exit data copyout(stride[0:3], U[0:Grid.bufsize], Grid.Tau[0:Grid.bufsize], \
+  Grid.v_amb[0:Grid.bufsize], hfb[0:vsize], qft[0:vsize], hft[0:vsize], tvd_coeff[0:4], \
+  Grid.tvar8[0:Grid.bufsize], Grid.Qres[0:Grid.bufsize], Grid.Qvis[0:Grid.bufsize], \
+  Grid.tvar6[0:Grid.bufsize], Grid.tvar7[0:Grid.bufsize], idx[0:3], tvd_cs[0:4], tvd_h[0:4], \
+  Grid.pres[0:Grid.bufsize])
+#pragma acc exit data delete(Grid)
+
 
     bounds[d1][0] = Grid.lbeg[d1];
     bounds[d1][1] = Grid.lend[d1];
-  }
+  } // end D loop
 
   //t_time += MPI_Wtime()-s_time;
   //call_count += 1;
@@ -627,5 +820,32 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
   // << c_time/call_count << ' ' 
   // << r_time/call_count << endl; 
 
+  free(var);
+  free(slp);
+  free(res);
+  free(flx);
+  free(uif);
+  free(boris);
+  free(vv_amb);
+  free(qrho);
+  free(hft1);
+  free(hfb1);
+  free(cm);
+  free(tvd_fac);
+  free(bsqr);
+  free(vsqr);
+  free(BC2);
+  free(pres);
+  free(hyperdiff);
+  free(qres);
+  free(qvis);
+  free(qft1);
+  free(hyp_e);
+  free(hyp_v);
+  free(hyp_B);
+  free(CZ_fac);
+
 
 }
+
+
