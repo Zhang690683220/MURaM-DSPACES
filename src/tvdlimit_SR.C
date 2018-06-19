@@ -62,7 +62,6 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
   const int vsize = Grid.vsize;
   const int v_nvar = Grid.v_nvar;
  
-cout << "nvar=" << nvar << " v_nvar=" << v_nvar << endl;
 
   double h_bnd;
   if(Physics.tvd_h_bnd[0] < 1)
@@ -468,42 +467,42 @@ cout << "nvar=" << nvar << " v_nvar=" << v_nvar << endl;
 
         // This loop is kinda weird and seems unnecessary.
         // I'm pretty sure nvar will always be size 8, and I'll test it.
-        //for(ivar=0;ivar<nvar;ivar++){
-	      //  if( (ivar >=1) && (ivar <= 3) ){
-	      //   for(i=1;i<sz-2;i++){
-	      //      sl     = var[(i+1)*v_nvar+ivar]-var[i*v_nvar+ivar];
-	      //      sl_lim = var[(i+1)*v_nvar+ivar]-var[i*v_nvar+ivar]-(slp[i*v_nvar+ivar] +slp[(i+1)*v_nvar+ivar]);
-	      //      dn     = hyp_v[i];
-	      //      rf     = fabs(sl_lim)/max(1e-100,fabs(sl));
-	      //      cf     = max(0.0,min(sl_lim,sl))+min(0.0,max(sl_lim,sl));
-	      //      flx[i*v_nvar+ivar] = max(0.0,1.0+dn*(rf-1.0))*cf;
-	      //      uif[i*v_nvar+ivar] = 0.5*(var[i*v_nvar+ivar]+slp[i*v_nvar+ivar]+
-				//        var[(i+1)*v_nvar+ivar]-slp[(i+1)*v_nvar+ivar]);
-	      //    }
-	      //  } else if( (ivar >=5) && (ivar <= 7) ){
-	      //    for(i=1;i<sz-2;i++){
-	      //      sl     = var[(i+1)*v_nvar+ivar]-var[i*v_nvar+ivar];
-	      //      sl_lim = var[(i+1)*v_nvar+ivar]-var[i*v_nvar+ivar]-(slp[i*v_nvar+ivar]+slp[(i+1)*v_nvar+ivar]);
-	      //      dn     = hyp_B[i];
-	      //      rf     = fabs(sl_lim)/max(1e-100,fabs(sl));
-	      //      cf     = max(0.0,min(sl_lim,sl))+min(0.0,max(sl_lim,sl));
-	      //      flx[i*v_nvar+ivar] = max(0.0,1.0+dn*(rf-1.0))*cf;
-	      //      uif[i*v_nvar+ivar] = 0.5*(var[i*v_nvar+ivar]+slp[i*v_nvar+ivar]+
-				//        var[(i+1)*v_nvar+ivar]-slp[(i*1)*v_nvar+ivar]);
-	      //    }
-	      //  } else {
-	      //    for(i=1;i<sz-2;i++){
-	      //      sl     = var[(i+1)*v_nvar+ivar]-var[i*v_nvar+ivar];
-	      //      sl_lim = var[(i+1)*v_nvar+ivar]-var[i*v_nvar+ivar]-(slp[i*v_nvar+ivar]+slp[(i+1)*v_nvar+ivar]);
-	      //     dn     = hyp_e[i];
-	      //      rf     = fabs(sl_lim)/max(1e-100,fabs(sl));
-	      //      cf     = max(0.0,min(sl_lim,sl))+min(0.0,max(sl_lim,sl));
-	      //      flx[i*v_nvar+ivar] = max(0.0,1.0+dn*(rf-1.0))*cf;
-	      //      uif[i*v_nvar+ivar] = 0.5*(var[i*v_nvar+ivar]+slp[i*v_nvar+ivar]+
-				//        var[(i+1)*v_nvar+ivar]-slp[(i+1)*v_nvar+ivar]);
-	      //    }
-	      // }
-        //}
+        /*for(ivar=0;ivar<nvar;ivar++){
+	        if( (ivar >=1) && (ivar <= 3) ){
+	         for(i=1;i<sz-2;i++){
+	            sl     = var[(i+1)*v_nvar+ivar]-var[i*v_nvar+ivar];
+	            sl_lim = var[(i+1)*v_nvar+ivar]-var[i*v_nvar+ivar]-(slp[i*v_nvar+ivar] +slp[(i+1)*v_nvar+ivar]);
+	            dn     = hyp_v[i];
+	            rf     = fabs(sl_lim)/max(1e-100,fabs(sl));
+	            cf     = max(0.0,min(sl_lim,sl))+min(0.0,max(sl_lim,sl));
+	            flx[i*v_nvar+ivar] = max(0.0,1.0+dn*(rf-1.0))*cf;
+	            uif[i*v_nvar+ivar] = 0.5*(var[i*v_nvar+ivar]+slp[i*v_nvar+ivar]+
+				        var[(i+1)*v_nvar+ivar]-slp[(i+1)*v_nvar+ivar]);
+	          }
+	        } else if( (ivar >=5) && (ivar <= 7) ){
+	          for(i=1;i<sz-2;i++){
+	            sl     = var[(i+1)*v_nvar+ivar]-var[i*v_nvar+ivar];
+	            sl_lim = var[(i+1)*v_nvar+ivar]-var[i*v_nvar+ivar]-(slp[i*v_nvar+ivar]+slp[(i+1)*v_nvar+ivar]);
+	            dn     = hyp_B[i];
+	            rf     = fabs(sl_lim)/max(1e-100,fabs(sl));
+	            cf     = max(0.0,min(sl_lim,sl))+min(0.0,max(sl_lim,sl));
+	            flx[i*v_nvar+ivar] = max(0.0,1.0+dn*(rf-1.0))*cf;
+	            uif[i*v_nvar+ivar] = 0.5*(var[i*v_nvar+ivar]+slp[i*v_nvar+ivar]+
+				        var[(i+1)*v_nvar+ivar]-slp[(i*1)*v_nvar+ivar]);
+	          }
+	        } else {
+	          for(i=1;i<sz-2;i++){
+	            sl     = var[(i+1)*v_nvar+ivar]-var[i*v_nvar+ivar];
+	            sl_lim = var[(i+1)*v_nvar+ivar]-var[i*v_nvar+ivar]-(slp[i*v_nvar+ivar]+slp[(i+1)*v_nvar+ivar]);
+	           dn     = hyp_e[i];
+	            rf     = fabs(sl_lim)/max(1e-100,fabs(sl));
+	            cf     = max(0.0,min(sl_lim,sl))+min(0.0,max(sl_lim,sl));
+	            flx[i*v_nvar+ivar] = max(0.0,1.0+dn*(rf-1.0))*cf;
+	            uif[i*v_nvar+ivar] = 0.5*(var[i*v_nvar+ivar]+slp[i*v_nvar+ivar]+
+				        var[(i+1)*v_nvar+ivar]-slp[(i+1)*v_nvar+ivar]);
+	          }
+	       }
+        }*/
 
 // Experimental change -- probably okay but does need to be double checked
 #pragma acc loop vector independent private(sl, sl_lim, dn, rf, cf)
@@ -723,7 +722,7 @@ cout << "nvar=" << nvar << " v_nvar=" << v_nvar << endl;
 	        qrho[i] = 
 	          (var[(i+1)*v_nvar+5]-var[i*v_nvar+5])*flx[i*v_nvar+5] +
 	          (var[(i+1)*v_nvar+6]-var[i*v_nvar+6])*flx[i*v_nvar+6] +
-	          (var[(i+1)*v_nvar+6]-var[i*v_nvar+7])*flx[i*v_nvar+7];
+	          (var[(i+1)*v_nvar+7]-var[i*v_nvar+7])*flx[i*v_nvar+7];
         }
       
 #pragma acc loop vector independent
