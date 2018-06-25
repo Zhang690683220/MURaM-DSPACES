@@ -255,8 +255,8 @@ RTS::RTS(GridData&Grid,RunData &Run,PhysicsData &Physics){
   B=d3dim(yl,yh,xl,xh,zl,zh);
   kap=d3dim(yl,yh,xl,xh,zl,zh);
   I_n=d3dim(yl,yh,xl,xh,zl,zh);
-cout << "I_n=" << ny << "x" << nx << "x" << nz << endl;
-cout << "yl=" << yl << " xl=" << xl << " zl=" << zl << endl;
+//cout << "I_n=" << ny << "x" << nx << "x" << nz << endl;
+//cout << "yl=" << yl << " xl=" << xl << " zl=" << zl << endl;
 
   if (rttype==0){
     sig=kap;
@@ -944,12 +944,12 @@ double st = MPI_Wtime();
             if(NDIM==2){
               for(int i=0;i<4;i++) 
                 off[i]=ixstep[i]*stride[1]+izstep[i];
-cout << "ixstep={" << ixstep[0] << ", " << ixstep[1] << ", " << ixstep[2] << ", " << ixstep[3] << endl;
-cout << "izstep={" << izstep[0] << ", " << izstep[1] << ", " << izstep[2] << ", " << izstep[3] << endl;
-cout << "off   ={" << off[0] << ", " << off[1] << ", " << off[2] << ", " << off[3] << endl;
+//cout << "ixstep={" << ixstep[0] << ", " << ixstep[1] << ", " << ixstep[2] << ", " << ixstep[3] << endl;
+//cout << "izstep={" << izstep[0] << ", " << izstep[1] << ", " << izstep[2] << ", " << izstep[3] << endl;
+//cout << "off   ={" << off[0] << ", " << off[1] << ", " << off[2] << ", " << off[3] << endl;
               int boundx = abs(xi_f-xi_i);
               int boundz = abs(zi_f-zi_i);
-cout << "boundx=" << boundx << " boundz=" << boundz << endl << endl;
+//cout << "boundx=" << boundx << " boundz=" << boundz << endl << endl;
               int stridex = stride[1];
               double *coeff_flat = coeff[0];
               int size = ny*nx*nz;
@@ -959,25 +959,24 @@ cout << "boundx=" << boundx << " boundz=" << boundz << endl << endl;
               //for(int xi=xi_i;xi!=xi_f+xstep;xi=xi+xstep){
               for(int x0 = 0; x0 <= boundx; x0++) {
                 int xi = xi_i + (x0*xstep);
-cout << "xi=" << xi << endl;
+//cout << "xi=" << xi << endl;
                 int xoff=(xi-xl)*stridex;
-cout << "\txoff=" << xoff << endl;
+//cout << "\txoff=" << xoff << endl;
                 //for(int zi=zi_i;zi!=zi_f+zstep;zi=zi+zstep){
 //#pragma acc loop vector
                 for(int z0 = 0; z0 <= boundz; z0++) {
                   int zi = zi_i + (z0*zstep);
-cout << "\tzi=" << zi << endl;
+//cout << "\tzi=" << zi << endl;
                   int ind=xoff+zi;
-cout << "\t\tind=" << ind << endl;
-cout << "\t\tread from " << ind-off[0] << ", " << ind-off[1] << ", " << ind-off[2] << ", " << ind-off[3] << endl;
+//cout << "\t\tind=" << ind << endl;
+//cout << "\t\tread from " << ind-off[0] << ", " << ind-off[1] << ", " << ind-off[2] << ", " << ind-off[3] << endl;
                   int i_nu_acc = x0*(boundx+1)+z0;
                   double I_upw=c[0]*ii[ind-off[0]]+c[1]*ii[ind-off[1]]+c[2]*ii[ind-off[2]]+c[3]*ii[ind-off[3]];
                   ii[ind]=I_upw*coeff_flat[i_nu_acc]+coeff_flat[size+i_nu_acc];
                   //i_nu+=1;
                 }
-cout << endl << endl;
+//cout << endl << endl;
               }
-MPI_Abort(MPI_COMM_WORLD, 1);
             }
 
             if(NDIM==1){
