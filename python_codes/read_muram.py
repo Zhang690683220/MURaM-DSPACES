@@ -9,30 +9,6 @@ def read_RT_Hmean(dir,iter):
 
   return (tmp[8:].reshape([Nbands,Nvar,Nz]).swapaxes(0,1)).swapaxes(1,2),Nbands,Nvar,Nz,time
 
-#def read_Hmean(dir,iter):
-
-#  tmp = np.fromfile(dir+'hmean1D.'+inttostring(iter,ts_size=6),dtype=np.float32)
-
-#  Nvar = np.int(tmp[0]).astype(int); 
-#  Nz = np.int(tmp[1]).astype(int);
-#  empty = np.int(tmp[2]).astype(int);
-#  time = np.int(tmp[3]);
-
-#  return (tmp[8:].reshape([Nvar,Nz]),Nvar,Nz,time
-
-#def read_DEM(dir,iter,DEMtype='fil',DEMdim='z'):
-
-  ## Output either 'fil' 'vlos', 'vrms' 'dem' in 'x','y','z' dimension.
-#  tmp = np.fromfile(dir+'corona_emission_adj_'+DEMtype+'_'+DEMdim+'.'+inttostring(iter,ts_size=6),dtype=np.float32)
-
-#  nslvar = np.int(tmp[0]).astype(int); 
-#  size = tmp[1:3].astype(int)
-#  time   = np.int(tmp[3]);
-#  lgTmin = np.int(tmp[4]);
-#  dellgT = np.int(tmp[5]);
-
-#  return (tmp[6:].reshape([size[1],size[0]]).swapaxes(1,2),nslvar,size,time,lgTmin,dellgT
-
 def read_Iout(dir,iter):
 
   tmp = np.fromfile(dir+'I_out.'+inttostring(iter,ts_size=6),dtype=np.float32)
@@ -231,81 +207,11 @@ def MURaM_output(arr,dir,output,iter = '000000',prim=True, precision = 'single')
 
 class MURaM_snap:
   
-  def __init__(self,dir,boxtop,filename="parameters.dat"):
+  def __init__(self,dir,filename="parameters.dat"):
     ## Get simulation parameters from a particular parameters.dat (or similar) file
     ## Define toloads
-
-    def readndim(line):
-      self.NDIM = int(line.split("=")[-1])
-
-    def readgsize(line):
-      [self.nz,self.nx,self.ny] = list(map(int,line.split("=")[-1].split(" ",4)[1:4]))
-
-    def readgxmin(line):
-      self.gxmin = list(map(float,line.split("=")[-1].split(" ",4)[1:4]))
-      self.gxmin.insert(2, self.gxmin.pop(0))
-
-    def readgxmax(line):
-      self.gxmax = list(map(float,line.split("=")[-1].split(" ",4)[1:4]))
-      self.gxmax.insert(2, self.gxmax.pop(0))
-
-    def readperiods(line):
-      self.periods = list(map(bool,line.split("=")[-1].split(" ",4)[1:4]))
-
-    options = {'NDIM' : readndim,
-               'gsize' : readgsize,
-    	       'gxmin' : readgxmin,
-               'gxmax' : readgxmax,
-               'periods' : readperiods,
-               } 
-
-    with open(dir+filename,'r') as f:
-      for line in f:
-        line = line.split("|",2)[0]
-        [options[s](line) for s in list(options.keys()) if s in line] 
-
-    self.zlength = self.gxmax[2]-self.gxmin[2]
-    if self.periods[0]:
-      self.dz = self.zlength/(self.nz)
-    else:
-      self.dz = self.zlength/(self.nz-1)
-
-    if self.NDIM > 1:
-      self.xlength = self.gxmax[0]-self.gxmin[0]
-      if self.periods[1]:
-        self.dx = self.xlength/(self.nx)
-      else:
-        self.dx = self.xlength/(self.nx-1)
-    else:
-      self.xlength = 0.0
-      self.dx = 0.0
-      self.nx = 1
-      self.gxmin[0] = 0.0
-      self.gxmax[0] = 0.0
-
-
-    if self.NDIM == 3:
-      self.ylength = self.gxmax[1]-self.gxmin[1]
-      if self.periods[1]:
-        self.dy = self.ylength/(self.ny)
-      else:
-        self.dy = self.ylength/(self.ny-1)
-    else:
-      self.ylength = 0.0
-      self.dy = 0.0
-      self.ny = 1
-      self.gxmin[1] = 0.0
-      self.gxmax[1] = 0.0
-
-    self.gxmax[2] = boxtop - (self.zlength - self.gxmax[2])
-    self.gxmin[2] = boxtop - (self.zlength - self.gxmin[2])
-
-    self.xax = self.gxmin[0] + self.dx*np.arange(self.nx)
-    self.yax = self.gxmin[1] + self.dy*np.arange(self.ny)
-    self.zax = self.gxmin[2] + self.dz*(np.arange(self.nz)+1)
-
     self.dir = dir
-
+    
   def load(self,iter,primative=True,tooload=['rho','vx','vy','vz','bx','by','bz']):
 
     def loadrho(iter,primative):
@@ -528,9 +434,47 @@ class MURaM_snap:
 
     self.iter = np.int(iter)
 
-    h = read_header(self.dir+'3D/',self.iter)
-    self.time = h[6]
+    h = np.loadtxt(self.dir+'3D/Header.'+inttostring(iter,ts_size=6))
     
+    self.nz = np.int(h[0])
+    self.nx = np.int(h[1])
+    self.ny = np.int(h[2])
+    
+    self.dz = h[3]
+    self.dx = h[4]
+    self.dy = h[5]
+    
+    self.gxmin = [0.0,0.0,0.0]
+    self.gxmax = [self.dx*self.nx,self.dy*self.ny,self.dz*self.nz]
+    
+    self.time = h[6]
+    self.dt = h[7]
+    self.vamax = h[8]
+
+    if self.dx == 1:
+        self.NDIM = 1
+    elif self.dy == 1:
+        self.NDIM = 2
+    else:
+        self.NDIM = 3
+        
+    if self.NDIM > 1:
+      self.xlength = self.nz*self.dz
+    else:
+      self.xlength = 0.0
+      self.dx = 0.0
+
+
+    if self.NDIM == 3:
+      self.ylength = self.gxmax[1]-self.gxmin[1]
+      self.dy = self.ylength/(self.ny)
+    else:
+      self.ylength = 0.0
+      self.dy = 0.0
+
+    self.xax = self.gxmin[0] + self.dx*np.arange(self.nx)
+    self.yax = self.gxmin[1] + self.dy*np.arange(self.ny)
+    self.zax = self.gxmin[2] + self.dz*np.arange(self.nz)
     
     # If not primative, and vx,vy,vz are needed we must include rho in tooload
     if primative and bool(set(tooload) & set(['vx','vy','vz'])):
@@ -585,7 +529,7 @@ class MURaM_snap:
     return va
 
   def rotor(self):
-    self.rotor = deriv_nd_O2(self.vx,1,self.dy) - deriv_nd_O2(self.vy,0,self.dx)
+    self.rotor = deriv_3d_O4(self.vx,1,self.dy,periodic=True) - deriv_3d_O4(self.vy,0,self.dx,periodic=True)
     return self.rotor
 
   def calc_jotaperp(self):
@@ -595,12 +539,12 @@ class MURaM_snap:
 
     bi = np.sqrt(self.bx*self.bx + self.by*self.by + self.bz*self.bz)
 
-    dbxdy = deriv_nd_O2(self.bx,1,delta=self.dy)
-    dbzdy = deriv_nd_O2(self.bz,1,delta=self.dy)
-    dbydx = deriv_nd_O2(self.by,0,delta=self.dx)
-    dbzdx = deriv_nd_O2(self.bz,0,delta=self.dx)
-    dbxdz = deriv_nd_O2(self.bx,2,delta=self.dz)
-    dbydz = deriv_nd_O2(self.by,2,delta=self.dz)
+    dbxdy = deriv_3d_O4(self.bx,1,delta=self.dy,periodic=True)
+    dbzdy = deriv_3d_O4(self.bz,1,delta=self.dy,periodic=True)
+    dbydx = deriv_3d_O4(self.by,0,delta=self.dx,periodic=True)
+    dbzdx = deriv_3d_O4(self.bz,0,delta=self.dx,periodic=True)
+    dbxdz = deriv_3d_O4(self.bx,2,delta=self.dz,periodic=False)
+    dbydz = deriv_3d_O4(self.by,2,delta=self.dz,periodic=False)
 
     jota[0,:,:,:] =  (dbzdy-dbydz)
     jota[1,:,:,:] = (-dbzdx+dbxdz)
@@ -649,6 +593,46 @@ def bilinear_interpolate(im, x, y):
     wd = (x-x0) * (y-y0)
 
     return wa*Ia + wb*Ib + wc*Ic + wd*Id
+
+def deriv_3d_O4(arr,dir,delta=1.0,periodic=True):
+    ## Do a derivative in 3 dim array
+    ## Dir = array indices
+    ## delta = grid spacing
+
+    dim = arr.ndim
+    if dim > 3:
+        print("Currently coded for only a 3-dim array")
+        print(arr.ndim)
+        return None
+    
+    weights=[-1.0/12.0,8.0/12.0,-8.0/12.0,1.0/12.0]
+    
+    derr = np.zeros(arr.shape,dtype = np.float64)
+    derr += weights[0]*np.roll(arr,2,dir)
+    derr += weights[1]*np.roll(arr,1,dir)
+    derr += weights[2]*np.roll(arr,-1,dir)
+    derr += weights[3]*np.roll(arr,-2,dir)
+
+    if not periodic:
+        if dir == 0:
+            derr[0,:,:] = arr[1,:,:] - arr[0,:,:]
+            derr[1,:,:] = 0.5*(arr[2,:,:] - arr[2,:,:])
+            derr[-2,:,:] = 0.5*(arr[-1,:,:] - arr[-3,:,:])
+            derr[-1,:,:] = arr[-1,:,:] - arr[-2,:,:]
+        if dir == 1:
+            derr[:,0,:] = arr[:,1,:] - arr[:,0,:]
+            derr[:,1,:] = 0.5*(arr[:,2,:] - arr[:,0,:])
+            derr[:,-2,:] = 0.5*(arr[:,-1,:] - arr[:,-3,:])
+            derr[:,-1,:] = arr[:,-1,:] - arr[:,-2,:]
+        if dir == 2:
+            derr[:,:,0] = arr[:,:,1] - arr[:,:,0]
+            derr[:,:,1] = 0.5*(arr[:,:,2] - arr[:,:,0])
+            derr[:,:,-2] = 0.5*(arr[:,:,-1] - arr[:,:,-3])
+            derr[:,:,-1] = arr[:,:,-1] - arr[:,:,-2]
+   
+    derr /= delta
+
+    return derr
 
 def congrid(a, newdims, method='linear', centre=False, minusone=False):
     '''Arbitrary resampling of source array to new dimension sizes.
