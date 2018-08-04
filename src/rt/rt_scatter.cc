@@ -151,7 +151,6 @@ double RTS_SCATTER::wrapper(int rt_upd,GridData &Grid,RunData &Run,const Physics
   memset(Jt[yl][xl]+zl,0,nx*ny*nz*sizeof(double)); // MHD grid
   memset(Qt[yl+yo][xl+xo]+zl+zo,0,(nx-xo)*(ny-yo)*(nz-zo)*sizeof(double)); // MHD grid
     
-  
 // *****************************************************************
 // *        interpolate opacity and Planck function (B)            *
 // *****************************************************************
@@ -722,7 +721,7 @@ void RTS_SCATTER::driver(double DZ, double DX, double DY, int band) {
       fprintf(stdout,"rt_driver time : %f %f %f %f %f %f %f %f %f %f \n",ttime,cmp_time1,
          cmp_time2,buf_time,err_time,flx_time,tau_time,etime,atime,(etime+atime)/ttime);
     
-    // increment for F and J 
+    // increment for S and J 
 
     S_err = S_tol*S_tol;
     
@@ -832,8 +831,7 @@ void RTS_SCATTER::get_lambdastar(){
             iystep[m]=stepvec[ibase[l]][m][1]*ystep;
             izstep[m]=stepvec[ibase[l]][m][2]*zstep;
           } 
-
-          double expo[nz],dt[nz],r_upw[nz],k_upw[nz],r0[nz],k0[nz];
+          double expo[zmax+1],dt[zmax+1],r_upw[zmax+1],k_upw[zmax+1],r0[zmax+1],k0[zmax+1];
           double ds3=ds_upw[l]*inv3,ds6=ds_upw[l]*inv6;
           double c[]={a_00[ibase[l]][l],a_01[ibase[l]][l],a_10[ibase[l]][l],a_11[ibase[l]][l]};
           double c_J = 0.125*wmu[l];
