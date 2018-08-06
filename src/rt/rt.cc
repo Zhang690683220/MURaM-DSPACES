@@ -37,7 +37,7 @@ RTS::~RTS(void)
   delete [] comm_col;
 
 ///*
-  del_d2dim(I_o,yl,yh,xl,xh); // MHD Grid
+  del_d2dim(I_o,yl,yh,xl,xh); // RT Grid
   del_i3dim(tr_switch,yl,yh,xl,xh,zl,zh); // switch for the lowest point at which we have reached the transition region
   del_d3dim(lgTe,yl,yh,xl,xh,zl,zh); // temperature
   del_d3dim(lgPe,yl,yh,xl,xh,zl,zh); // temperature
@@ -48,8 +48,8 @@ RTS::~RTS(void)
   del_d3dim(Tau,yl,yh,xl,xh,zl,zh);  // RT grid
   del_d3dim(Qt,yl+yo,yh,xl+xo,xh,zl+zo,zh);   // MHD grid
 
-  del_d3dim(Jt,yl,yh,xl,xh,zl,zh);   // MHD grid
-  del_d3dim(St,yl,yh,xl,xh,zl,zh);   // MHD grid
+  del_d3dim(Jt,yl,yh,xl,xh,zl,zh);   // RT grid
+  del_d3dim(St,yl,yh,xl,xh,zl,zh);   // RT grid
 
 // frequency dependent quantities
   del_d3dim(B,yl,yh,xl,xh,zl,zh);
@@ -319,7 +319,7 @@ RTS::RTS(GridData&Grid,RunData &Run,PhysicsData &Physics){
     ibase[l]=0;
     ds_upw[l]=DX/xmu[0][l];
 
-    if(((aM[2]<=aM[0])&&((aM[2]<=aM[1])||(NDIM==2)))||(NDIM==1)){
+    if(((aM[2]<=aM[0])||(NDIM==1))&&((aM[2]<=aM[1])||(NDIM<3))){
       ibase[l]=2;
       ds_upw[l]=DZ/xmu[2][l];  
     }else{
@@ -369,7 +369,8 @@ RTS::RTS(GridData&Grid,RunData &Run,PhysicsData &Physics){
   
   for(int j=0; j< cart_sizes[2]; j++){
     for(int k=0; k< cart_sizes[1]; k++){
-      for(int i=0; i< cart_sizes[0]; i++) ranks[i]=colranks[j][k][cart_sizes[0]-1-i];
+      for(int i=0; i< cart_sizes[0]; i++)
+        ranks[i]=colranks[j][k][cart_sizes[0]-1-i];
       MPI_Group_incl(MPI_GROUP_WORLD,cart_sizes[0],ranks,&(grp_col[j][k]));
       MPI_Comm_create(MPI_COMM_WORLD,grp_col[j][k],&(comm_col[j][k]));
     }
@@ -1120,9 +1121,9 @@ void RTS::interpol(int zi_i,int zi_f,int zstep,int xi_i,int xi_f,int xstep,
           c[3]*kap[0][xi-ixstep[3]][zi-izstep[3]];
 
         S_upw[zi]=c[0]*Ss[0][xi-ixstep[0]][zi-izstep[0]]+
-          c[1]*Ss[0][xi-ixstep[0]][zi-izstep[1]]+
-          c[2]*Ss[0][xi-ixstep[0]][zi-izstep[2]]+
-          c[3]*Ss[0][xi-ixstep[0]][zi-izstep[3]];
+          c[1]*Ss[0][xi-ixstep[1]][zi-izstep[1]]+
+          c[2]*Ss[0][xi-ixstep[2]][zi-izstep[2]]+
+          c[3]*Ss[0][xi-ixstep[3]][zi-izstep[3]];
 
         r0[zi]=rho[0][xi][zi];
         k0[zi]=kap[0][xi][zi];
@@ -1138,7 +1139,6 @@ void RTS::interpol(int zi_i,int zi_f,int zstep,int xi_i,int xi_f,int xstep,
 
       for(int zi=zi_i;zi!=zi_f+zstep;zi=zi+zstep){
         coeff[0][i_nu]=expo[zi];
-        coeff[1][i_nu]=source[zi];
       
         if (dt[zi] > dtau_min)
           coeff[1][i_nu]=source[zi];
@@ -1154,13 +1154,13 @@ void RTS::interpol(int zi_i,int zi_f,int zstep,int xi_i,int xi_f,int xstep,
 double RTS::error(int band,int l,int ZDIR,int XDIR,int YDIR,double I_min)
 {
   int z0=(ZDIR==UP),z1=(ZDIR==DOWN); 
-  int y0=(YDIR==FWD),y1=(YDIR==BWD); 
+  int x0=(XDIR==RIGHT),x1=(XDIR==LEFT); 
   double err_max=0.0;
 //
   if (NDIM==3){
     real *ysb=y_sbuf[band][YDIR][XDIR][ZDIR][l],*yob=y_oldbuf[band][YDIR][XDIR][ZDIR][l];
-    for(int z=0+z0;z<nz-z1;++z)
-      for(int x=0;x<nx;++x){
+    for(int z=z0;z<nz-z1;++z)
+      for(int x=x0;x<nx-x1;++x){
         int ind=z*nx+x;
         err_max=max(err_max,fabs(((double) (ysb[ind]-yob[ind]))/max(I_min,(double) yob[ind])));
      }
@@ -1168,15 +1168,17 @@ double RTS::error(int band,int l,int ZDIR,int XDIR,int YDIR,double I_min)
 //
   if (NDIM>1){
   real *xsb=x_sbuf[band][YDIR][XDIR][ZDIR][l],*xob=x_oldbuf[band][YDIR][XDIR][ZDIR][l];
-  for(int z=0+z0;z<nz-z1;++z)
-    for(int y=0+y0;y<ny-y1;++y){
+  for(int z=z0;z<nz-z1;++z)
+    for(int y=0;y<ny;++y){
       int ind=z*ny+y;
       err_max=max(err_max,fabs(((double) (xsb[ind]-xob[ind]))/max( I_min,(double)xob[ind])));
     }
   }
 //
   real *zsb=z_sbuf[band][YDIR][XDIR][ZDIR][l],*zob=z_oldbuf[band][YDIR][XDIR][ZDIR][l];
-  for(int ind=0;ind<nx*ny;++ind) err_max=max(err_max,fabs(((double) (zsb[ind]-zob[ind]))/max(I_min,(double)zob[ind])));
+  for(int ind=0;ind<nx*ny;++ind){
+    err_max=max(err_max,fabs(((double) (zsb[ind]-zob[ind]))/max(I_min,(double)zob[ind])));
+  }
 //
   return err_max;
 }
@@ -1200,8 +1202,7 @@ void RTS::readbuf(int band,int l,int ZDIR,int XDIR,int YDIR)
   memcpy(z_oldbuf[band][YDIR][XDIR][ZDIR][l],z_sbuf[band][YDIR][XDIR][ZDIR][l],nx*ny*sizeof(real));  
 }
 
-void RTS::writebuf(int band, int l,int ZDIR,int XDIR,int YDIR)
-{
+void RTS::writebuf(int band, int l,int ZDIR,int XDIR,int YDIR){
   if (NDIM==3){
     int y0=(YDIR==FWD)?ny-1:0;
     for(int x=0;x<nx;++x) for(int z=0;z<nz;++z) y_sbuf[band][YDIR][XDIR][ZDIR][l][z*nx+x]=(real) I_n[yl+y0][xl+x ][zl+z ];
@@ -1260,8 +1261,6 @@ void RTS::exchange(int band,int l,int ZDIR,int XDIR,int YDIR)
     for(int y=0;y<ny;++y)
       z_sbuf[band][YDIR][XDIR][ZDIR][l][x0*ny+y]=x_rbuf[band][YDIR][XDIR][ZDIR][l][z0*ny+y];
   }
-
-
   
 // z-direction
   dest_rk  =(ZDIR==UP)?rightr[0]:leftr[0];
@@ -1363,7 +1362,7 @@ void RTS::get_Tau_and_Iout(GridData &Grid, const RunData &Run, const PhysicsData
     }
   }
 
-  for(int y=yl;y<=yh;++y){ // loop over MHD grid
+  for(int y=yl;y<=yh;++y){ // loop over RT grid
     for(int x=xl;x<=xh;++x){
       rbuf[y][x]=0.e0;
       sbuf[y][x]=Tau[y][x][zl];
@@ -1373,7 +1372,7 @@ void RTS::get_Tau_and_Iout(GridData &Grid, const RunData &Run, const PhysicsData
   double ctime=MPI_Wtime(); 
   MPI_Scan(sbuf[yl]+xl,rbuf[yl]+xl,nx*ny,MPI_DOUBLE,MPI_SUM,comm_col[lrank[2]][lrank[1]]);
   stime+=MPI_Wtime()-ctime;
-  for(int y=yl;y<=yh;++y){ // loop over MHD grid
+  for(int y=yl;y<=yh;++y){ // loop over RT grid
     for(int x=xl;x<=xh;++x){
       rbuf[y][x]-=Tau[y][x][zl];
       for(int z=zl;z<=zh;++z){
@@ -1384,7 +1383,7 @@ void RTS::get_Tau_and_Iout(GridData &Grid, const RunData &Run, const PhysicsData
 
   if (calc_int){
   //  Outgoing Intensity at top (Long Characteristics)
-  for(int y=yl;y<=yh;++y){ // loop over MHD grid
+  for(int y=yl;y<=yh;++y){ // loop over RT grid
     for(int x=xl;x<=xh;++x){
       rbuf[y][x]=0.0;
       sbuf[y][x]=0.0;
@@ -1445,7 +1444,7 @@ void RTS::tauscale_qrad(int band, double DX,double DY,double DZ, double *** Ss){
     }
   }
 
-  for(int y=yl;y<=yh;++y){ // loop over MHD grid
+  for(int y=yl;y<=yh;++y){ // loop over RT grid
     for(int x=xl;x<=xh;++x){
       rbuf[y][x]=0.e0;
       sbuf[y][x]=Tau[y][x][zl];
@@ -1455,7 +1454,7 @@ void RTS::tauscale_qrad(int band, double DX,double DY,double DZ, double *** Ss){
   double ctime=MPI_Wtime(); 
   MPI_Scan(sbuf[yl]+xl,rbuf[yl]+xl,nx*ny,MPI_DOUBLE,MPI_SUM,comm_col[lrank[2]][lrank[1]]);
   stime+=MPI_Wtime()-ctime;
-  for(int y=yl;y<=yh;++y){ // loop over MHD grid
+  for(int y=yl;y<=yh;++y){ // loop over RT grid
     for(int x=xl;x<=xh;++x){
       rbuf[y][x]-=Tau[y][x][zl];
       for(int z=zl;z<=zh;++z){
@@ -1465,7 +1464,7 @@ void RTS::tauscale_qrad(int band, double DX,double DY,double DZ, double *** Ss){
   }
   if (need_I){
     //  Outgoing Intensity at top (Long Characteristics)
-    for(int y=yl;y<=yh;++y){ // loop over MHD grid
+    for(int y=yl;y<=yh;++y){ // loop over RT grid
       for(int x=xl;x<=xh;++x){
         rbuf[y][x]=0.0;
         sbuf[y][x]=0.0;
