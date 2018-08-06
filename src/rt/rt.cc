@@ -830,7 +830,7 @@ void RTS::calc_Qtot_and_Tau(GridData &Grid, const RunData &Run, const PhysicsDat
         Grid.Jtot[node]=Jtot(z,x,y);
         Grid.Stot[node]=Stot(z,x,y);
         
-        double scale = pow(Grid.Tau[node],2);
+        double scale = pow(Grid.Tau[node],2)*tr_switch[y][x][z];
         scale = scale/(scale + tau_min);
 
         double Qt_step=Qt[y][x][z]*scale;
