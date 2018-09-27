@@ -328,6 +328,9 @@ RTS::RTS(GridData&Grid,RunData &Run,PhysicsData &Physics){
         ds_upw[l]=DY/xmu[1][l];
       }
     }
+
+    cout << l << ' ' << ibase[l] << endl;
+    
     for(int i=0;i<=2;++i){
       a_00[i][l]=(1.0-(aM[perm[i][0]]/aM[perm[i][1]]))*(1.0-(aM[perm[i][0]]/aM[perm[i][2]]));
       a_01[i][l]=(aM[perm[i][0]]/aM[perm[i][2]])*(1.0-(aM[perm[i][0]]/aM[perm[i][1]]));
@@ -641,7 +644,7 @@ double RTS::wrapper(int rt_upd,GridData &Grid,RunData &Run,const PhysicsData &Ph
         pm /= N;
         rm /= N;
 
-        //disbale RT if Temp > 2e4 above the photosphere
+        //disbale RT if Temp > Temp_TR above the photosphere
         double pswitch = min(max(pm-Pres_TR,0.0),1.0);
         double tswitch = min(max(Temp_TR-Tm,0.0),1.0);
         tr_switch[y][x][z] = (int) max(pswitch,tswitch);
@@ -998,6 +1001,14 @@ void RTS::driver(double DZ, double DX, double DY, int band){
   if((myrank==0) && (verbose>1)){
     fprintf(stdout,"rt_driver iter : %f %f \n",aravg/(8.0*NMU),itavg/(8.0*NMU));
     fprintf(stdout,"rt_driver error: %e %e \n",maxerr_up,maxerr_down);
+    int oct=0;
+    for(int i1=0;i1<=1;i1++)
+      for(int i2=0;i2<=1;i2++)
+	for(int i3=0;i3<=1;i3++){
+	  oct +=1;
+	  for(int l=0;l<NMU;++l)
+	    fprintf(stdout,"rt_driver iter : %d %d %d \n",oct,l,numits[0][i1][i2][i3][l]);
+	}
   }
 
   ttime=MPI_Wtime()-ttime;  
@@ -1297,6 +1308,9 @@ void RTS::get_Tau_and_Iout(GridData &Grid, const RunData &Run, const PhysicsData
   
   double N = pow(2,Grid.NDIM);
 
+  const double Temp_TR = Physics.rt[i_rt_tr_tem];
+  const double Pres_TR = Physics.rt[i_rt_tr_pre];
+
   for(int y=yl;y<=yh;++y){ // loop over RT grid
     for(int x=xl;x<=xh;++x){
       int off0 = x*next[1]+y*next[2];
@@ -1312,46 +1326,57 @@ void RTS::get_Tau_and_Iout(GridData &Grid, const RunData &Run, const PhysicsData
           lgT+=Grid.temp[inode[l]];
           rm +=Grid.U[inode[l]].d;
         }
-    
-    lgP /= N;
-    lgT /= N;
-    rm  /= N;
+	
+	lgP /= N;
+	lgT /= N;
+	rm  /= N;
+	
+	//disbale RT if Temp > Temp_TR above the photosphere
+	double pswitch  = min(max(lgP-Pres_TR,0.0),1.0);
+	double tswitch  = min(max(Temp_TR-lgT,0.0),1.0);
+	double trswitch = max(pswitch,tswitch);
+	
+	lgP          = log(lgP);
+	lgT          = log(lgT);
+	rho[y][x][z] = rm;
+	
+	lgT = min(max(lgT, (double) tab_T[0]),(double) tab_T[NT-1]);
+	lgP = min(max(lgP, (double) tab_p[0]),(double) tab_p[Np-1]);
+	
+	int l=0;
+	int m=0;
+	if(lgT<tab_T[0])
+	  l=0;
+	else if(lgT>tab_T[NT-1])
+	  l=NT-2;
+	else
+	  for (l=0; l<=NT-2; l++)
+	    if ((lgT >= tab_T[l]) && (lgT <= tab_T[l+1]))
+	      break;
+	
+	if(lgP<tab_p[0])
+	  m=0;
+	else if(lgP>tab_p[Np-1])
+	  m=Np-2;
+	else
+	  for (m=0; m<=Np-2; m++)
+	    if ((lgP >= tab_p[m]) && (lgP <= tab_p[m+1]))
+	      break;
 
-    lgP          = log(lgP);
-    lgT          = log(lgT);
-    rho[y][x][z] = rm;
+	double xt = (lgT-tab_T[l])*invT_tab[l];
+	double xp = (lgP-tab_p[m])*invP_tab[m];
 
-    lgT = min(max(lgT, (double) tab_T[0]),(double) tab_T[NT-1]);
-    lgP = min(max(lgP, (double) tab_p[0]),(double) tab_p[Np-1]);
+	// Interpolate for kappa and B
+	B[y][x][z]=exp(xt*B_Iout_tab[l+1]+(1.-xt)*B_Iout_tab[l]);
+	
+	kap[y][x][z] = exp(xt*(xp*kap_Iout_tab[l+1][m+1]+(1.-xp)*kap_Iout_tab[l+1][m])+
+			   (1.-xt)*(xp*kap_Iout_tab[l][m+1]+(1.-xp)*kap_Iout_tab[l][m]));
+	
 
-    int l=0;
-    int m=0;
-    if(lgT<tab_T[0])
-      l=0;
-    else if(lgT>tab_T[NT-1])
-      l=NT-2;
-    else
-      for (l=0; l<=NT-2; l++)
-        if ((lgT >= tab_T[l]) && (lgT <= tab_T[l+1]))
-          break;
-
-    if(lgP<tab_p[0])
-      m=0;
-    else if(lgP>tab_p[Np-1])
-      m=Np-2;
-    else
-      for (m=0; m<=Np-2; m++)
-        if ((lgP >= tab_p[m]) && (lgP <= tab_p[m+1]))
-          break;
-
-    double xt = (lgT-tab_T[l])*invT_tab[l];
-    double xp = (lgP-tab_p[m])*invP_tab[m];
-
-    // Interpolate for kappa and B
-    B[y][x][z]=exp(xt*B_Iout_tab[l+1]+(1.-xt)*B_Iout_tab[l]);
-    
-    kap[y][x][z] = exp(xt*(xp*kap_Iout_tab[l+1][m+1]+(1.-xp)*kap_Iout_tab[l+1][m])+
-        (1.-xt)*(xp*kap_Iout_tab[l][m+1]+(1.-xp)*kap_Iout_tab[l][m]));
+	// apply tr_switch
+	B[y][x][z]   *= trswitch;
+	kap[y][x][z] *= trswitch;
+	
       }
       Tau[y][x][zh]=1.0e-12;
       for(int z=zh-1;z>=zl;--z){
