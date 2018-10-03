@@ -5,7 +5,7 @@ MAKEFILE      = Makefile
 SHELL         = /bin/sh
 
 SUBDIRS	      = rt
-LIBRT	      = rt/librt.a
+LIBS	     += rt/librt.a
 
 OBJS = io_xysl.o \
        slice_write.o \
@@ -37,13 +37,13 @@ OBJS = io_xysl.o \
        boundary_pdmp_1_fftw3.o \
        solver.o \
        eos_init.o \
-       cons_to_prim.o
+       cons_to_prim.o 
 
 all:
 	@list='$(SUBDIRS)' ; for subdir in $$list ; do $(MAKE) all -C   $$subdir ; done
 	$(MAKE) $(OBJS) $(HEADERS)
 	@echo "Linking $(PROGRAM) ..."
-	$(LD) -o $(PROGRAM) $(OBJS) $(LIBS) $(LIBRT) $(LDFLAGS)
+	$(LD) -o $(PROGRAM) $(OBJS) $(LIBS) $(LDFLAGS)
 	@echo "done"
 
 clean:
