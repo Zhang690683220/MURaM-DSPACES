@@ -328,8 +328,6 @@ RTS::RTS(GridData&Grid,RunData &Run,PhysicsData &Physics){
         ds_upw[l]=DY/xmu[1][l];
       }
     }
-
-    cout << l << ' ' << ibase[l] << endl;
     
     for(int i=0;i<=2;++i){
       a_00[i][l]=(1.0-(aM[perm[i][0]]/aM[perm[i][1]]))*(1.0-(aM[perm[i][0]]/aM[perm[i][2]]));
@@ -1001,6 +999,7 @@ void RTS::driver(double DZ, double DX, double DY, int band){
   if((myrank==0) && (verbose>1)){
     fprintf(stdout,"rt_driver iter : %f %f \n",aravg/(8.0*NMU),itavg/(8.0*NMU));
     fprintf(stdout,"rt_driver error: %e %e \n",maxerr_up,maxerr_down);
+    /*
     int oct=0;
     for(int i1=0;i1<=1;i1++)
       for(int i2=0;i2<=1;i2++)
@@ -1009,6 +1008,7 @@ void RTS::driver(double DZ, double DX, double DY, int band){
 	  for(int l=0;l<NMU;++l)
 	    fprintf(stdout,"rt_driver iter : %d %d %d \n",oct,l,numits[0][i1][i2][i3][l]);
 	}
+    */
   }
 
   ttime=MPI_Wtime()-ttime;  
