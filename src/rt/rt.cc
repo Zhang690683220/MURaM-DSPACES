@@ -869,7 +869,7 @@ void RTS::driver(double DZ, double DX, double DY, int band){
   int stepvec[3][4][3] = { {{1,0,0},{1,0,1},{1,1,0},{1,1,1}},
                {{0,1,0},{1,1,0},{0,1,1},{1,1,1}},
                {{0,0,1},{0,1,1},{1,0,1},{1,1,1}} };
-  double ** coeff=d2dim(0,1,0,nx*ny*nz-1);
+  double ** coeff=d2dim(0,nx*ny*nz-1,0,1);
   
   memset(I_n[yl][xl]+zl,0,nx*ny*nz*sizeof(double)); // is there a better way?
   memset(Fz[yl][xl]+zl,0,nx*ny*nz*sizeof(double));
@@ -925,7 +925,7 @@ void RTS::driver(double DZ, double DX, double DY, int band){
                 for(int zi=zi_i;zi!=zi_f+zstep;zi=zi+zstep){
                   int ind=xyoff+zi;
                   double I_upw=c[0]*ii[ind-off[0]]+c[1]*ii[ind-off[1]]+c[2]*ii[ind-off[2]]+c[3]*ii[ind-off[3]];
-                  ii[ind]=I_upw*coeff[0][i_nu]+coeff[1][i_nu];
+                  ii[ind]=I_upw*coeff[i_nu][0]+coeff[i_nu][1];
                   i_nu+=1;
                 }
               }
@@ -938,7 +938,7 @@ void RTS::driver(double DZ, double DX, double DY, int band){
               for(int zi=zi_i;zi!=zi_f+zstep;zi=zi+zstep){
                 int ind=xoff+zi;
                 double I_upw=c[0]*ii[ind-off[0]]+c[1]*ii[ind-off[1]]+c[2]*ii[ind-off[2]]+c[3]*ii[ind-off[3]];
-                ii[ind]=I_upw*coeff[0][i_nu]+coeff[1][i_nu];
+                ii[ind]=I_upw*coeff[i_nu][0]+coeff[i_nu][1];
                 i_nu+=1;
               }
             }
@@ -948,7 +948,7 @@ void RTS::driver(double DZ, double DX, double DY, int band){
             for(int i=0;i<4;i++) off[i]=izstep[i];
             for(int zi=zi_i;zi!=zi_f+zstep;zi=zi+zstep){
               double I_upw=c[0]*ii[zi-off[0]]+c[1]*ii[zi-off[1]]+c[2]*ii[zi-off[2]]+c[3]*ii[zi-off[3]];
-              ii[zi]=I_upw*coeff[0][i_nu]+coeff[1][i_nu];
+              ii[zi]=I_upw*coeff[i_nu][0]+coeff[i_nu][1];
               i_nu+=1;
             }
           }
@@ -1018,7 +1018,7 @@ void RTS::driver(double DZ, double DX, double DY, int band){
    
 
   call_count+=1;
-  del_d2dim(coeff,0,1,0,nx*ny*nz-1);
+  del_d2dim(coeff,0,nx*ny*nz-1,0,1);
 }
 
 void RTS::interpol(int zi_i,int zi_f,int zstep,int xi_i,int xi_f,int xstep,
@@ -1031,7 +1031,7 @@ void RTS::interpol(int zi_i,int zi_f,int zstep,int xi_i,int xi_f,int xstep,
   int zmin=(zi_i<zi_f)?zi_i:zi_f;
   int zmax=(zi_i>zi_f)?zi_i:zi_f;
 
-  double source[zmax+1],expo[zmax+1],dt[zmax+1],r_upw[zmax+1],k_upw[zmax+1],S_upw[zmax+1],r0[zmax+1],k0[zmax+1],S0[zmax+1];
+  double r_upw[zmax+1],k_upw[zmax+1],S_upw[zmax+1],r0[zmax+1],k0[zmax+1],S0[zmax+1];
 
   int i_nu=0;
 
@@ -1058,21 +1058,27 @@ void RTS::interpol(int zi_i,int zi_f,int zstep,int xi_i,int xi_f,int xstep,
           k0[zi]=kap[yi][xi][zi];
           S0[zi]=Ss[yi][xi][zi];
         }
-        for(int zi=zmin;zi<=zmax;++zi){
-          dt[zi]=ds3*(k_upw[zi]*r_upw[zi]+k0[zi]*r0[zi])+ds6*(k0[zi]*r_upw[zi]+k_upw[zi]*r0[zi]);
-          expo[zi]=exp(-dt[zi]);
-          double w0=(1.0-expo[zi])/dt[zi];
-          source[zi]=S0[zi]*(1.0-w0)+S_upw[zi]*(w0-expo[zi]);
-        }   
-
         for(int zi=zi_i;zi!=zi_f+zstep;zi=zi+zstep){
-          coeff[0][i_nu]=expo[zi];
-          if (dt[zi] > dtau_min)
-            coeff[1][i_nu]= source[zi];
-          else
-            coeff[1][i_nu] = 0.5*dt[zi]*(S0[zi]+S_upw[zi]);
-            
-          i_nu+=1;
+          double dt=ds3*(k_upw[zi]*r_upw[zi]+k0[zi]*r0[zi])+ds6*(k0[zi]*r_upw[zi]+k_upw[zi]*r0[zi]);
+          double expo=exp(-dt);
+          double w0,w1;
+          if (dt > dtau_min){
+            w0=1.0-expo;
+            w1=w0-dt*expo;
+          }else{
+            w0=dt-dt*dt/2.0+dt*dt*dt/6.0;
+            w1=dt*dt/2.0-dt*dt*dt/3.0;
+          }
+          double source=S0[zi]*(w0-w1/dt)+S_upw[zi]*(w1/dt);
+
+          if (dt > dtau_min2){
+            coeff[i_nu][0] = expo;
+            coeff[i_nu][1] = source;
+          }else{
+            coeff[i_nu][0] = 1.0; 
+            coeff[i_nu][1] = 0.0;
+          }
+        i_nu+=1;
         }
       }
     }
@@ -1100,21 +1106,27 @@ void RTS::interpol(int zi_i,int zi_f,int zstep,int xi_i,int xi_f,int xstep,
       S0[zi]=Ss[0][0][zi];
     }
 
-    for(int zi=zmin;zi<=zmax;++zi){
-      dt[zi]=ds3*(k_upw[zi]*r_upw[zi]+k0[zi]*r0[zi])+ds6*(k0[zi]*r_upw[zi]+k_upw[zi]*r0[zi]);
-      expo[zi]=exp(-dt[zi]);
-      double w0=(1.0-expo[zi])/dt[zi];
-      source[zi]=S0[zi]*(1.0-w0)+S_upw[zi]*(w0-expo[zi]);
-    }
-
     for(int zi=zi_i;zi!=zi_f+zstep;zi=zi+zstep){
-      coeff[0][i_nu]=expo[zi];
-      if (dt[zi] > dtau_min)
-        coeff[1][i_nu]=source[zi];
-      else
-        coeff[1][i_nu] = 0.5*dt[zi]*(S0[zi]+S_upw[zi]);
+      double dt=ds3*(k_upw[zi]*r_upw[zi]+k0[zi]*r0[zi])+ds6*(k0[zi]*r_upw[zi]+k_upw[zi]*r0[zi]);
+      double expo=exp(-dt);
+      double w0,w1;
+      if (dt > dtau_min){
+        w0=1.0-expo;
+        w1=w0-dt*expo;
+      }else{
+        w0=dt-dt*dt/2.0+dt*dt*dt/6.0;
+        w1=dt*dt/2.0-dt*dt*dt/3.0;
+      }
+      double source=S0[zi]*(w0-w1/dt)+S_upw[zi]*(w1/dt);
 
-      i_nu+=1;
+      if (dt > dtau_min2){
+        coeff[i_nu][0] = expo;
+        coeff[i_nu][1] = source;
+      }else{
+        coeff[i_nu][0] = 1.0; 
+        coeff[i_nu][1] = 0.0;
+      }
+    i_nu+=1;
     }
   }
 
@@ -1140,23 +1152,27 @@ void RTS::interpol(int zi_i,int zi_f,int zstep,int xi_i,int xi_f,int xstep,
         k0[zi]=kap[0][xi][zi];
         S0[zi]=Ss[0][xi][zi];
       }
-
-      for(int zi=zmin;zi<=zmax;++zi){
-        dt[zi]=ds3*(k_upw[zi]*r_upw[zi]+k0[zi]*r0[zi])+ds6*(k0[zi]*r_upw[zi]+k_upw[zi]*r0[zi]);
-        expo[zi]=exp(-dt[zi]);
-        double w0=(1.0-expo[zi])/dt[zi];
-        source[zi]=S0[zi]*(1.0-w0)+S_upw[zi]*(w0-expo[zi]);
-     }
-
       for(int zi=zi_i;zi!=zi_f+zstep;zi=zi+zstep){
-        coeff[0][i_nu]=expo[zi];
-      
-        if (dt[zi] > dtau_min)
-          coeff[1][i_nu]=source[zi];
-        else
-          coeff[1][i_nu] = 0.5*dt[zi]*(S0[zi]+S_upw[zi]);
+        double dt=ds3*(k_upw[zi]*r_upw[zi]+k0[zi]*r0[zi])+ds6*(k0[zi]*r_upw[zi]+k_upw[zi]*r0[zi]);
+        double expo=exp(-dt);
+        double w0,w1;
+        if (dt > dtau_min){
+          w0=1.0-expo;
+          w1=w0-dt*expo;
+        }else{
+          w0=dt-dt*dt/2.0+dt*dt*dt/6.0;
+          w1=dt*dt/2.0-dt*dt*dt/3.0;
+        }
+        double source=S0[zi]*(w0-w1/dt)+S_upw[zi]*(w1/dt);
 
-        i_nu+=1;
+        if (dt > dtau_min2){
+          coeff[i_nu][0] = expo;
+          coeff[i_nu][1] = source;
+        }else{
+          coeff[i_nu][0] = 1.0; 
+          coeff[i_nu][1] = 0.0;
+        }
+      i_nu+=1;
       }
     }
   }
