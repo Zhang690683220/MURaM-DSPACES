@@ -348,12 +348,12 @@ void SetBoundaryConditions(const RunData&  Run, GridData& Grid,
           Grid.sflx[Grid.node(Grid.lend[0]+2,j,k)]  = 0.0;
         }   
       }  
-    }
 
-    // ambipolar diffusion boundary conditions
-    if(Physics.params[i_param_ambipolar] > 0.0){
-      Grid.v_amb[Grid.node(Grid.lend[0]+1,j,k)] = Vector(0.0,0.0,0.0);
-      Grid.v_amb[Grid.node(Grid.lend[0]+2,j,k)] = Vector(0.0,0.0,0.0);
+      // ambipolar diffusion boundary conditions
+      if(Physics.params[i_param_ambipolar] > 0.0){
+	Grid.v_amb[Grid.node(Grid.lend[0]+1,j,k)] = Vector(0.0,0.0,0.0);
+	Grid.v_amb[Grid.node(Grid.lend[0]+2,j,k)] = Vector(0.0,0.0,0.0);
+      }
     }
     
   }// endif Grid.is_gend[0]   
