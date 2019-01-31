@@ -171,7 +171,7 @@ void ConsToPrim(GridData& Grid, const PhysicsData& Physics, const RunData& Run) 
         pres[i]=c_pres*var[4][i];
         temp[i]=c_temp*eps[i];
         // Use PV = nrt for ne
-        nel[i]= pres[i]/(temp[i]*kb)-var[4][i]/(eos_mu_n*mh);
+        nel[i]= pres[i]/(temp[i]*kb)-var[0][i]/(eos_mu_n*mh);
       }
   
       if (eps[i] > 0.8*eps_max) {
@@ -179,7 +179,7 @@ void ConsToPrim(GridData& Grid, const PhysicsData& Physics, const RunData& Run) 
         pres[i]=pres[i]*xx+(1.0-xx)*c_pres*var[4][i];
         temp[i]=temp[i]*xx+(1.0-xx)*c_temp*eps[i];
         // Use PV = nrt for ne
-        nel[i]= pres[i]/(temp[i]*kb)-var[4][i]/(eos_mu_n*mh);
+        nel[i]= pres[i]/(temp[i]*kb)-var[0][i]/(eos_mu_n*mh);
       }
   
       if(invalid_eos(pres[i],temp[i])){
@@ -188,7 +188,7 @@ void ConsToPrim(GridData& Grid, const PhysicsData& Physics, const RunData& Run) 
       }
 
       // if nel is inf use pv=nrt
-      if(nel[i] == std::numeric_limits<double>::infinity()) nel[i]= pres[i]/(temp[i]*kb)-var[4][i]/(eos_mu_n*mh);
+      if(nel[i] == std::numeric_limits<double>::infinity()) nel[i]= pres[i]/(temp[i]*kb)-var[0][i]/(eos_mu_n*mh);
 
       // If electron number goes too small, or NaNs, or is still inf set to a minimum
       if ((nel[i] < 1.0) || (nel[i]!=nel[i]) || (nel[i] == std::numeric_limits<double>::infinity())) nel[i] = 1.0;
