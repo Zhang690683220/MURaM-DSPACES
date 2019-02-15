@@ -504,7 +504,7 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
 
       // no diffusion for vertical field at boundaries (conserve vertical magnetic flux)
       if( d1 == 0) {
-	if( Grid.is_gend[0] ) flx[5][sz-gh+1] = 0.0;
+	if( Grid.is_gend[0] ) flx[5][sz-gh-1] = 0.0;
 	if( Grid.is_gbeg[0] ) flx[5][gh-1] = 0.0;
       } 
       
