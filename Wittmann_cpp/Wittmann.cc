@@ -232,7 +232,7 @@ using namespace std;
         if (ieps > 0)
           T_max=max(min(1.0e7,1.1*T_search),3.0e3);
         else if (ir > 0)
-          T_max = exp(ttbl[ir-1][ieps])*1.5;
+          T_max = exp(ttbl[ir-1][ieps])*1.2;
         else
           T_max = 1.0e7;
 
@@ -361,7 +361,7 @@ using namespace std;
             }
         
             /* Ion density */
-            rhoi=(Hp_1+H2p_1)/at.abu[0]/Hperg;
+            rhoi=(Hp_1+H2p_1)*at.abu[0]/Hperg;
 
             /* molecular H2, H2+ and H- energies */
             Hmol_eps = Heps(T);
@@ -376,7 +376,7 @@ using namespace std;
               sumi+=(nI_1*at.chi1[i]+nI_2*(at.chi1[i]+at.chi2[i]))*ev;
 
               /* Ion density */
-              rhoi+=(nI_1+nI_2)/at.abu[i]/Hperg;
+              rhoi+=(nI_1+nI_2)*at.abu[i]/Hperg;
             }
 
             ski=1.5*pg;
