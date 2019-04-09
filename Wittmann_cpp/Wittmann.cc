@@ -199,6 +199,12 @@ using namespace std;
 
         double xnhtot1=Hm_1+Hp_1+Hn_1+2.0*H2n_1+2.0*H2p_1;
 
+        Hm_1 = Hm_1/xnhtot1*xnhtot;
+        Hp_1 = Hp_1/xnhtot1*xnhtot;
+        Hn_1 = Hn_1/xnhtot1*xnhtot;
+        H2p_1 = H2p_1/xnhtot1*xnhtot;
+        H2n_1 = H2n_1/xnhtot1*xnhtot;
+
         fprintf(stderr,"Hn_1=%e,Hp_1=%e,Hm_1=%e H2n_1=%e H2p_1=%e | xnhtot=%e xnhtot1=%e \n",Hn_1,Hp_1,Hm_1,H2n_1,H2p_1,xnhtot, xnhtot1);
 
 
@@ -264,6 +270,11 @@ using namespace std;
         pe_max = pe;
 
         xnhtot1=Hm_1+Hp_1+Hn_1+2.0*H2n_1+2.0*H2p_1;
+        Hm_1 = Hm_1/xnhtot1*xnhtot;
+        Hp_1 = Hp_1/xnhtot1*xnhtot;
+        Hn_1 = Hn_1/xnhtot1*xnhtot;
+        H2p_1 = H2p_1/xnhtot1*xnhtot;
+        H2n_1 = H2n_1/xnhtot1*xnhtot;
 
         fprintf(stderr,"Hn_1=%e,Hp_1=%e,Hm_1=%e H2n_1=%e H2p_1=%e | xnhtot=%e xnhtot1=%e \n",Hn_1,Hp_1,Hm_1,H2n_1,H2p_1,xnhtot, xnhtot1);
 
@@ -347,7 +358,12 @@ using namespace std;
             }
 
             xnhtot1=Hm_1+Hp_1+Hn_1+2.0*H2n_1+2.0*H2p_1;
-            
+            Hm_1 = Hm_1/xnhtot1*xnhtot;
+            Hp_1 = Hp_1/xnhtot1*xnhtot;
+            Hn_1 = Hn_1/xnhtot1*xnhtot;
+            H2p_1 = H2p_1/xnhtot1*xnhtot;
+            H2n_1 = H2n_1/xnhtot1*xnhtot;
+
             ptot=xntot*k*T;
             pg = pe + ptot;
 
