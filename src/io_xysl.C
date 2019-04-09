@@ -232,9 +232,20 @@ void BackupSolution(const RunData& Run,const GridData& Grid,
   if(Physics.params[i_param_spitzer] > 0.0)
     max_vars = Physics.NVAR+1;
 
-  if( Run.rank==0 ) {
+  if( Run.rank==0 ){
     ReadBackupFile(Run.backfile,0,&prevbackup,&time);
-    if( prevbackup%Run.resfreq ) erase_flag = 1;
+    int flag = 1;
+    if (Run.outcad > 0){
+      double nnn = time/Run.outcad;
+      int ceil = (int) nnn;
+      if (nnn == (double) ceil)
+        flag= 0;
+      else
+        flag= (int) (ceil+1)*Run.outcad-time;
+    }
+    cout << time << " " << Run.outcad << " " << time/Run.outcad << " " << flag << endl;
+    if((prevbackup%Run.resfreq)&&(flag))
+      erase_flag = 1;
   }
 
   OutputSolution(Run,Grid,Physics);

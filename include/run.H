@@ -63,6 +63,7 @@ public:
   }
 
   double dt_rem() const { 
+    if (outcad==0) return 0.0;
     double num = time/outcad;
     int ceil = (int) num;
     if (num == (double) ceil) return 0.0;
