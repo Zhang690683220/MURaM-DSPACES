@@ -62,7 +62,7 @@ using namespace std;
     /* Minimum and Maximum T */
     double T_min, T_max;
     
-    double ss,pg,rhoi,T,E, pe,ptot,Nel;
+    double ss,pg,rhon,rhoi,T,E, pe,ptot,Nel;
     int nlevelH=9;
     int ilevelH,iexi;
     double nH_jk[nlevelH];
@@ -361,7 +361,8 @@ using namespace std;
             }
         
             /* Ion density */
-            rhoi=(Hp_1+H2p_1)*at.abu[0]/Hperg;
+            rhoi=(Hp_1+2.0*H2p_1+Hm_1)*at.W[0]*amu;
+            rhon=(Hn_1+2.0*H2n_1)*at.W[0]*amu;
 
             /* molecular H2, H2+ and H- energies */
             Hmol_eps = Heps(T);
@@ -372,11 +373,13 @@ using namespace std;
               double c = n_i[i]/(1.0+f_ji[i][0]+f_ji[i][1]*f_ji[i][0]);
               nI_1=f_ji[i][0]*c;
               nI_2=nI_1*f_ji[i][1];
+              double nN = c-nI_1;
               /* First ionisation energy */
               sumi+=(nI_1*at.chi1[i]+nI_2*(at.chi1[i]+at.chi2[i]))*ev;
 
               /* Ion density */
-              rhoi+=(nI_1+nI_2)*at.abu[i]/Hperg;
+              rhoi+=(nI_1+nI_2)*at.W[i]*amu;
+              rhon+=nN*at.W[i]*amu;
             }
 
             ski=1.5*pg;
@@ -427,7 +430,7 @@ using namespace std;
         
 
         fprintf(stderr,"Hp_1=%e Hn_1=%e Hm_1=%e H2p_1=%e H2n_1=%e| xnhtot=%e xnhtot1=%e \n",Hp_1,Hn_1,Hm_1,H2p_1,H2n_1,xnhtot,xnhtot1);
-        fprintf(stderr,"T=%lf pg=%e Rho=%e rhoi=%e eps=%e pe =%e ne=%e\n",T,pg,rh,rhoi, ep,pe,pe/k/T);
+        fprintf(stderr,"T=%lf pg=%e Rho=%e rhoi=%e rhon=%e eps=%e pe =%e ne=%e\n",T,pg,rh,rhoi, rhon,ep,pe,pe/k/T);
         fprintf(stderr,"End iteration\n");
         fprintf(stderr," \n");
       }
