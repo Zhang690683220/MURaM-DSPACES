@@ -11,6 +11,33 @@ A.D. WITTMANN, GOETTINGEN (1975) */
 
 #include "atom.h"
 
+int * sort(double * list, int size)
+{
+  int * ind = new int [size];
+  for(int i=0; i<size; i++)
+    ind[i] = i;
+
+  for(int i=0; i<size; i++)
+  {
+    for(int j=size-1; j>i; j--)
+    {
+      if(list[j]>list[j-1])
+      {
+        double swap=list[j-1];
+        int swapint = ind[j-1];
+
+        list[j-1]=list[j];
+        ind[j-1] = ind[j];
+
+        list[j]= swap;
+        ind[j] = swapint;
+      }
+    }
+  }
+  return ind;
+}
+
+
 using std::string;
   /* Names of the elements in capital letters */
   string ATM0[]={"H","HE","LI","BE","B","C","N","O","F","NE",
@@ -89,6 +116,7 @@ atom::atom(int na, double* eps0){
 
      W = new double [na];        
      mass = new double [na];
+     perg = new double [na];
      abu = new double [na];
      chi1 = new double [na];        
      chi2 = new double [na];        
@@ -100,18 +128,43 @@ atom::atom(int na, double* eps0){
      EH = new double [nH];
      gH = new double [nH];
 
-     for (int i=0;i<na;i++){
-       ATM[i]=ATM0[i];
-       ATM2[i]=ATM20[i];
-      
-       abu[i]=pow(10.,(eps0[i]-12.));
+     /* Sort abundances */
+     int * na2 = sort(eps0,92);
 
-       Z[i] = Z0[i];
-       W[i]=W0[i];
+
+     muavg=0.0;
+     abutot=0.0;
+     for (int i=0;i<na;i++){
+       int j = na2[i];
+
+       ATM[i]=ATM0[j];
+       ATM2[i]=ATM20[j];
+       Z[i] = Z0[j];
+       W[i] = W0[j];
+       chi1[i] = E10[j];
+       chi2[i] = E20[j];
+       
+       abu[i]=pow(10.,(eps0[i]-12.));
        mass[i] = W[i]*amu;
-       chi1[i]=E10[i];
-       chi2[i]=E20[i];
+       abutot+=abu[i];
+       muavg+=abu[i]*W[i];
      }
+     
+     muavg/=abutot;
+
+
+     double invmuav = 1.0/(abutot*muavg*amu);
+     for (int i=0;i<na;i++)
+     {
+       perg[i] = abu[i]*invmuav;
+     }
+
+     for (int i=0;i<na;i++)
+       fprintf(stdout,"atom %d: Z = %d, abundance = %e, perg %e \n",i,Z[i], abu[i],perg[i]);
+
+     fprintf(stdout, "-------------------------------\n");
+     fprintf(stdout, "Mean mu = %e \n", muavg);
+
      for(int i=0;i<nH;i++)
      {
        EH[i]=EH0[i];

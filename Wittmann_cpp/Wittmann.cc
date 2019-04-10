@@ -16,8 +16,8 @@
 #include "Wittmann.h"
 #include "atom.h"
        
-const double pe_tol = 1.0e-3;
-const double search_tol = 1.0e-6;
+const double pe_tol = 1.0e-4;
+const double search_tol = 1.0e-15;
 const int itermax = 1e7;
 
 const double eos_gamma = 1.65;
@@ -62,7 +62,7 @@ using namespace std;
     /* Minimum and Maximum T */
     double T_min, T_max;
     
-    double ss,pg,rhon,rhoi,T,E, pe,ptot,Nel;
+    double pg,rhon,rhoi,T,E, pe,ptot;
     int nlevelH=9;
     int ilevelH,iexi;
     double nH_jk[nlevelH];
@@ -70,35 +70,34 @@ using namespace std;
     double E_min, E_max,pe_min,pe_max;
     double E_search, E_old, E_a, E_b;
     double T_search, T_old, T_a, T_b;
-    double xntot,xnhtot;
+    double xntot,xnhtot,xnhtot1;
 
     /* density grid */
-    Nr = 600;
+    Nr = 200;
     r_grid = new double [Nr];
     double rmin=-46.051701859880914;
     double rmax=-6.907755278982137;
     
     /* energy grid */
-    Neps = 900;
+    Neps = 400;
     eps_grid = new double [Neps];
     double emin=27.6310211159;
     double emax=34.554840253341055;
     
     /* inverse grids */
-    Np = 300;
+    Np = 200;
     p_grid = new double [Np];
     double pmin = 4.0;
     double pmax = 26.0;
 
-    Ns = 300;
+    Ns = 200;
     s_grid = new double [Ns];
     double smin = 7.72762848e8;
     double smax = 12.72762848e8;
 
     double n_i[ncontr];
     double mntot;
-    double xy1,nhtot,summ,sumi,ski,sumexi,sumnexi,ntot;
-    double nhtot1;
+    double xy1,sumi,ski,sumexi,sumnexi;
     
     ttbl = array_2d_contiguous(Nr,Neps);
     ptbl = array_2d_contiguous(Nr,Neps);
@@ -133,7 +132,7 @@ using namespace std;
     eps_grid[Neps-1]=emax;
     
     /* We read the abundances */
-    double *eps0=leeabun(ncontr);
+    double *eps0=leeabun(92);
     
     /* create atom object */
     atom at(ncontr,eps0);
@@ -146,33 +145,30 @@ using namespace std;
     for(int ir=0;ir<Nr;ir++){
       double rh=exp(r_grid[ir]);
 
-      /* Compute Ntot for a given rho */
-      xnhtot=rh*Hperg;
       /* computer Ntot for all included elements */
       xntot=0.0;
-      summ=0.;
       for (int i=0;i<ncontr;i++){
-        n_i[i]=at.abu[i]*xnhtot;
+        n_i[i]=rh*at.perg[i];
         xntot+=n_i[i];
-        summ+=at.mass[i]*n_i[i];
       }
+      xnhtot = n_i[0];
 
       for(int ieps=0;ieps<Neps;ieps++){
         double ep = exp(eps_grid[ieps]);
       
-        fprintf(stderr,"-------------------------------------\n");
-        fprintf(stderr,"ir=%d rho=%e | ieps=%d eps=%e \n",ir,rh,ieps,ep);
+        fprintf(stdout,"-------------------------------------\n");
+        fprintf(stdout,"ir=%d rho=%e | ieps=%d eps=%e \n",ir,rh,ieps,ep);
 
         if (ieps > 0)
-          T_min=min(max(1.0e3,0.9*T_search),7.5e6);
+          T_min=min(max(1.0e3,0.75*T_search),7.5e6);
         else if (ir > 0)
-          T_min = exp(ttbl[ir-1][ieps])*0.95;
+          T_min = exp(ttbl[ir-1][ieps])*0.75;
         else
           T_min = 1.0e3;
 
         T=T_min;
         T_a=T_min;
-        fprintf(stderr,"------------  Tmin, Temp=%e -------------------------\n",T);
+        fprintf(stdout,"------------  Tmin, Temp=%e -------------------------\n",T);
 
         for(int i=0;i<ncontr;i++)
           at.partf(i,T);
@@ -190,22 +186,17 @@ using namespace std;
         while ((err_pe > pe_tol)&&(pe_iter<max_pe_iter))
         {
           double pe1=pe_pg10(at, T,pe,xnhtot);
+          
           err_pe = abs(pe-pe1)/pe;
           pe = pe1;
           pe_iter+=1;
         }
+
         double pe_a = pe;
         pe_min = pe;
-
-        double xnhtot1=Hm_1+Hp_1+Hn_1+2.0*H2n_1+2.0*H2p_1;
-
-        Hm_1 = Hm_1/xnhtot1*xnhtot;
-        Hp_1 = Hp_1/xnhtot1*xnhtot;
-        Hn_1 = Hn_1/xnhtot1*xnhtot;
-        H2p_1 = H2p_1/xnhtot1*xnhtot;
-        H2n_1 = H2n_1/xnhtot1*xnhtot;
-
-        fprintf(stderr,"Hn_1=%e,Hp_1=%e,Hm_1=%e H2n_1=%e H2p_1=%e | xnhtot=%e xnhtot1=%e \n",Hn_1,Hp_1,Hm_1,H2n_1,H2p_1,xnhtot, xnhtot1);
+          
+        xnhtot1=Hm_1+Hp_1+Hn_1+2.0*H2n_1+2.0*H2p_1;
+        fprintf(stdout,"Hn_1=%e,Hp_1=%e,Hm_1=%e H2n_1=%e H2p_1=%e ne=%e| xnhtot=%e xnhtot1=%e \n",Hn_1,Hp_1,Hm_1,H2n_1,H2p_1,pe*k*T,xnhtot, xnhtot1);
 
 
         sumexi=0.;
@@ -236,15 +227,15 @@ using namespace std;
         E_a=ep-E_min/rh;
 
         if (ieps > 0)
-          T_max=max(min(1.0e7,1.1*T_search),3.0e3);
+          T_max=max(min(1.0e7,1.25*T_search),3.0e3);
         else if (ir > 0)
-          T_max = exp(ttbl[ir-1][ieps])*1.2;
+          T_max = exp(ttbl[ir-1][ieps])*1.25;
         else
           T_max = 1.0e7;
 
         T=T_max;
         T_b=T_max;
-        fprintf(stderr,"------------  Tmax, Temp=%e -------------------------\n",T);
+        fprintf(stdout,"------------  Tmax, Temp=%e -------------------------\n",T);
 
         for(int i=0;i<ncontr;i++)
           at.partf(i,T);
@@ -262,22 +253,17 @@ using namespace std;
         while ((err_pe > pe_tol)&&(pe_iter<max_pe_iter))
         {
           double pe1=pe_pg10(at, T,pe,xnhtot);
+
           err_pe = abs(pe-pe1)/pe;
           pe = pe1;
           pe_iter+=1;
         }
+
         double pe_b = pe;
         pe_max = pe;
-
+          
         xnhtot1=Hm_1+Hp_1+Hn_1+2.0*H2n_1+2.0*H2p_1;
-        Hm_1 = Hm_1/xnhtot1*xnhtot;
-        Hp_1 = Hp_1/xnhtot1*xnhtot;
-        Hn_1 = Hn_1/xnhtot1*xnhtot;
-        H2p_1 = H2p_1/xnhtot1*xnhtot;
-        H2n_1 = H2n_1/xnhtot1*xnhtot;
-
-        fprintf(stderr,"Hn_1=%e,Hp_1=%e,Hm_1=%e H2n_1=%e H2p_1=%e | xnhtot=%e xnhtot1=%e \n",Hn_1,Hp_1,Hm_1,H2n_1,H2p_1,xnhtot, xnhtot1);
-
+        fprintf(stdout,"Hn_1=%e,Hp_1=%e,Hm_1=%e H2n_1=%e H2p_1=%e ne=%e| xnhtot=%e xnhtot1=%e \n",Hn_1,Hp_1,Hm_1,H2n_1,H2p_1,pe*k*T,xnhtot, xnhtot1);
 
         sumexi=0.;
         /* except the last level */
@@ -306,20 +292,21 @@ using namespace std;
         E_max=ski + sumi +sumexi;
         E_b=ep-E_max/rh;
 
-        T=(T_a+T_b)/2.0;
+        //T=(T_a+T_b)/2.0;
+        T = -E_a*(T_b-T_a)/(E_b-E_a)+T_a;
 
-        fprintf(stderr,"------------  Initial guess Temp=%e -------------------------\n",T);
-        fprintf(stderr,"E_min=%e eps_min=%e T_min=%e pe_min=%e\n",E_min,E_min/rh,T_min,pe_a);
-        fprintf(stderr,"E_max=%e eps_max=%e T_max=%e pe_max=%e\n",E_max,E_max/rh,T_max,pe_b);
+        fprintf(stdout,"------------  Initial guess Temp=%e -------------------------\n",T);
+        fprintf(stdout,"E_min=%e eps_min=%e T_min=%e pe_min=%e\n",E_min,E_min/rh,T_min,pe_a);
+        fprintf(stdout,"E_max=%e eps_max=%e T_max=%e pe_max=%e\n",E_max,E_max/rh,T_max,pe_b);
 
         /* Initialize */
         E=E_min; 
 
-        fprintf(stderr,"------------  Begin iterations -------------------------\n");
+        fprintf(stdout,"------------  Begin iterations -------------------------\n");
         if((E_a > 0. && E_b > 0.)||(E_a < 0. && E_b < 0.))
         {
-          fprintf(stderr,"E_a and E_b out of bounds\n");
-          fprintf(stderr,"Use ideal gas for T, pg and PV=NRT for electron number\n");
+          fprintf(stdout,"E_a and E_b out of bounds\n");
+          fprintf(stdout,"Use ideal gas for T, pg and PV=NRT for electron number\n");
           t_out_of_range_count+=1;
           T = c_temp*ep;
           T_search = T;
@@ -344,7 +331,7 @@ using namespace std;
               at.partf(i,T);
 
             /* initial guess for pe */
-            pe = (pe_a+pe_b)/2.; 
+            pe = -E_a*(pe_b-pe_a)/(E_b-E_a)+pe_a;
         
             err_pe = 1.0e8;
             pe_iter = 0;
@@ -352,17 +339,13 @@ using namespace std;
             while ((err_pe > pe_tol)&&(pe_iter<max_pe_iter))
             {
               double pe1=pe_pg10(at, T,pe,xnhtot);
+
               err_pe = abs(pe-pe1)/pe;
               pe = pe1;
               pe_iter+=1;
             }
-
+              
             xnhtot1=Hm_1+Hp_1+Hn_1+2.0*H2n_1+2.0*H2p_1;
-            Hm_1 = Hm_1/xnhtot1*xnhtot;
-            Hp_1 = Hp_1/xnhtot1*xnhtot;
-            Hn_1 = Hn_1/xnhtot1*xnhtot;
-            H2p_1 = H2p_1/xnhtot1*xnhtot;
-            H2n_1 = H2n_1/xnhtot1*xnhtot;
 
             ptot=xntot*k*T;
             pg = pe + ptot;
@@ -377,8 +360,8 @@ using namespace std;
             }
         
             /* Ion density */
-            rhoi=(Hp_1+2.0*H2p_1+Hm_1)*at.W[0]*amu;
-            rhon=(Hn_1+2.0*H2n_1)*at.W[0]*amu;
+            rhoi=(Hp_1+2*H2p_1+Hm_1)*at.W[0];
+            rhon=(Hn_1+2*H2n_1)*at.W[0];
 
             /* molecular H2, H2+ and H- energies */
             Hmol_eps = Heps(T);
@@ -386,17 +369,22 @@ using namespace std;
 
             /* Excitation energies */
             for(int i=1;i<ncontr;i++){
-              double c = n_i[i]/(1.0+f_ji[i][0]+f_ji[i][1]*f_ji[i][0]);
-              nI_1=f_ji[i][0]*c;
+              
+              double nN_0 = n_i[i]/(1.0+f_ji[i][0]+f_ji[i][1]*f_ji[i][0]);
+
+              nI_1=f_ji[i][0]*nN_0;
               nI_2=nI_1*f_ji[i][1];
-              double nN = c-nI_1;
+
               /* First ionisation energy */
               sumi+=(nI_1*at.chi1[i]+nI_2*(at.chi1[i]+at.chi2[i]))*ev;
 
               /* Ion density */
-              rhoi+=(nI_1+nI_2)*at.W[i]*amu;
-              rhon+=nN*at.W[i]*amu;
+              rhoi+=(nI_1+nI_2)*at.W[i];
+              rhon+=(nN_0)*at.W[i];
             }
+            
+            rhoi*=amu;
+            rhon*=amu;
 
             ski=1.5*pg;
 
@@ -417,22 +405,23 @@ using namespace std;
             E_a = sw2*E_search + (1-sw2)*E_a;
             pe_a = sw2*pe + (1-sw2)*pe_a;
 
-            T_search = 0.5*(T_a+T_b);
+            //T_search = 0.5*(T_a+T_b);
+            T_search = -E_a*(T_b-T_a)/(E_b-E_a)+T_a;
             rel_err=fabs((T_search-T_old)/T_old);
             T=T_search;
 
             if (debug_verbose==1) {
-              fprintf(stderr,"sumi=%e sumexi=%e ski=%e ptot=%e pe=%e\n",sumi,sumexi,ski,ptot,pe);
-              fprintf(stderr,"T_a=%e T_search=%e T_b=%e | E_a=%e E_search=%e E_b=%e\n",T_a,T_search,T_b,E_a,E_search,E_b);
-              fprintf(stderr,"T_old=%e T_new=%e | eps_old=%e eps_new=%e\n",T_old,T,E_old/rh,E/rh);
-              fprintf(stderr,"iterTn=%d rel_err=%e\n",iterTn,rel_err);
-              fprintf(stderr,"-------------------------------------------------\n");
+              fprintf(stdout,"sumi=%e sumexi=%e ski=%e ptot=%e pe=%e\n",sumi,sumexi,ski,ptot,pe);
+              fprintf(stdout,"T_a=%e T_search=%e T_b=%e | E_a=%e E_search=%e E_b=%e\n",T_a,T_search,T_b,E_a,E_search,E_b);
+              fprintf(stdout,"T_old=%e T_new=%e | eps_old=%e eps_new=%e\n",T_old,T,E_old/rh,E/rh);
+              fprintf(stdout,"iterTn=%d rel_err=%e\n",iterTn,rel_err);
+              fprintf(stdout,"-------------------------------------------------\n");
             }
           }
           if(iterTn==itermax){
-            fprintf(stderr,"Bisection method did not find a root\n");
-            fprintf(stderr,"T=%e Hp_1=%e Hn_1=%e\n",T,Hp_1,Hn_1);
-            fprintf(stderr,"H2p_1=%e H2n_1=%e\n",H2p_1,H2n_1);
+            fprintf(stdout,"Bisection method did not find a root\n");
+            fprintf(stdout,"T=%e Hp_1=%e Hn_1=%e\n",T,Hp_1,Hn_1);
+            fprintf(stdout,"H2p_1=%e H2n_1=%e\n",H2p_1,H2n_1);
             non_converge_count+=1;
           }
         }
@@ -445,10 +434,10 @@ using namespace std;
         netbl[ir][ieps]=(float) log(pe/k/T);
         
 
-        fprintf(stderr,"Hp_1=%e Hn_1=%e Hm_1=%e H2p_1=%e H2n_1=%e| xnhtot=%e xnhtot1=%e \n",Hp_1,Hn_1,Hm_1,H2p_1,H2n_1,xnhtot,xnhtot1);
-        fprintf(stderr,"T=%lf pg=%e Rho=%e rhoi=%e rhon=%e eps=%e pe =%e ne=%e\n",T,pg,rh,rhoi, rhon,ep,pe,pe/k/T);
-        fprintf(stderr,"End iteration\n");
-        fprintf(stderr," \n");
+        fprintf(stdout,"Hp_1=%e Hn_1=%e Hm_1=%e H2p_1=%e H2n_1=%e| xnhtot=%e xnhtot1=%e \n",Hp_1,Hn_1,Hm_1,H2p_1,H2n_1,xnhtot,xnhtot1);
+        fprintf(stdout,"T=%lf pg=%e Rho=%e rhoi=%e rhon=%e eps=%e pe =%e ne=%e\n",T,pg,rh,rhoi, rhon,ep,pe,pe/k/T);
+        fprintf(stdout,"End iteration\n");
+        fprintf(stdout," \n");
       }
     }
       
@@ -469,7 +458,7 @@ using namespace std;
       for (int ir=1;ir<Nr;ir++)
         stbl[ir][ieps] = stbl[ir-1][ieps]+0.5*(1.0/exp(ttbl[ir-1][ieps])*exp(ptbl[ir-1][ieps])/exp(r_grid[ir-1])+1.0/exp(ttbl[ir][ieps])*exp(ptbl[ir][ieps])/exp(r_grid[ir]))*exp(delta_r);
 
-    fprintf(stderr,"non converge count = %i | t out of range count %i \n",non_converge_count, t_out_of_range_count);
+    fprintf(stdout,"non converge count = %i | t out of range count %i \n",non_converge_count, t_out_of_range_count);
 
     p_grid[0]=log(pmin);
     delta_p=(log(pmax)-log(pmin))/(Np-1);
@@ -589,7 +578,7 @@ double pe_pg10(const atom &at, double t,double pe,double xnhtot)
   double f1,f2,f3,f4,f5,fe;
 
   if(t<500.){
-    fprintf(stderr,"pe_pg10: temperature < 500 K; temperature = 500 K\n");
+    fprintf(stdout,"pe_pg10: temperature < 500 K; temperature = 500 K\n");
     t=500.;
   }
   double theta=5040./t;
@@ -691,13 +680,19 @@ double pe_pg10(const atom &at, double t,double pe,double xnhtot)
 
   if(pe <= 0.0)
     pe=1.e-42;
-  
-  /* now notation is number density */
-  Hm_1=f3*phtot/(k*t);
-  Hp_1=f2*phtot/(k*t);
-  Hn_1=f1*phtot/(k*t);
-  H2p_1=f4*phtot/(k*t);
-  H2n_1=f5*phtot/(k*t);
+ 
+  /* Scale by hydrogen pressure to conserve hydrogen number
+   * and convert to number densities */
+
+  double pretonum = phtot/(k*t);
+
+  Hm_1=f3*pretonum;
+  Hp_1=f2*pretonum;
+  Hn_1=f1*pretonum;
+  H2p_1=f4*pretonum;
+  H2n_1=f5*pretonum;
+
+  pe = pe;
 
   delete [] cmol;
   delete [] dcmol;
@@ -825,7 +820,7 @@ double bilinear(int n1, int n2,double *x,double *y,float **fxy,double xx,double 
 
       else if(xx < x[0] || xx > x[n1-1] || yy < y[0] || yy > y[n2-1])
       {
-        fprintf(stderr,"Out of range %e %e %e %e %e %e\n",xx,x[0],x[n1-1],yy,y[0],y[n2-1]);
+        fprintf(stdout,"Out of range %e %e %e %e %e %e\n",xx,x[0],x[n1-1],yy,y[0],y[n2-1]);
         ff=0.;
       }
     }

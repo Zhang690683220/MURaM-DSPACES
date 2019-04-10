@@ -26,8 +26,10 @@ class atom{
       int *Z;
       double *chi1,*chi2;
       double *W,*mass; 
-      double *abu;
+      double *abu, *perg;
       double *EH,*gH;
+      double muavg;
+      double abutot;
 
       double *uu1,*uu2,*uu3;
       atom(int,double*);
@@ -43,6 +45,7 @@ class molecb{
    ~molecb();
 };
 
+int * sort(double * list, int size);
 
 #endif                // __ATOM__
 

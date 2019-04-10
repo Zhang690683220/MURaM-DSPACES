@@ -3,7 +3,7 @@
 
 #include "atom.h"
 
-      int const ncontr=30;
+      int const ncontr=27;
       int const nmol=2;
       
       double Hm_1,Hp_1,Hn_1,H2p_1,H2n_1,mI_1[ncontr];
