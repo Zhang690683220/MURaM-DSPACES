@@ -1,11 +1,11 @@
-MURaM_HOME_DIR = /home/przybylski/MURaM_GIT
-FFTW3_HOME = /usr
+MURaM_HOME_DIR = /cobra/u/damp/MURaM_main
+FFTW3_HOME = /mpcdf/soft/SLE_12_SP3/packages/skylake/fftw/impi_2017_3_intel_18_0/3.3.7
 
 # output name
 PROGRAM = mhd3d.x
 
 # Optimization option
-OPT = -O3 -ffast-math -ftree-vectorize 
+OPT = -O3 -xCORE-AVX2 -ipo
 
 # Debugging option (for development) use -pg -g3
 DBG = -Wshadow -Wall 
@@ -61,9 +61,9 @@ LIBS = $(CFDLIBDIR) $(CFDLIB) \
        $(FFTWLIBDIR) $(FFTWLIB) $(MASSLIB) -lm
 
 ######### C options #####################################
-CC     = mpicc
-LD     = mpic++
-CCC    = mpic++
+CC     = mpiicc
+LD     = mpiicpc
+CCC    = mpiicpc
 
 CFLAGS  = $(DEFS) $(INCLUDES)
 CCFLAGS = $(CFLAGS)
