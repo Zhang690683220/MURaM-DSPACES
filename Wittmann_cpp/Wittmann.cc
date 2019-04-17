@@ -38,8 +38,8 @@ double delta_eps,delta_r,delta_s,delta_p;
 double inv_delta_r,inv_delta_eps,inv_delta_s,inv_delta_p;
 
 /* internal energy offset from MURaM EOS, if required, will need to calculate more accurately */
-const double eps_off = 0.0; // 0.8e11;
-const double ss_off = 0.0; // -2.08e9;
+const double eps_off =  0.8e11;
+const double ss_off =  -2.08e9;
 
 float** array_2d_contiguous(int nx,int ny){
   float **array = new float*[nx];
@@ -73,13 +73,13 @@ using namespace std;
     double xnonhtot,xntot,xnhtot,xnhtot1;
 
     /* density grid */
-    Nr = 3000;
+    Nr = 2000;
     r_grid = new double [Nr];
     double rmin=log(1.0e-20);
-    double rmax=log(2.5e-3);
+    double rmax=log(1.0e-4);
     
     /* energy grid */
-    Neps = 2000;
+    Neps = 1000;
     eps_grid = new double [Neps];
     double emin=log(1.0e12);
     double emax=log(2.0e15);
@@ -88,13 +88,13 @@ using namespace std;
     Np = 300;
     p_grid = new double [Np];
     /* Inverse grids only used for bottom boundary, so low pressures not needed */
-    double pmin = 4.0;
-    double pmax = 20.0;
+    double pmin = 2.0;
+    double pmax = 25.0;
 
-    Ns = 500;
+    Ns = 300;
     s_grid = new double [Ns];
-    double smin = 5e8;
-    double smax = 3.0e8;
+    double smin = 1.0e8;
+    double smax = 3.0e9;
 
     double n_i[ncontr];
     double mntot;
@@ -598,12 +598,12 @@ using namespace std;
      * 3.0e-3 would be needed */
 
 
-    double ee0 = 2.5e12;
-    double ee1 = 1.0e14;
+    double ee0 = 2.0e12;
+    double ee1 = 1.0e15;
     double ss0 = smin;
     ss1 = smax;
-    double rr0 = 1.0e-10;
-    double rr1 = 2.5e-3;
+    double rr0 = 1.0e-12;
+    double rr1 = 1.0e-4;
     double pp0 = exp(pmin);
     double pp1 = exp(pmax);
 
@@ -621,10 +621,10 @@ using namespace std;
       double p0 = exp(p_grid[ip]);
       double s0 = s_grid[is];
 
-      double rh = log(1e-6);
-      double ep = log(5.0e12);
+      double rh = log(1e-8);
+      double ep = log(1.0e13);
 
-      double * output = invert_eos_newton(p0,s0,rh,ep,pp0,pp1,ss0,ss1,ee0,ee1,rr0,rr1);
+      double * output = invert_eos_newton(p0,s0,rh,ep,pp0,pp1,ss0,ss1,ee0,ee1,rr0,rr1,1.02,100,0.01);
 
       rhotbl[is][ip] = output[0];
       epstbl[is][ip] = output[1];
@@ -645,7 +645,7 @@ using namespace std;
         double rh = rhotbl[is][ip-1];
         double ep = epstbl[is][ip-1];
       
-        double * output = invert_eos_newton(p0,s0,rh,ep,pp0,pp1,ss0,ss1,ee0,ee1,rr0,rr1);
+        double * output = invert_eos_newton(p0,s0,rh,ep,pp0,pp1,ss0,ss1,ee0,ee1,rr0,rr1,1.02,100,0.01);
 
         rhotbl[is][ip] = output[0];
         epstbl[is][ip] = output[1];
@@ -669,7 +669,7 @@ using namespace std;
         double rh = (rhotbl[is][ip+1]+rhotbl[is][ip-1])/2.0;
         double ep = (epstbl[is][ip+1]+epstbl[is][ip-1])/2.0;
         
-        double * output = invert_eos_newton(p0,s0,rh,ep,pp0,pp1,ss0,ss1,ee0,ee1,rr0,rr1);
+        double * output = invert_eos_newton(p0,s0,rh,ep,pp0,pp1,ss0,ss1,ee0,ee1,rr0,rr1,1.01,10000,0.0001);
 
         rhotbl[is][ip] = output[0];
         epstbl[is][ip] = output[1];
@@ -677,6 +677,28 @@ using namespace std;
         max_err_s = max(max_err_s,output[3]);
       }
       fprintf(stdout, "Second iteration, ip= %d, max_err_p %e, max_err_s %e \n",ip,max_err_p,max_err_s);
+    }
+    /* Third iteration */
+    for(int ip=0;ip<Np;ip++)
+    {
+      max_err_p = 0.0;
+      max_err_s = 0.0;
+      double p0 = exp(p_grid[ip]);
+      for(int is=1;is<Ns-1;is++)
+      {
+        double s0 = s_grid[is];
+
+        double rh = (rhotbl[is+1][ip]+rhotbl[is-1][ip])/2.0;
+        double ep = (epstbl[is+1][ip]+epstbl[is-1][ip])/2.0;
+        
+        double * output = invert_eos_newton(p0,s0,rh,ep,pp0,pp1,ss0,ss1,ee0,ee1,rr0,rr1,1.01,10000,0.0001);
+
+        rhotbl[is][ip] = output[0];
+        epstbl[is][ip] = output[1];
+        max_err_p = max(max_err_p,output[2]);
+        max_err_s = max(max_err_s,output[3]);
+      }
+      fprintf(stdout, "Third iteration, ip= %d, max_err_p %e, max_err_s %e \n",ip,max_err_p,max_err_s);
     }
 
     FILE *outfp;
@@ -694,8 +716,8 @@ using namespace std;
     header[9] = (float) p_grid[Np-1];
     header[10] = (float) s_grid[0];
     header[11] = (float) s_grid[Ns-1];
-    header[12] = (float) 0.8e11;
-    header[13] = (float) -2.08e9;
+    header[12] = (float) eps_off;
+    header[13] = (float) ss_off;
 
     outfp = fopen("./eostest.dat","w");
     fwrite(header,sizeof(float),14,outfp);
@@ -891,15 +913,11 @@ double * Heps(double tt)
   return E;
 }
 
-double * invert_eos_newton(double p0,double s0,double rho, double eps,double pmin,double pmax,double smin,double smax,double emin,double emax,double rmin,double rmax)
+double * invert_eos_newton(double p0,double s0,double rho, double eps,double pmin,double pmax,double smin,double smax,double emin,double emax,double rmin,double rmax,double fct, int maxiter, double tol)
 {
 
-  double tol = 1.0e-4;
   double err_p = 1.0e10;
   double err_s = 1.0e10;
-  double fct = 1.01;
-  
-  int maxiter = 1e4;
   int it=0;
    
   double rho1 = exp(rho);

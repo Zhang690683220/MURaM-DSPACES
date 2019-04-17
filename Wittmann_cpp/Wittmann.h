@@ -3,7 +3,7 @@
 
 #include "atom.h"
 
-      int const ncontr=27;
+      int const ncontr=25;
       int const nmol=2;
       
       double Hm_1,Hp_1,Hn_1,H2p_1,H2n_1,mI_1[ncontr];
@@ -18,7 +18,7 @@
       double acotasig(double,double,double);
       double* leeabun(int);
       double * Heps(double tt);
-      double * invert_eos_newton(double p0,double s0,double rho, double eps,double pmin,double pmax,double smin,double smax,double emin,double emax,double rmin,double rmax);
+      double * invert_eos_newton(double p0,double s0,double rho, double eps,double pmin,double pmax,double smin,double smax,double emin,double emax,double rmin,double rmax,double fct, int maxiter, double tol);
       double bilinear(int n1, int n2,double *x,double *y,float **fxy,double xx,double yy);
 
       double p_interp(double ee, double dd);
