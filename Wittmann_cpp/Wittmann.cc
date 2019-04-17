@@ -16,8 +16,8 @@
 #include "Wittmann.h"
 #include "atom.h"
        
-const double pe_tol = 1.0e-4;
-const double search_tol = 1.0e-15;
+const double pe_tol = 1.0e-8;
+const double search_tol = 1.0e-8;
 const int itermax = 1e7;
 
 const double eos_gamma = 1.65;
@@ -38,8 +38,8 @@ double delta_eps,delta_r,delta_s,delta_p;
 double inv_delta_r,inv_delta_eps,inv_delta_s,inv_delta_p;
 
 /* internal energy offset from MURaM EOS, if required, will need to calculate more accurately */
-const double eps_off = 0.0e0;
-const double ss_off = 0.0e0;
+const double eps_off = 0.0; // 0.8e11;
+const double ss_off = 0.0; // -2.08e9;
 
 float** array_2d_contiguous(int nx,int ny){
   float **array = new float*[nx];
@@ -67,33 +67,34 @@ using namespace std;
     int ilevelH,iexi;
     double nH_jk[nlevelH];
     double nI_1,nI_2,xi_1,xi_2;
-    double E_min, E_max,pe_min,pe_max;
+    double E_min, E_max,pe_min,pe_max,pe_a,pe_b;
     double E_search, E_old, E_a, E_b;
     double T_search, T_old, T_a, T_b;
-    double xntot,xnhtot,xnhtot1;
+    double xnonhtot,xntot,xnhtot,xnhtot1;
 
     /* density grid */
-    Nr = 200;
+    Nr = 3000;
     r_grid = new double [Nr];
-    double rmin=-46.051701859880914;
-    double rmax=-6.907755278982137;
+    double rmin=log(1.0e-20);
+    double rmax=log(2.5e-3);
     
     /* energy grid */
-    Neps = 400;
+    Neps = 2000;
     eps_grid = new double [Neps];
-    double emin=27.6310211159;
-    double emax=34.554840253341055;
+    double emin=log(1.0e12);
+    double emax=log(2.0e15);
     
     /* inverse grids */
-    Np = 200;
+    Np = 300;
     p_grid = new double [Np];
+    /* Inverse grids only used for bottom boundary, so low pressures not needed */
     double pmin = 4.0;
-    double pmax = 26.0;
+    double pmax = 20.0;
 
-    Ns = 200;
+    Ns = 500;
     s_grid = new double [Ns];
-    double smin = 7.72762848e8;
-    double smax = 12.72762848e8;
+    double smin = 5e8;
+    double smax = 3.0e8;
 
     double n_i[ncontr];
     double mntot;
@@ -105,8 +106,8 @@ using namespace std;
     rhoitbl = array_2d_contiguous(Nr,Neps);
     ambtbl = array_2d_contiguous(Nr,Neps);
     stbl = array_2d_contiguous(Nr,Neps);
-    rhotbl = array_2d_contiguous(Np,Ns);
-    epstbl = array_2d_contiguous(Np,Ns);
+    rhotbl = array_2d_contiguous(Ns,Np);
+    epstbl = array_2d_contiguous(Ns,Np);
 
 
     /* create density grid */
@@ -147,11 +148,13 @@ using namespace std;
 
       /* computer Ntot for all included elements */
       xntot=0.0;
-      for (int i=0;i<ncontr;i++){
+      for (int i=0;i<ncontr;i++)
+      {
         n_i[i]=rh*at.perg[i];
         xntot+=n_i[i];
       }
       xnhtot = n_i[0];
+      xnonhtot = xntot-xnhtot;
 
       for(int ieps=0;ieps<Neps;ieps++){
         double ep = exp(eps_grid[ieps]);
@@ -159,140 +162,203 @@ using namespace std;
         fprintf(stdout,"-------------------------------------\n");
         fprintf(stdout,"ir=%d rho=%e | ieps=%d eps=%e \n",ir,rh,ieps,ep);
 
-        if (ieps > 0)
-          T_min=min(max(1.0e3,0.75*T_search),7.5e6);
-        else if (ir > 0)
-          T_min = exp(ttbl[ir-1][ieps])*0.75;
-        else
-          T_min = 1.0e3;
+        double factor = 0.2;
+        int converged = 0;
+        int minit=0;
+        while ((!converged)&&(minit<1000))
+        { 
+          if (ieps > 1)
+            T_min = exp(ttbl[ir][ieps-1]) - (1+factor)*fabs(exp(ttbl[ir][ieps-1])-exp(ttbl[ir][ieps-2]));
+          else if (ir > 1)
+            T_min = exp(ttbl[ir-1][ieps]) - (1+factor)*fabs(exp(ttbl[ir-1][ieps])-exp(ttbl[ir-2][ieps]));
+          else if (ieps > 0)
+            T_min=0.95*T_search;
+          else if (ir > 0)
+            T_min = exp(ttbl[ir-1][ieps])*0.95;
+          else
+            T_min = 1.0e3;
 
-        T=T_min;
-        T_a=T_min;
-        fprintf(stdout,"------------  Tmin, Temp=%e -------------------------\n",T);
+          T_min = max(1.0e3,T_min);
 
-        for(int i=0;i<ncontr;i++)
-          at.partf(i,T);
+          T=T_min;
+          T_a=T_min;
+          fprintf(stdout,"------------  Tmin, Temp=%e -------------------------\n",T);
 
-        /* initial guess for pe */
-        if (ieps>0)
-          pe = pe_min;
-        else 
-          pe = xntot*k*T; 
+          for(int i=0;i<ncontr;i++)
+            at.partf(i,T);
 
-        double err_pe = 1.0e8;
-        int pe_iter=0;
-        int max_pe_iter = 1e6;
+          /* initial guess for pe */
+          if (ieps > 1)
+            pe = exp(netbl[ir][ieps-1]) - (1+factor)*fabs(exp(netbl[ir][ieps-1])-exp(netbl[ir][ieps-2]));
+          else if (ir > 1)
+            pe = exp(netbl[ir-1][ieps]) - (1+factor)*fabs(exp(netbl[ir-1][ieps])-exp(netbl[ir-2][ieps]));
+          else 
+            pe = xntot;
 
-        while ((err_pe > pe_tol)&&(pe_iter<max_pe_iter))
-        {
-          double pe1=pe_pg10(at, T,pe,xnhtot);
-          
-          err_pe = abs(pe-pe1)/pe;
-          pe = pe1;
-          pe_iter+=1;
+          pe*=k*T;
+
+          double err_pe = 1.0e8;
+          int pe_iter=0;
+          int max_pe_iter = 1e6;
+
+          while ((err_pe > pe_tol)&&(pe_iter<max_pe_iter))
+          {
+            double pe1=pe_pg10(at, T,pe,xnhtot);
+
+            xnhtot1=Hm_1+Hp_1+Hn_1+2.0*H2n_1+2.0*H2p_1;
+
+            pe = pe/xnhtot1*xnhtot;
+            Hm_1 = Hm_1/xnhtot1*xnhtot;
+            Hp_1 = Hp_1/xnhtot1*xnhtot;
+            Hn_1 = Hn_1/xnhtot1*xnhtot;
+            H2n_1 = H2n_1/xnhtot1*xnhtot;
+            H2p_1 = H2p_1/xnhtot1*xnhtot;
+
+            err_pe = fabs(pe-pe1)/pe;
+            pe = pe1;
+            pe_iter+=1;
+          }
+
+          pe_a = pe;
+          pe_min = pe;
+
+          fprintf(stdout,"Hn_1=%e,Hp_1=%e,Hm_1=%e H2n_1=%e H2p_1=%e ne=%e| xnhtot=%e xnhtot1=%e \n",Hn_1,Hp_1,Hm_1,H2n_1,H2p_1,pe*k*T,xnhtot, xnhtot1);
+
+          sumexi=0.;
+          /* except the last level */
+          for(iexi=0;iexi<nlevelH-1;iexi++){
+            nH_jk[iexi]=
+              (Hn_1)*at.gH[iexi]*exp(-at.EH[iexi]*ev/(k*T))/at.uu1[0];
+            sumexi+=nH_jk[iexi]*at.EH[iexi]*ev;
+          }
+
+          /* molecular H2, H2+ and H- energies */
+          double * Hmol_eps = Heps(T);
+          sumi = Hmol_eps[0]*H2n_1 + Hmol_eps[1]*H2p_1 + Hmol_eps[2]*Hm_1 + Hmol_eps[3]*Hn_1 + Hmol_eps[4]*Hp_1;
+
+          /* Excitation energies */
+          for(int i=1;i<ncontr;i++){
+            double c = n_i[i]/(1.0+f_ji[i][0]+f_ji[i][1]*f_ji[i][0]);
+            nI_1=f_ji[i][0]*c;
+            nI_2=nI_1*f_ji[i][1];
+            /* First ionisation energy */
+            sumi+=(nI_1*at.chi1[i]+nI_2*(at.chi1[i]+at.chi2[i]))*ev;
+          }
+
+          ski = 1.5*((Hm_1+Hp_1+Hn_1+H2n_1+H2p_1+xnonhtot)*k*T+pe);
+
+          E_min=ski + sumi+sumexi;
+          E_a=ep-E_min/rh;
+
+          if (E_a < 0)
+            factor*=2;
+          else if ( E_a!=E_a)
+            factor*=0.9;
+          else
+            converged=1;
+
+          minit+=1;
         }
-
-        double pe_a = pe;
-        pe_min = pe;
-          
-        xnhtot1=Hm_1+Hp_1+Hn_1+2.0*H2n_1+2.0*H2p_1;
-        fprintf(stdout,"Hn_1=%e,Hp_1=%e,Hm_1=%e H2n_1=%e H2p_1=%e ne=%e| xnhtot=%e xnhtot1=%e \n",Hn_1,Hp_1,Hm_1,H2n_1,H2p_1,pe*k*T,xnhtot, xnhtot1);
-
-
-        sumexi=0.;
-        /* except the last level */
-        for(iexi=0;iexi<nlevelH-1;iexi++){
-          nH_jk[iexi]=
-            (Hn_1)*at.gH[iexi]*exp(-at.EH[iexi]*ev/(k*T))/at.uu1[0];
-          sumexi+=nH_jk[iexi]*at.EH[iexi]*ev;
-        }
-
-        /* molecular H2, H2+ and H- energies */
-        double * Hmol_eps = Heps(T);
-        sumi = Hmol_eps[0]*H2n_1 + Hmol_eps[1]*H2p_1 + Hmol_eps[2]*Hm_1 + Hmol_eps[3]*Hn_1 + Hmol_eps[4]*Hp_1;
-
-        /* Excitation energies */
-        for(int i=1;i<ncontr;i++){
-          double c = n_i[i]/(1.0+f_ji[i][0]+f_ji[i][1]*f_ji[i][0]);
-          nI_1=f_ji[i][0]*c;
-          nI_2=nI_1*f_ji[i][1];
-          /* First ionisation energy */
-          sumi+=(nI_1*at.chi1[i]+nI_2*(at.chi1[i]+at.chi2[i]))*ev;
-        }
-
-        ptot=xntot*k*T;
-        ski=1.5*(pe+ptot);
-
-        E_min=ski + sumi+sumexi;
-        E_a=ep-E_min/rh;
-
-        if (ieps > 0)
-          T_max=max(min(1.0e7,1.25*T_search),3.0e3);
-        else if (ir > 0)
-          T_max = exp(ttbl[ir-1][ieps])*1.25;
-        else
-          T_max = 1.0e7;
-
-        T=T_max;
-        T_b=T_max;
-        fprintf(stdout,"------------  Tmax, Temp=%e -------------------------\n",T);
-
-        for(int i=0;i<ncontr;i++)
-          at.partf(i,T);
-
-        /* initial guess for pe */
-        if (ieps > 0)
-          pe = pe_max;
-        else 
-          pe = xntot*k*T; 
         
-        err_pe = 1.0e8;
-        pe_iter=0;
-        max_pe_iter = 1e6;
-
-        while ((err_pe > pe_tol)&&(pe_iter<max_pe_iter))
+        factor = 0.5;
+        converged = 0;
+        int maxit = 0;
+        while ((!converged)&&(maxit<1000))
         {
-          double pe1=pe_pg10(at, T,pe,xnhtot);
+          if (ieps > 1)
+            T_max = exp(ttbl[ir][ieps-1]) + (1.0+factor)*(exp(ttbl[ir][ieps-1])-exp(ttbl[ir][ieps-2]));
+          else if (ir > 1)
+            T_max = exp(ttbl[ir-1][ieps]) + (1.0+factor)*(exp(ttbl[ir-1][ieps])-exp(ttbl[ir-2][ieps]));
+          else if (ieps > 0)
+            T_max=1.5*T_search;
+          else if (ir > 0)
+            T_max = exp(ttbl[ir-1][ieps])*1.25;
+          else
+            T_max = 1.0e7;
 
-          err_pe = abs(pe-pe1)/pe;
-          pe = pe1;
-          pe_iter+=1;
+          T_max = min(1.0e7,T_max);
+
+          T=T_max;
+          T_b=T_max;
+          fprintf(stdout,"------------  Tmax, Temp=%e -------------------------\n",T);
+
+          for(int i=0;i<ncontr;i++)
+            at.partf(i,T);
+
+          /* initial guess for pe */
+          if (ieps > 1)
+            pe = exp(netbl[ir][ieps-1]) + (1+factor)*(exp(netbl[ir][ieps-1])-exp(netbl[ir][ieps-2]));
+          else if (ir > 1)
+            pe = exp(netbl[ir-1][ieps]) + (1+factor)*(exp(netbl[ir-1][ieps])-exp(netbl[ir-2][ieps]));
+          else 
+            pe = xntot;
+
+          pe*=k*T;
+
+          double err_pe = 1.0e8;
+          int pe_iter=0;
+          int max_pe_iter = 1e6;
+
+          while ((err_pe > pe_tol)&&(pe_iter<max_pe_iter))
+          {
+            double pe1=pe_pg10(at, T,pe,xnhtot);
+
+            xnhtot1=Hm_1+Hp_1+Hn_1+2.0*H2n_1+2.0*H2p_1;
+
+            pe = pe/xnhtot1*xnhtot;
+            Hm_1 = Hm_1/xnhtot1*xnhtot;
+            Hp_1 = Hp_1/xnhtot1*xnhtot;
+            Hn_1 = Hn_1/xnhtot1*xnhtot;
+            H2n_1 = H2n_1/xnhtot1*xnhtot;
+            H2p_1 = H2p_1/xnhtot1*xnhtot;
+
+            err_pe = fabs(pe-pe1)/pe;
+            pe = pe1;
+            pe_iter+=1;
+          }
+
+          pe_b = pe;
+          pe_max = pe;
+
+          xnhtot1=Hm_1+Hp_1+Hn_1+2.0*H2n_1+2.0*H2p_1;
+          fprintf(stdout,"Hn_1=%e,Hp_1=%e,Hm_1=%e H2n_1=%e H2p_1=%e ne=%e| xnhtot=%e xnhtot1=%e \n",Hn_1,Hp_1,Hm_1,H2n_1,H2p_1,pe*k*T,xnhtot, xnhtot1);
+
+          sumexi=0.;
+          /* except the last level */
+          for(iexi=0;iexi<nlevelH-1;iexi++){
+            nH_jk[iexi]=
+              (Hn_1)*at.gH[iexi]*exp(-at.EH[iexi]*ev/(k*T))/at.uu1[0];
+            sumexi+=nH_jk[iexi]*at.EH[iexi]*ev;
+          }
+
+          /* molecular H2, H2+ and H- energies  */
+          double *Hmol_eps = Heps(T);
+          sumi = Hmol_eps[0]*H2n_1 + Hmol_eps[1]*H2p_1 + Hmol_eps[2]*Hm_1 + Hmol_eps[3]*Hn_1 + Hmol_eps[4]*Hp_1;
+
+          /* Excitation energies */
+          for(int i=1;i<ncontr;i++){
+            double c = n_i[i]/(1.0+f_ji[i][0]+f_ji[i][1]*f_ji[i][0]);
+            nI_1=f_ji[i][0]*c;
+            nI_2=nI_1*f_ji[i][1];
+            /* First ionisation energy */
+            sumi+=(nI_1*at.chi1[i]+nI_2*(at.chi1[i]+at.chi2[i]))*ev;
+          }
+
+          ski = 1.5*((Hm_1+Hp_1+Hn_1+H2n_1+H2p_1+xnonhtot)*k*T+pe);
+
+          E_max=ski + sumi +sumexi;
+          E_b=ep-E_max/rh;
+
+          if (E_b > 0)
+            factor*=2;
+          else if (E_b!=E_b)
+            factor*=0.9;
+          else 
+            converged=1;
+
+          maxit+=1;
         }
 
-        double pe_b = pe;
-        pe_max = pe;
-          
-        xnhtot1=Hm_1+Hp_1+Hn_1+2.0*H2n_1+2.0*H2p_1;
-        fprintf(stdout,"Hn_1=%e,Hp_1=%e,Hm_1=%e H2n_1=%e H2p_1=%e ne=%e| xnhtot=%e xnhtot1=%e \n",Hn_1,Hp_1,Hm_1,H2n_1,H2p_1,pe*k*T,xnhtot, xnhtot1);
-
-        sumexi=0.;
-        /* except the last level */
-        for(iexi=0;iexi<nlevelH-1;iexi++){
-          nH_jk[iexi]=
-            (Hn_1)*at.gH[iexi]*exp(-at.EH[iexi]*ev/(k*T))/at.uu1[0];
-          sumexi+=nH_jk[iexi]*at.EH[iexi]*ev;
-        }
-
-        /* molecular H2, H2+ and H- energies  */
-        Hmol_eps = Heps(T);
-        sumi = Hmol_eps[0]*H2n_1 + Hmol_eps[1]*H2p_1 + Hmol_eps[2]*Hm_1 + Hmol_eps[3]*Hn_1 + Hmol_eps[4]*Hp_1;
-
-        /* Excitation energies */
-        for(int i=1;i<ncontr;i++){
-          double c = n_i[i]/(1.0+f_ji[i][0]+f_ji[i][1]*f_ji[i][0]);
-          nI_1=f_ji[i][0]*c;
-          nI_2=nI_1*f_ji[i][1];
-          /* First ionisation energy */
-          sumi+=(nI_1*at.chi1[i]+nI_2*(at.chi1[i]+at.chi2[i]))*ev;
-        }
-
-        ptot=xntot*k*T;
-        ski=1.5*(pe+ptot);
-
-        E_max=ski + sumi +sumexi;
-        E_b=ep-E_max/rh;
-
-        //T=(T_a+T_b)/2.0;
         T = -E_a*(T_b-T_a)/(E_b-E_a)+T_a;
 
         fprintf(stdout,"------------  Initial guess Temp=%e -------------------------\n",T);
@@ -333,21 +399,30 @@ using namespace std;
             /* initial guess for pe */
             pe = -E_a*(pe_b-pe_a)/(E_b-E_a)+pe_a;
         
-            err_pe = 1.0e8;
-            pe_iter = 0;
-            max_pe_iter = 1e3;
+            double err_pe = 1.0e8;
+            int pe_iter = 0;
+            int max_pe_iter = 1e3;
             while ((err_pe > pe_tol)&&(pe_iter<max_pe_iter))
             {
               double pe1=pe_pg10(at, T,pe,xnhtot);
 
-              err_pe = abs(pe-pe1)/pe;
+              xnhtot1=Hm_1+Hp_1+Hn_1+2.0*H2n_1+2.0*H2p_1;
+
+              pe = pe/xnhtot1*xnhtot;
+              Hm_1 = Hm_1/xnhtot1*xnhtot;
+              Hp_1 = Hp_1/xnhtot1*xnhtot;
+              Hn_1 = Hn_1/xnhtot1*xnhtot;
+              H2n_1 = H2n_1/xnhtot1*xnhtot;
+              H2p_1 = H2p_1/xnhtot1*xnhtot;
+
+              err_pe = fabs(pe-pe1)/pe;
               pe = pe1;
               pe_iter+=1;
             }
               
             xnhtot1=Hm_1+Hp_1+Hn_1+2.0*H2n_1+2.0*H2p_1;
 
-            ptot=xntot*k*T;
+            ptot=(Hm_1+Hp_1+Hn_1+H2n_1+H2p_1+xnonhtot)*k*T;
             pg = pe + ptot;
 
             sumexi=0.;
@@ -364,7 +439,7 @@ using namespace std;
             rhon=(Hn_1+2*H2n_1)*at.W[0];
 
             /* molecular H2, H2+ and H- energies */
-            Hmol_eps = Heps(T);
+            double *Hmol_eps = Heps(T);
             sumi = Hmol_eps[0]*H2n_1 + Hmol_eps[1]*H2p_1 + Hmol_eps[2]*Hm_1 + Hmol_eps[3]*Hn_1 + Hmol_eps[4]*Hp_1;
 
             /* Excitation energies */
@@ -427,7 +502,6 @@ using namespace std;
         }
         ttbl[ir][ieps]= (float) log(T);
 
-
         ptbl[ir][ieps]= (float) log(pg);
         rhoitbl[ir][ieps]=(float) log(rhoi);
         ambtbl[ir][ieps]=(float) 0.0;
@@ -441,33 +515,73 @@ using namespace std;
       }
     }
       
-    /* S = S0 + integral(1/T*(delta_eps - pg/rho *dlogrho)) */
-     
-    /* Set first rho to zero */
-    for (int ieps=0;ieps<Neps;ieps++)
-      stbl[0][ieps] = 0.0;
-       
-    /* Integrate in eps direction for each rho */
-    for (int ir=1;ir<Nr;ir++)
-      for (int ieps=0;ieps<Neps;ieps++)
-        stbl[ir][ieps] = stbl[ir-1][ieps]+0.5*(1.0/exp(ttbl[ir-1][ieps])+1.0/exp(ttbl[ir][ieps]))*exp(delta_eps);
+    for (int ir=0;ir<Nr;ir++)
+    {
+      double ss1=0.0;
+      stbl[ir][0] = 0.0;
 
-       
-    /* Now sum along rho for each eps */
+      double hon2 = delta_eps/2.0;
+      double hon3 = delta_eps/3.0;
+      double h3on8 = 3.0*delta_eps/8.0;
+
+      stbl[ir][1] = hon2*(exp(eps_grid[0])/exp(ttbl[ir][0])+exp(eps_grid[1])/exp(ttbl[ir][1]));
+
+      ss1=hon3*(exp(eps_grid[0])/exp(ttbl[ir][0])+4.0*exp(eps_grid[1])/exp(ttbl[ir][1]));
+
+      for (int ieps=2;ieps<Neps;ieps+=2)
+      {
+        double ss2=ss1+hon3*exp(eps_grid[ieps])/exp(ttbl[ir][ieps]);
+        stbl[ir][ieps]=ss2;
+        ss2+=hon2*(exp(eps_grid[ieps])/exp(ttbl[ir][ieps])+
+            exp(eps_grid[ieps+1])/exp(ttbl[ir][ieps+1]));
+        stbl[ir][ieps+1]=ss2;
+        ss1+=hon3*(2.0*exp(eps_grid[ieps])/exp(ttbl[ir][ieps])+4.0*exp(eps_grid[ieps+1])/exp(ttbl[ir][ieps+1]));
+      }
+    }
+
+    double ss1=0.0;
     for (int ieps=0;ieps<Neps;ieps++)
-      for (int ir=1;ir<Nr;ir++)
-        stbl[ir][ieps] = stbl[ir-1][ieps]+0.5*(1.0/exp(ttbl[ir-1][ieps])*exp(ptbl[ir-1][ieps])/exp(r_grid[ir-1])+1.0/exp(ttbl[ir][ieps])*exp(ptbl[ir][ieps])/exp(r_grid[ir]))*exp(delta_r);
+    {
+      stbl[0][0]+=ss1;
+    }
+
+    double hon2 = delta_r/2.0;
+    double hon3 = delta_r/3.0;
+    double h3on8 = 3.0*delta_r/8.0;
+
+    double ss2 = -hon2*(exp(ptbl[0][0])/(exp(ttbl[0][0])*exp(r_grid[0]))+exp(ptbl[1][0])/(exp(ttbl[1][0])*exp(r_grid[1])));
+
+    for (int ieps=0;ieps<Neps;ieps++)
+    {
+      stbl[1][ieps]+=ss2;
+    }
+
+    ss1-=hon3*(exp(ptbl[0][0])/(exp(ttbl[0][0])*exp(r_grid[0]))+4.0*exp(ptbl[1][0])/(exp(ttbl[1][0])*exp(r_grid[1])));
+
+    for (int ir=2;ir<Nr;ir+=2)
+    {
+      ss2=ss1-hon3*exp(ptbl[ir][0])/(exp(ttbl[ir][0])*exp(r_grid[ir]));
+      double ss3=ss2-hon2*(exp(ptbl[ir][0])/(exp(ttbl[ir][0])*exp(r_grid[ir]))+exp(ptbl[ir+1][0])/(exp(ttbl[ir+1][0])*exp(r_grid[ir+1])));
+      ss1-=hon3*(2.0*exp(ptbl[ir][0])/(exp(ttbl[ir][0])*exp(r_grid[ir]))+4.0*exp(ptbl[ir+1][0])/(exp(ttbl[ir+1][0])*exp(r_grid[ir+1])));
+      for (int ieps=0;ieps<Neps;ieps++)
+      {
+        stbl[ir][ieps]+=ss2;
+        stbl[ir+1][ieps]+=ss3;
+      }
+    }
 
     fprintf(stdout,"non converge count = %i | t out of range count %i \n",non_converge_count, t_out_of_range_count);
+    fprintf(stdout, "setting up inverse tables, smin=%e, smax=%e, pmin=%e,pmax=%e",smin,smax,pmin,pmax);
 
-    p_grid[0]=log(pmin);
-    delta_p=(log(pmax)-log(pmin))/(Np-1);
+
+    p_grid[0]=pmin;
+    delta_p=(pmax-pmin)/(Np-1);
     inv_delta_p=1.0/delta_p;
 
     for(int ip=1;ip<Np-1;ip++){
       p_grid[ip]=p_grid[ip-1]+delta_p;
     }
-    p_grid[Neps-1]=log(pmax);
+    p_grid[Np-1]=pmax;
 
     s_grid[0]=smin;
     delta_s=(smax-smin)/(Ns-1);
@@ -478,63 +592,91 @@ using namespace std;
     s_grid[Ns-1]=smax;
     
     /* Invert for rho and eps tables */
-    /* Start 0.0 */
+    /* NB Inverse tables are only currently used for the lower boundary conditions.
+     * As such we set the min/max rho/eps based on what is expected between a range of depths from -1 Mm
+     * the tables currently do not work to a high enough density to do the the 20 Mm deep boxes. Around
+     * 3.0e-3 would be needed */
+
+
+    double ee0 = 2.5e12;
+    double ee1 = 1.0e14;
+    double ss0 = smin;
+    ss1 = smax;
+    double rr0 = 1.0e-10;
+    double rr1 = 2.5e-3;
+    double pp0 = exp(pmin);
+    double pp1 = exp(pmax);
+
+    fprintf(stdout, "Starting Inversion \n ");
+    fprintf(stdout, " -------------------------------------- \n ");
+      
+
+    double max_err_p = 0.0;
+    double max_err_s = 0.0;
+
     for(int is=0;is<Ns;is++)
     {
-      int ip=1;
+      int ip=0;
 
       double p0 = exp(p_grid[ip]);
       double s0 = s_grid[is];
 
       double rh = log(1e-6);
-      double ep = log(4e12);
+      double ep = log(5.0e12);
 
-      double * output = invert_eos_newton(p0,s0,rh,ep,pmin,pmax,smin,smax,emin,emax,rmin,rmax);
+      double * output = invert_eos_newton(p0,s0,rh,ep,pp0,pp1,ss0,ss1,ee0,ee1,rr0,rr1);
 
-      rhotbl[ip][is] = output[0];
-      epstbl[ip][is] = output[1];
+      rhotbl[is][ip] = output[0];
+      epstbl[is][ip] = output[1];
+      max_err_p = max(max_err_p,output[2]);
+      max_err_s = max(max_err_s,output[3]);
     }
+    fprintf(stdout, "First iteration, ip= 0, max_err_p %e, max_err_s %e \n",max_err_p,max_err_s);
     /* First iteration */
     for(int ip=1;ip<Np;ip++)
     {
+      max_err_p = 0.0;
+      max_err_s = 0.0;
       double p0 = exp(p_grid[ip]);
       for(int is=0;is<Ns;is++)
       {
         double s0 = s_grid[is];
         
-        double rh = rhotbl[ip-1][is];
-        double ep = epstbl[ip-1][is];
+        double rh = rhotbl[is][ip-1];
+        double ep = epstbl[is][ip-1];
+      
+        double * output = invert_eos_newton(p0,s0,rh,ep,pp0,pp1,ss0,ss1,ee0,ee1,rr0,rr1);
 
-        double * output = invert_eos_newton(p0,s0,rh,ep,pmin,pmax,smin,smax,emin,emax,rmin,rmax);
-
-        rhotbl[ip][is] = output[0];
-        epstbl[ip][is] = output[1];
+        rhotbl[is][ip] = output[0];
+        epstbl[is][ip] = output[1];
+        max_err_p = max(max_err_p,output[2]);
+        max_err_s = max(max_err_s,output[3]);
       }
+    fprintf(stdout, "First iteration, ip= %d, max_err_p %e, max_err_s %e \n",ip,max_err_p,max_err_s);
     }
+    fprintf(stdout, "First Iteration Complete Starting Inversion Iteration 2\n ");
+    fprintf(stdout, " -------------------------------------- \n ");
     /* Second iteration */
-    for(int ip=0;ip<Np;ip++)
+    for(int ip=1;ip<Np-1;ip++)
     {
+      max_err_p = 0.0;
+      max_err_s = 0.0;
       double p0 = exp(p_grid[ip]);
       for(int is=0;is<Ns;is++)
       {
         double s0 = s_grid[is];
 
-        double rh = rhotbl[ip][is];
-        double ep = epstbl[ip][is];
+        double rh = (rhotbl[is][ip+1]+rhotbl[is][ip-1])/2.0;
+        double ep = (epstbl[is][ip+1]+epstbl[is][ip-1])/2.0;
+        
+        double * output = invert_eos_newton(p0,s0,rh,ep,pp0,pp1,ss0,ss1,ee0,ee1,rr0,rr1);
 
-        double * output = invert_eos_newton(p0,s0,rh,ep,pmin,pmax,smin,smax,emin,emax,rmin,rmax);
-
-        rhotbl[ip][is] = output[0];
-        epstbl[ip][is] = output[1];
+        rhotbl[is][ip] = output[0];
+        epstbl[is][ip] = output[1];
+        max_err_p = max(max_err_p,output[2]);
+        max_err_s = max(max_err_s,output[3]);
       }
-    }
-    for(int ip=0;ip<Np;ip++)
-    {
-      for(int is=0;is<Ns;is++)
-      {
-        rhotbl[ip][is] = (float) 0.0;
-        epstbl[ip][is] = (float) 0.0;
-      }
+      fprintf(stdout, "Second iteration, ip= %d, max_err_p %e, max_err_s %e \n",ip,max_err_p,max_err_s);
     }
 
     FILE *outfp;
@@ -552,8 +694,8 @@ using namespace std;
     header[9] = (float) p_grid[Np-1];
     header[10] = (float) s_grid[0];
     header[11] = (float) s_grid[Ns-1];
-    header[12] = (float) eps_off;
-    header[13] = (float) ss_off;
+    header[12] = (float) 0.8e11;
+    header[13] = (float) -2.08e9;
 
     outfp = fopen("./eostest.dat","w");
     fwrite(header,sizeof(float),14,outfp);
@@ -752,12 +894,12 @@ double * Heps(double tt)
 double * invert_eos_newton(double p0,double s0,double rho, double eps,double pmin,double pmax,double smin,double smax,double emin,double emax,double rmin,double rmax)
 {
 
-  double tol = 1.0e-5;
+  double tol = 1.0e-4;
   double err_p = 1.0e10;
   double err_s = 1.0e10;
   double fct = 1.01;
   
-  int maxiter = 3;
+  int maxiter = 1e4;
   int it=0;
    
   double rho1 = exp(rho);
@@ -766,7 +908,7 @@ double * invert_eos_newton(double p0,double s0,double rho, double eps,double pmi
   double p1 = p_interp(eps1,rho1);
   double s1 = s_interp(eps1,rho1);
 
-  while(((err_p > tol)&&(err_s > tol))||(it<maxiter))
+  while(((err_p > tol)&&(err_s > tol))&&(it<maxiter))
   {
     double p_r = (p_interp(eps1,fct*rho1)-p1)/((fct-1)* rho1);
     double p_e = (p_interp(fct*eps1,rho1)-p1)/((fct-1)* eps1);
@@ -784,15 +926,17 @@ double * invert_eos_newton(double p0,double s0,double rho, double eps,double pmi
     p1 = p_interp(eps1,rho1);
     s1 = s_interp(eps1,rho1);
 
-    err_p = abs(p1-p0)/p0;
-    err_s = abs(s1-s0)/s0;
+    err_p = fabs(p1-p0)/p0;
+    err_s = fabs(s1-s0)/s0;
 
     it+=1;
   }
 
-  double * output = new double [2];
+  double * output = new double [4];
   output[0] = log(rho1);
   output[1] = log(eps1);
+  output[2] = err_p;
+  output[3] = err_s;
 
   return output;
 }
@@ -828,62 +972,12 @@ double bilinear(int n1, int n2,double *x,double *y,float **fxy,double xx,double 
   return ff;
 }
 
-
-double d3_interp(double pp, double ss){
-  int i,j;
-  double logp, dd,ss1;
-
-  ss1 = ss + ss_off;
-  logp = log(pp);
-
-  i = (int) ( (logp-p_grid[0])*inv_delta_p    );
-  if (i < 0)       i=0;
-  if (i > Np-2) i=Np-2;
-
-  j = (int) ( (ss1-s_grid[0])*inv_delta_s );
-  if (j < 0)      j=0;
-  if (j > Ns-2) j=Ns-2;
-
-  dd =  (logp-p_grid[i])   * (ss1-s_grid[j])   * rhotbl[i+1][j+1]
-       +(logp-p_grid[i])   * (s_grid[j+1]-ss1) * rhotbl[i+1][j]
-       +(p_grid[i+1]-logp) * (ss1-s_grid[j])   * rhotbl[i][j+1]
-       +(p_grid[i+1]-logp) * (s_grid[j+1]-ss1) * rhotbl[i][j];
-
-  dd = exp(dd);
-
-  return dd;
-}
-
-double eps3_interp(double pp, double ss){
-  int i,j;
-  double logp, ee,ss1;
-
-  ss1 = ss + ss_off;
-  logp = log(pp);
-
-  i = (int) ( (logp-p_grid[0])*inv_delta_p    );
-  if (i < 0)       i=0;
-  if (i > Np-2) i=Np-2;
-
-  j = (int) ( (ss1-s_grid[0])*inv_delta_s );
-  if (j < 0)      j=0;
-  if (j > Ns-2) j=Ns-2;
-
-  ee =  (logp-p_grid[i])   * (ss1-s_grid[j])   * epstbl[i+1][j+1]
-       +(logp-p_grid[i])   * (s_grid[j+1]-ss1) * epstbl[i+1][j]
-       +(p_grid[i+1]-logp) * (ss1-s_grid[j])   * epstbl[i][j+1]
-       +(p_grid[i+1]-logp) * (s_grid[j+1]-ss1) * epstbl[i][j];
-
-    ee = exp(ee);
-
-  return ee-eps_off;
-}
 double s_interp(double ee, double dd) {
 
   int i,j;
   double logr, ss,ee1;
 
-   ee1 = log(ee+eps_off);
+   ee1 = log(ee);
    logr = log(dd);
 
   i = (int) ((ee1-eps_grid[0])*inv_delta_eps );
@@ -894,45 +988,20 @@ double s_interp(double ee, double dd) {
   if (j < 0)        j=0;
   if (j > Nr - 2) j=Nr - 2;
 
-  ss =  (logr-r_grid[j])   * (ee1-eps_grid[i])   * stbl[j+1][i+1]
-       +(logr-r_grid[j])   * (eps_grid[i+1]-ee1) * stbl[j][i+1]
-       +(r_grid[j+1]-logr) * (ee1-eps_grid[i])   * stbl[j+1][i]
-       +(r_grid[j+1]-logr) * (eps_grid[i+1]-ee1) * stbl[j][i];
+  ss =  ((logr-r_grid[j])   * (ee1-eps_grid[i])   * stbl[j+1][i+1]
+       +(logr-r_grid[j])   * (eps_grid[i+1]-ee1) * stbl[j+1][i]
+       +(r_grid[j+1]-logr) * (ee1-eps_grid[i])   * stbl[j][i+1]
+       +(r_grid[j+1]-logr) * (eps_grid[i+1]-ee1) * stbl[j][i])*inv_delta_eps*inv_delta_r;
 
-  return ss = ss-ss_off;
+  return ss = ss;
 }
 
-double T_interp(double ee, double dd){
-
-  int i,j;
-  double logr, logT,ee1;
-
-  ee1 = log(ee+eps_off);
-  logr = log(dd);
-
-  i = (int) ((ee1-eps_grid[0])*inv_delta_eps );
-  if (i < 0)         i=0;
-  if (i > Neps - 2) i=Neps-2;
-
-  j = (int) ( (logr-r_grid[0])*inv_delta_r );
-  if (j < 0)        j=0;
-  if (j > Nr - 2) j=Nr - 2;
-
-  logT =  (logr-r_grid[j])   * (ee1-eps_grid[i])   * ttbl[j+1][i+1]
-       +(logr-r_grid[j])   * (eps_grid[i+1]-ee1) * ttbl[j][i+1]
-       +(r_grid[j+1]-logr) * (ee1-eps_grid[i])   * ttbl[j+1][i]
-       +(r_grid[j+1]-logr) * (eps_grid[i+1]-ee1) * ttbl[j][i];
-
-  logT = exp(logT);
-
-  return logT;
-}
 double p_interp(double ee, double dd) {
 
   int i,j;
   double logr, logp,ee1;
 
-  ee1 = log(ee+eps_off);
+  ee1 = log(ee);
   logr = log(dd);
 
   i = (int) ((ee1-eps_grid[0])*inv_delta_eps );
@@ -943,10 +1012,10 @@ double p_interp(double ee, double dd) {
   if (j < 0)        j=0;
   if (j > Nr - 2) j=Nr - 2;
 
-  logp =  (logr-r_grid[j])   * (ee1-eps_grid[i])   * ptbl[j+1][i+1]
-       +(logr-r_grid[j])   * (eps_grid[i+1]-ee1) * ptbl[j][i+1]
-       +(r_grid[j+1]-logr) * (ee1-eps_grid[i])   * ptbl[j+1][i]
-       +(r_grid[j+1]-logr) * (eps_grid[i+1]-ee1) * ptbl[j][i];
+  logp =  ((logr-r_grid[j])   * (ee1-eps_grid[i])   * ptbl[j+1][i+1]
+       +(logr-r_grid[j])   * (eps_grid[i+1]-ee1) * ptbl[j+1][i]
+       +(r_grid[j+1]-logr) * (ee1-eps_grid[i])   * ptbl[j][i+1]
+       +(r_grid[j+1]-logr) * (eps_grid[i+1]-ee1) * ptbl[j][i])*inv_delta_eps*inv_delta_r;
 
   logp = exp(logp);
 

@@ -21,14 +21,8 @@
       double * invert_eos_newton(double p0,double s0,double rho, double eps,double pmin,double pmax,double smin,double smax,double emin,double emax,double rmin,double rmax);
       double bilinear(int n1, int n2,double *x,double *y,float **fxy,double xx,double yy);
 
-      double T_interp(double ee, double dd);
       double p_interp(double ee, double dd);
       double s_interp(double ee, double dd);
-      double ne_interp(double ee, double dd);
-      double rhoi_interp(double ee, double dd);
-      double amb_interp(double ee, double dd);
-      double d3_interp(double pp, double ss);
-      double eps3_interp(double pp, double ss);
 
 #endif                // __IONS_WITTMANN__
 
