@@ -121,8 +121,8 @@ class mu_eos:
 
     ee = np.interp(ee,self.xeps,np.arange(self.n_eps))
     rr = np.interp(rr,self.xrho,np.arange(self.n_rho))
-    output = bilinear_interpolate(self.ttbl, ee,rr)
     
+    output = bilinear_interpolate(self.ttbl, ee,rr)
     output = np.exp(output)
     
     return output
@@ -134,8 +134,8 @@ class mu_eos:
 
     ee = np.interp(ee,self.xeps,np.arange(self.n_eps))
     rr = np.interp(rr,self.xrho,np.arange(self.n_rho))
-    output = bilinear_interpolate(self.ptbl, ee,rr)
     
+    output = bilinear_interpolate(self.ptbl, ee,rr)
     output = np.exp(output)
     
     return output
@@ -147,8 +147,8 @@ class mu_eos:
 
     ee = np.interp(ee,self.xeps,np.arange(self.n_eps))
     rr = np.interp(rr,self.xrho,np.arange(self.n_rho))
-    output = bilinear_interpolate(self.stbl, ee,rr)
     
+    output = bilinear_interpolate(self.stbl, ee,rr)
     output = output-self.ss_off    
 
     return output
@@ -160,8 +160,8 @@ class mu_eos:
 
     ee = np.interp(ee,self.xeps,np.arange(self.n_eps))
     rr = np.interp(rr,self.xrho,np.arange(self.n_rho))
-    output = bilinear_interpolate(self.netbl, ee,rr)
     
+    output = bilinear_interpolate(self.netbl, ee,rr)
     output = np.exp(output)
     
     return output
@@ -173,8 +173,8 @@ class mu_eos:
 
     ee = np.interp(ee,self.xeps,np.arange(self.n_eps))
     rr = np.interp(rr,self.xrho,np.arange(self.n_rho))
-    output = bilinear_interpolate(self.ambtbl, ee,rr)
     
+    output = bilinear_interpolate(self.ambtbl, ee,rr)
     output = np.exp(output)
     
     return output
@@ -186,8 +186,8 @@ class mu_eos:
 
     ee = np.interp(ee,self.xeps,np.arange(self.n_eps))
     rr = np.interp(rr,self.xrho,np.arange(self.n_rho))
-    output = bilinear_interpolate(self.ambtbl, ee,rr)
     
+    output = bilinear_interpolate(self.ambtbl, ee,rr)
     output = np.exp(output)
     
     return output
@@ -199,11 +199,9 @@ class mu_eos:
 
     pp = np.interp(pp,self.xp,np.arange(self.n_p))
     ss = np.interp(ss,self.xs,np.arange(self.n_s))
+    
     output = bilinear_interpolate(self.epstbl, pp,ss)
-    
-    output = np.exp(output)
-    
-    output = output-self.eps_off
+    output = np.exp(output)-self.eps_off
 
     return output
 
@@ -214,8 +212,8 @@ class mu_eos:
 
     pp = np.interp(pp,self.xp,np.arange(self.n_p))
     ss = np.interp(ss,self.xs,np.arange(self.n_s))
-    output = bilinear_interpolate(self.rhotbl, pp,ss)
     
+    output = bilinear_interpolate(self.rhotbl, pp,ss)
     output = np.exp(output)
 
     return output
@@ -230,10 +228,10 @@ def bilinear_interpolate(im, x, y):
     y0 = np.floor(y).astype(int)
     y1 = y0 + 1
 
-    x0 = np.clip(x0, 0, im.shape[0]-1);
-    x1 = np.clip(x1, 0, im.shape[0]-1);
-    y0 = np.clip(y0, 0, im.shape[1]-1);
-    y1 = np.clip(y1, 0, im.shape[1]-1);
+    x0 = np.clip(x0, 0, im.shape[0]-2);
+    x1 = np.clip(x1, 1, im.shape[0]-1);
+    y0 = np.clip(y0, 0, im.shape[1]-2);
+    y1 = np.clip(y1, 1, im.shape[1]-1);
 
     Ia = im[x0,y0] # y0, x0 ]
     Ib = im[x0,y1] #y1, x0 ]
@@ -246,9 +244,7 @@ def bilinear_interpolate(im, x, y):
     wd = (x-x0) * (y-y0)
 
     output = wa*Ia + wb*Ib + wc*Ic + wd*Id   
- 
-#    output[output==0]=np.nan
-    
+     
     return output
 
 import numpy as np
