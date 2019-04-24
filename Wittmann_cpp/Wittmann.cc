@@ -37,9 +37,11 @@ int Ns,Nr,Neps,Np;
 double delta_eps,delta_r,delta_s,delta_p;
 double inv_delta_r,inv_delta_eps,inv_delta_s,inv_delta_p;
 
-/* internal energy offset from MURaM EOS, if required, will need to calculate more accurately */
-const double eps_off =  0.8e11;
-const double ss_off =  -2.08e9;
+/* internal energy offset from MURaM EOS, if required, will need to calculate more accurately
+ * Energy calculated to match pressure of OPAL at eps=2.0e12,rho=1.0e-8
+ * entropy offset calculated to match at the same point */
+const double eps_off =  7.51e10;
+const double ss_off =  -2066949262.257303;
 
 float** array_2d_contiguous(int nx,int ny){
   float **array = new float*[nx];
@@ -501,7 +503,6 @@ using namespace std;
           }
         }
         ttbl[ir][ieps]= (float) log(T);
-
         ptbl[ir][ieps]= (float) log(pg);
         rhoitbl[ir][ieps]=(float) log(rhoi);
         ambtbl[ir][ieps]=(float) 0.0;
@@ -613,7 +614,8 @@ using namespace std;
 
     double max_err_p = 0.0;
     double max_err_s = 0.0;
-
+ 
+    /* Quick First iteration to get approximate solution */
     for(int is=0;is<Ns;is++)
     {
       int ip=0;
@@ -632,7 +634,6 @@ using namespace std;
       max_err_s = max(max_err_s,output[3]);
     }
     fprintf(stdout, "First iteration, ip= 0, max_err_p %e, max_err_s %e \n",max_err_p,max_err_s);
-    /* First iteration */
     for(int ip=1;ip<Np;ip++)
     {
       max_err_p = 0.0;
@@ -656,7 +657,8 @@ using namespace std;
     }
     fprintf(stdout, "First Iteration Complete Starting Inversion Iteration 2\n ");
     fprintf(stdout, " -------------------------------------- \n ");
-    /* Second iteration */
+    /* Second iteration - Average and smooth in p to remove stripes:
+     * Should probably iterate edges as well, but it is the edge, so likely doesn't matter */
     for(int ip=1;ip<Np-1;ip++)
     {
       max_err_p = 0.0;
@@ -678,7 +680,7 @@ using namespace std;
       }
       fprintf(stdout, "Second iteration, ip= %d, max_err_p %e, max_err_s %e \n",ip,max_err_p,max_err_s);
     }
-    /* Third iteration */
+    /* Third iteration - Average and smooth in s to remove stripes */
     for(int ip=0;ip<Np;ip++)
     {
       max_err_p = 0.0;

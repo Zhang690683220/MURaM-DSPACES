@@ -18,6 +18,8 @@ class mu_eos:
     self.n_p = np.int(temp[2])
     self.n_s = np.int(temp[3])
 
+    print (self.n_eps,self.n_rho,self.n_p,self.n_s)
+    
     self.eps0 = temp[4]
     self.eps1 = temp[5]
     self.lr0 = temp[6]
@@ -34,7 +36,7 @@ class mu_eos:
     self.del_eps=(self.eps1-self.eps0)/(self.n_eps-1)
     self.del_p=(self.lp1-self.lp0)/(self.n_p-1)
     self.del_s=(self.s1-self.s0)/(self.n_s-1)
-
+    
     if (axis is "f"):
       axis_size = 4
       axis_type = np.dtype(np.float32)
@@ -58,6 +60,7 @@ class mu_eos:
     ind_high+= self.n_eps*self.n_rho*table_size
 
     temp = struct.unpack(table * ((ind_high-ind_low)//table_size),filedata[ind_low:ind_high])
+    
     self.ptbl = np.asarray(temp[:],dtype=table_type).reshape([self.n_eps,self.n_rho],order="F")
 
     ind_low=ind_high
@@ -108,6 +111,8 @@ class mu_eos:
     temp = struct.unpack(table * ((ind_high-ind_low)//table_size),filedata[ind_low:ind_high])
 
     self.rhotbl = np.asarray(temp[:],dtype=table_type).reshape([self.n_p,self.n_s],order="F")
+    
+    
 
   def interp_T(self,eps_ax,rho_ax):
     
@@ -242,7 +247,8 @@ def bilinear_interpolate(im, x, y):
 
     output = wa*Ia + wb*Ib + wc*Ic + wd*Id   
  
-    output[output==0]=np.nan
+#    output[output==0]=np.nan
+    
     return output
 
 import numpy as np
