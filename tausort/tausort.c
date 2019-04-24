@@ -107,14 +107,16 @@ void input(void){
   void initialize(void){
   int i,j,k,l,m,nu,bin;
 
-  if (GREY) for (bin=0;bin<Nbands;bin++) {
+  if (GREY) for (bin=0;bin<Nbands;bin++) 
+  {
     Level_tau_bot[bin] = -99.0-bin;
     Level_tau_top[bin] = 99.0-bin;
     Level_nu_bot[bin] = 0;
     Level_nu_top[bin] = 999;
   }
 
-  for (nu=0; nu<=Nnu-1; nu++){
+  for (nu=0; nu<=Nnu-1; nu++)
+  {
 
     dnu[nu]= Cvac * (1./wbeg[nu] - 1./wend[nu]) * 1.e07  ;
     numid[nu]= .5e0 * Cvac * (1./wbeg[nu] + 1./wend[nu])
@@ -122,7 +124,8 @@ void input(void){
     nuout[nu] = (float) numid[nu];
 
     /* in Hz */
-    for (j=0; j<=NT-1; j++){
+    for (j=0; j<=NT-1; j++)
+    {
       B[nu][j] = 2.e0*H/(pow(Cvac,2)) * pow(numid[nu],3) * 
         1.e0/(exp(H*numid[nu]/(k_B * exp(TENLOG*tab_T[j])) ) - 1.e0) ; 
 
@@ -134,15 +137,21 @@ void input(void){
      }  
    }
 
-  for (k=0; k<=KMAX-1; k++){
+  for (k=0; k<=KMAX-1; k++)
+  {
     double lgT= log10(T[k]);
     double lgp= log10(p[k]);
   
-    for (l=0; l<=NT-2; l++){
-      if ((lgT >= tab_T[l]) && (lgT < tab_T[l+1])){
-        for (m=0; m<=Np-2; m++){
-          if ((lgp >= tab_p[m]) && (lgp < tab_p[m+1])){
-            for (nu=0; nu<=Nnu-1; nu++){
+    for (l=0; l<=NT-2; l++)
+    {
+      if ((lgT >= tab_T[l]) && (lgT < tab_T[l+1]))
+      {
+        for (m=1; m<=Np-2; m++)
+        {
+          if ((lgp >= tab_p[m]) && (lgp < tab_p[m+1]))
+          {
+            for (nu=0; nu<=Nnu-1; nu++)
+            {
               kcont[k][nu]= 1.0/( tab_T[l+1]-tab_T[l])*1.0/(tab_p[m+1]-tab_p[m])
               *( (tab_T[l+1]-lgT)* (tab_p[m+1]-lgp) * log10(kcont_pT[nu][l][m])  
               + (lgT- tab_T[l])*( tab_p[m+1]-lgp) * log10(kcont_pT[nu][l+1][m])
@@ -239,7 +248,7 @@ void sort(void){
       Index[nu][bin] = 0 ;
       i=0;
       // Find the point at which tau = 1.0 at this frequency
-      while ((tau_nu[nu][bin][i] < 1.e0)||(zax[i] > 2.5e8 ))
+      while (tau_nu[nu][bin][i] < 1.e0)
         i++; 
       
       // Remember Index, Height and tau5000 of tau_nu = 1.0
