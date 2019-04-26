@@ -2,17 +2,19 @@
 #define __ATOM__
 
 #include<string.h>
-#define Hperg 4.407e23;
+#define Hperg 4.407e23
 #define k 1.3806503e-16
+#define Rgas 8.314e7
+#define C 2.99792458e10
+#define HP 6.6260687652E-27
+#define PI 3.14159265e0
 #define amu 1.66053892173E-24
 #define ev 1.60218e-12
-#define ev_kj_moli 96.485
-#define inz_H2 15.422086
 #define inz_H 13.59844
 #define inz_Hm1 0.754
 #define D0_h2 4.478
 #define D0_h2p 2.654
-  
+#define mh 1.67262158e-24
 
 using std::string;
 
@@ -20,8 +22,8 @@ class atom{
  public:
   
       int na;
-      int static const nH=9;
       char elm[2];
+      const int nlevelH=10;
       string *ATM,*ATM2;
       int *Z;
       double *chi1,*chi2;

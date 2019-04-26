@@ -101,11 +101,13 @@ using std::string;
      20.42,15.03,16.68,19.,20.,20.,22.,10.144,12.1,12.,12.,12.};
 
 //    Excitation energies of H for 9 levels in eV 
-     double EH0[]={0.,10.19881044,12.08750698,12.74853989,13.05450242,
-     13.22070404,13.32091806,13.38596091,13.59843449};
+     double EH0[]={0.000,82258.214,97491.217,102822.768,105290.515,106631.019,
+       107439.301,107963.906,108323.575,108580.843,108771.193,108915.969,109028.639,
+       109118.040,109190.163,109249.191,109298.112,109339.108,109373.803,109677.619};
 
 //    statistical weight g for H
-     double gH0[]={2.0,8.0,18.0,32.0,50.0,72.0,98.0,128.0,1.0};
+     double gH0[]={2.0,8.0,18.0,32.0,50.0,72.0,98.0,128.0,162.00,200.00,242.00,
+       288.00,338.00,392.00,450.00,512.00,578.00,648.00,722.00,1.00};
       
 atom::atom(int na, double* eps0){
 
@@ -125,8 +127,8 @@ atom::atom(int na, double* eps0){
      uu3 = new double [na];
      uu2 = new double [na];
      
-     EH = new double [nH];
-     gH = new double [nH];
+     EH = new double [nlevelH];
+     gH = new double [nlevelH];
 
      /* Sort abundances */
      int * na2 = sort(eps0,92);
@@ -165,9 +167,9 @@ atom::atom(int na, double* eps0){
      fprintf(stdout, "-------------------------------\n");
      fprintf(stdout, "Mean mu = %e \n", muavg);
 
-     for(int i=0;i<nH;i++)
+     for(int i=0;i<nlevelH;i++)
      {
-       EH[i]=EH0[i];
+       EH[i]=EH0[i]*1.2398e-4;
        gH[i]=gH0[i];
      }
 }
