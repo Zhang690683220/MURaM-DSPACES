@@ -15,6 +15,8 @@
 #define D0_h2 4.478
 #define D0_h2p 2.654
 #define mh 1.67262158e-24
+#define a0 5.2918e-9
+#define Ry 2.1798741e-11
 
 using std::string;
 
@@ -23,20 +25,28 @@ class atom{
   
       int na;
       char elm[2];
-      const int nlevelH=10;
       string *ATM,*ATM2;
       int *Z;
-      double *chi1,*chi2;
+
       double *W,*mass; 
       double *abu, *perg;
-      double *EH,*gH;
       double muavg;
       double abutot;
 
-      double *uu1,*uu2,*uu3;
-      atom(int,double*);
+      int * nion;
+      int * pf_sw;
+      double ** chi;
+      double ** uu;
+      double ** nlvl;
+      double ** G0;
+      double ** E0;
+      double ** Gjk;
+      double ** epsjk;
+      double ** m;
+
+      atom(int,int,double*, double ***);
       ~atom();
-     void partf(int,double);
+     void partf(int,double,double);
 };
 
 class molecb{
@@ -48,6 +58,5 @@ class molecb{
 };
 
 int * sort(double * list, int size);
-
 #endif                // __ATOM__
 

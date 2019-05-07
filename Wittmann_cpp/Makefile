@@ -1,14 +1,14 @@
 CFLAGS = -Wall -O3
 LDFLAGS = 
-CC = g++
-LD = g++
+CC = icpc
+LD = icpc
 EXEC = eos.x
 LIBS =
 OBJS = atmdatb.o \
 	   molecb.o \
 	   partf.o \
 	   saha.o \
-	   leeabun.o \
+	   io.o \
 	   Wittmann.o
 
 ######### Suffix rules ########################################
