@@ -164,7 +164,7 @@ void potential_ext_fftw3_par(const GridData& Grid, double *bz0, double *b_ext){
 	      cout << "inconsistent header: " 
 		   << int(header[0]) << " <-> " << Grid.gsize[hdir_x] << " | " 
 		   << int(header[1]) << " <-> " << Grid.gsize[hdir_y] << " | "
-		   << header[2] << " <-> " << float(Grid.dx[1]/Grid.dx[0]) << endl;
+		   << header[2] << " <-> " << float(Grid.dx[0]/Grid.dx[hdir_x]) << endl;
 	      MPI_Abort(MPI_COMM_WORLD,1);
 	    }
 	  }

@@ -37,7 +37,7 @@ RTS::~RTS(void)
   delete [] comm_col;
 
 ///*
-  del_d2dim(I_o,yl,yh,xl,xh); // MHD Grid
+  del_d2dim(I_o,yl,yh,xl,xh); // RT Grid
   del_i3dim(tr_switch,yl,yh,xl,xh,zl,zh); // switch for the lowest point at which we have reached the transition region
   del_d3dim(lgTe,yl,yh,xl,xh,zl,zh); // temperature
   del_d3dim(lgPe,yl,yh,xl,xh,zl,zh); // temperature
@@ -48,8 +48,8 @@ RTS::~RTS(void)
   del_d3dim(Tau,yl,yh,xl,xh,zl,zh);  // RT grid
   del_d3dim(Qt,yl+yo,yh,xl+xo,xh,zl+zo,zh);   // MHD grid
 
-  del_d3dim(Jt,yl,yh,xl,xh,zl,zh);   // MHD grid
-  del_d3dim(St,yl,yh,xl,xh,zl,zh);   // MHD grid
+  del_d3dim(Jt,yl,yh,xl,xh,zl,zh);   // RT grid
+  del_d3dim(St,yl,yh,xl,xh,zl,zh);   // RT grid
 
 // frequency dependent quantities
   del_d3dim(B,yl,yh,xl,xh,zl,zh);
@@ -319,7 +319,7 @@ RTS::RTS(GridData&Grid,RunData &Run,PhysicsData &Physics){
     ibase[l]=0;
     ds_upw[l]=DX/xmu[0][l];
 
-    if(((aM[2]<=aM[0])&&((aM[2]<=aM[1])||(NDIM==2)))||(NDIM==1)){
+    if(((aM[2]<=aM[0])||(NDIM==1))&&((aM[2]<=aM[1])||(NDIM<3))){
       ibase[l]=2;
       ds_upw[l]=DZ/xmu[2][l];  
     }else{
@@ -328,6 +328,7 @@ RTS::RTS(GridData&Grid,RunData &Run,PhysicsData &Physics){
         ds_upw[l]=DY/xmu[1][l];
       }
     }
+    
     for(int i=0;i<=2;++i){
       a_00[i][l]=(1.0-(aM[perm[i][0]]/aM[perm[i][1]]))*(1.0-(aM[perm[i][0]]/aM[perm[i][2]]));
       a_01[i][l]=(aM[perm[i][0]]/aM[perm[i][2]])*(1.0-(aM[perm[i][0]]/aM[perm[i][1]]));
@@ -369,7 +370,8 @@ RTS::RTS(GridData&Grid,RunData &Run,PhysicsData &Physics){
   
   for(int j=0; j< cart_sizes[2]; j++){
     for(int k=0; k< cart_sizes[1]; k++){
-      for(int i=0; i< cart_sizes[0]; i++) ranks[i]=colranks[j][k][cart_sizes[0]-1-i];
+      for(int i=0; i< cart_sizes[0]; i++)
+        ranks[i]=colranks[j][k][cart_sizes[0]-1-i];
       MPI_Group_incl(MPI_GROUP_WORLD,cart_sizes[0],ranks,&(grp_col[j][k]));
       MPI_Comm_create(MPI_COMM_WORLD,grp_col[j][k],&(comm_col[j][k]));
     }
@@ -640,7 +642,7 @@ double RTS::wrapper(int rt_upd,GridData &Grid,RunData &Run,const PhysicsData &Ph
         pm /= N;
         rm /= N;
 
-        //disbale RT if Temp > 2e4 above the photosphere
+        //disbale RT if Temp > Temp_TR above the photosphere
         double pswitch = min(max(pm-Pres_TR,0.0),1.0);
         double tswitch = min(max(Temp_TR-Tm,0.0),1.0);
         tr_switch[y][x][z] = (int) max(pswitch,tswitch);
@@ -655,7 +657,7 @@ double RTS::wrapper(int rt_upd,GridData &Grid,RunData &Run,const PhysicsData &Ph
     
       for(int z=zl;z<=zh;++z){
 
-    // Search table once for all RT bands
+        // Search table once for all RT bands
         int l=0;
         int m=0;
         if(lgTe[y][x][z]<tab_T[0])
@@ -831,7 +833,7 @@ void RTS::calc_Qtot_and_Tau(GridData &Grid, const RunData &Run, const PhysicsDat
         Grid.Stot[node]=Stot(z,x,y);
         
         double scale = pow(Grid.Tau[node],2);
-        scale = scale/(scale + tau_min);
+        scale = scale/(scale + tau_min)*tr_switch[y][x][z];
 
         double Qt_step=Qt[y][x][z]*scale;
         double inv_dt=fabs(Qt_step)/U[node].e;
@@ -867,7 +869,7 @@ void RTS::driver(double DZ, double DX, double DY, int band){
   int stepvec[3][4][3] = { {{1,0,0},{1,0,1},{1,1,0},{1,1,1}},
                {{0,1,0},{1,1,0},{0,1,1},{1,1,1}},
                {{0,0,1},{0,1,1},{1,0,1},{1,1,1}} };
-  double ** coeff=d2dim(0,1,0,nx*ny*nz-1);
+  double ** coeff=d2dim(0,nx*ny*nz-1,0,1);
   
   memset(I_n[yl][xl]+zl,0,nx*ny*nz*sizeof(double)); // is there a better way?
   memset(Fz[yl][xl]+zl,0,nx*ny*nz*sizeof(double));
@@ -923,7 +925,7 @@ void RTS::driver(double DZ, double DX, double DY, int band){
                 for(int zi=zi_i;zi!=zi_f+zstep;zi=zi+zstep){
                   int ind=xyoff+zi;
                   double I_upw=c[0]*ii[ind-off[0]]+c[1]*ii[ind-off[1]]+c[2]*ii[ind-off[2]]+c[3]*ii[ind-off[3]];
-                  ii[ind]=I_upw*coeff[0][i_nu]+coeff[1][i_nu];
+                  ii[ind]=I_upw*coeff[i_nu][0]+coeff[i_nu][1];
                   i_nu+=1;
                 }
               }
@@ -936,7 +938,7 @@ void RTS::driver(double DZ, double DX, double DY, int band){
               for(int zi=zi_i;zi!=zi_f+zstep;zi=zi+zstep){
                 int ind=xoff+zi;
                 double I_upw=c[0]*ii[ind-off[0]]+c[1]*ii[ind-off[1]]+c[2]*ii[ind-off[2]]+c[3]*ii[ind-off[3]];
-                ii[ind]=I_upw*coeff[0][i_nu]+coeff[1][i_nu];
+                ii[ind]=I_upw*coeff[i_nu][0]+coeff[i_nu][1];
                 i_nu+=1;
               }
             }
@@ -946,7 +948,7 @@ void RTS::driver(double DZ, double DX, double DY, int band){
             for(int i=0;i<4;i++) off[i]=izstep[i];
             for(int zi=zi_i;zi!=zi_f+zstep;zi=zi+zstep){
               double I_upw=c[0]*ii[zi-off[0]]+c[1]*ii[zi-off[1]]+c[2]*ii[zi-off[2]]+c[3]*ii[zi-off[3]];
-              ii[zi]=I_upw*coeff[0][i_nu]+coeff[1][i_nu];
+              ii[zi]=I_upw*coeff[i_nu][0]+coeff[i_nu][1];
               i_nu+=1;
             }
           }
@@ -997,6 +999,16 @@ void RTS::driver(double DZ, double DX, double DY, int band){
   if((myrank==0) && (verbose>1)){
     fprintf(stdout,"rt_driver iter : %f %f \n",aravg/(8.0*NMU),itavg/(8.0*NMU));
     fprintf(stdout,"rt_driver error: %e %e \n",maxerr_up,maxerr_down);
+    /*
+    int oct=0;
+    for(int i1=0;i1<=1;i1++)
+      for(int i2=0;i2<=1;i2++)
+	for(int i3=0;i3<=1;i3++){
+	  oct +=1;
+	  for(int l=0;l<NMU;++l)
+	    fprintf(stdout,"rt_driver iter : %d %d %d \n",oct,l,numits[0][i1][i2][i3][l]);
+	}
+    */
   }
 
   ttime=MPI_Wtime()-ttime;  
@@ -1006,7 +1018,7 @@ void RTS::driver(double DZ, double DX, double DY, int band){
    
 
   call_count+=1;
-  del_d2dim(coeff,0,1,0,nx*ny*nz-1);
+  del_d2dim(coeff,0,nx*ny*nz-1,0,1);
 }
 
 void RTS::interpol(int zi_i,int zi_f,int zstep,int xi_i,int xi_f,int xstep,
@@ -1019,7 +1031,7 @@ void RTS::interpol(int zi_i,int zi_f,int zstep,int xi_i,int xi_f,int xstep,
   int zmin=(zi_i<zi_f)?zi_i:zi_f;
   int zmax=(zi_i>zi_f)?zi_i:zi_f;
 
-  double source[zmax+1],expo[zmax+1],dt[zmax+1],r_upw[zmax+1],k_upw[zmax+1],S_upw[zmax+1],r0[zmax+1],k0[zmax+1],S0[zmax+1];
+  double r_upw[zmax+1],k_upw[zmax+1],S_upw[zmax+1],r0[zmax+1],k0[zmax+1],S0[zmax+1];
 
   int i_nu=0;
 
@@ -1046,21 +1058,27 @@ void RTS::interpol(int zi_i,int zi_f,int zstep,int xi_i,int xi_f,int xstep,
           k0[zi]=kap[yi][xi][zi];
           S0[zi]=Ss[yi][xi][zi];
         }
-        for(int zi=zmin;zi<=zmax;++zi){
-          dt[zi]=ds3*(k_upw[zi]*r_upw[zi]+k0[zi]*r0[zi])+ds6*(k0[zi]*r_upw[zi]+k_upw[zi]*r0[zi]);
-          expo[zi]=exp(-dt[zi]);
-          double w0=(1.0-expo[zi])/dt[zi];
-          source[zi]=S0[zi]*(1.0-w0)+S_upw[zi]*(w0-expo[zi]);
-        }   
-
         for(int zi=zi_i;zi!=zi_f+zstep;zi=zi+zstep){
-          coeff[0][i_nu]=expo[zi];
-          if (dt[zi] > dtau_min)
-            coeff[1][i_nu]= source[zi];
-          else
-            coeff[1][i_nu] = 0.5*dt[zi]*(S0[zi]+S_upw[zi]);
-            
-          i_nu+=1;
+          double dt=ds3*(k_upw[zi]*r_upw[zi]+k0[zi]*r0[zi])+ds6*(k0[zi]*r_upw[zi]+k_upw[zi]*r0[zi]);
+          double expo=exp(-dt);
+          double w0,w1;
+          if (dt > dtau_min){
+            w0=1.0-expo;
+            w1=w0-dt*expo;
+          }else{
+            w0=dt-dt*dt/2.0+dt*dt*dt/6.0;
+            w1=dt*dt/2.0-dt*dt*dt/3.0;
+          }
+          double source=S0[zi]*(w0-w1/dt)+S_upw[zi]*(w1/dt);
+
+          if (dt > dtau_min2){
+            coeff[i_nu][0] = expo;
+            coeff[i_nu][1] = source;
+          }else{
+            coeff[i_nu][0] = 1.0; 
+            coeff[i_nu][1] = 0.0;
+          }
+        i_nu+=1;
         }
       }
     }
@@ -1088,21 +1106,27 @@ void RTS::interpol(int zi_i,int zi_f,int zstep,int xi_i,int xi_f,int xstep,
       S0[zi]=Ss[0][0][zi];
     }
 
-    for(int zi=zmin;zi<=zmax;++zi){
-      dt[zi]=ds3*(k_upw[zi]*r_upw[zi]+k0[zi]*r0[zi])+ds6*(k0[zi]*r_upw[zi]+k_upw[zi]*r0[zi]);
-      expo[zi]=exp(-dt[zi]);
-      double w0=(1.0-expo[zi])/dt[zi];
-      source[zi]=S0[zi]*(1.0-w0)+S_upw[zi]*(w0-expo[zi]);
-    }
-
     for(int zi=zi_i;zi!=zi_f+zstep;zi=zi+zstep){
-      coeff[0][i_nu]=expo[zi];
-      if (dt[zi] > dtau_min)
-        coeff[1][i_nu]=source[zi];
-      else
-        coeff[1][i_nu] = 0.5*dt[zi]*(S0[zi]+S_upw[zi]);
+      double dt=ds3*(k_upw[zi]*r_upw[zi]+k0[zi]*r0[zi])+ds6*(k0[zi]*r_upw[zi]+k_upw[zi]*r0[zi]);
+      double expo=exp(-dt);
+      double w0,w1;
+      if (dt > dtau_min){
+        w0=1.0-expo;
+        w1=w0-dt*expo;
+      }else{
+        w0=dt-dt*dt/2.0+dt*dt*dt/6.0;
+        w1=dt*dt/2.0-dt*dt*dt/3.0;
+      }
+      double source=S0[zi]*(w0-w1/dt)+S_upw[zi]*(w1/dt);
 
-      i_nu+=1;
+      if (dt > dtau_min2){
+        coeff[i_nu][0] = expo;
+        coeff[i_nu][1] = source;
+      }else{
+        coeff[i_nu][0] = 1.0; 
+        coeff[i_nu][1] = 0.0;
+      }
+    i_nu+=1;
     }
   }
 
@@ -1120,32 +1144,35 @@ void RTS::interpol(int zi_i,int zi_f,int zstep,int xi_i,int xi_f,int xstep,
           c[3]*kap[0][xi-ixstep[3]][zi-izstep[3]];
 
         S_upw[zi]=c[0]*Ss[0][xi-ixstep[0]][zi-izstep[0]]+
-          c[1]*Ss[0][xi-ixstep[0]][zi-izstep[1]]+
-          c[2]*Ss[0][xi-ixstep[0]][zi-izstep[2]]+
-          c[3]*Ss[0][xi-ixstep[0]][zi-izstep[3]];
+          c[1]*Ss[0][xi-ixstep[1]][zi-izstep[1]]+
+          c[2]*Ss[0][xi-ixstep[2]][zi-izstep[2]]+
+          c[3]*Ss[0][xi-ixstep[3]][zi-izstep[3]];
 
         r0[zi]=rho[0][xi][zi];
         k0[zi]=kap[0][xi][zi];
         S0[zi]=Ss[0][xi][zi];
       }
-
-      for(int zi=zmin;zi<=zmax;++zi){
-        dt[zi]=ds3*(k_upw[zi]*r_upw[zi]+k0[zi]*r0[zi])+ds6*(k0[zi]*r_upw[zi]+k_upw[zi]*r0[zi]);
-        expo[zi]=exp(-dt[zi]);
-        double w0=(1.0-expo[zi])/dt[zi];
-        source[zi]=S0[zi]*(1.0-w0)+S_upw[zi]*(w0-expo[zi]);
-     }
-
       for(int zi=zi_i;zi!=zi_f+zstep;zi=zi+zstep){
-        coeff[0][i_nu]=expo[zi];
-        coeff[1][i_nu]=source[zi];
-      
-        if (dt[zi] > dtau_min)
-          coeff[1][i_nu]=source[zi];
-        else
-          coeff[1][i_nu] = 0.5*dt[zi]*(S0[zi]+S_upw[zi]);
+        double dt=ds3*(k_upw[zi]*r_upw[zi]+k0[zi]*r0[zi])+ds6*(k0[zi]*r_upw[zi]+k_upw[zi]*r0[zi]);
+        double expo=exp(-dt);
+        double w0,w1;
+        if (dt > dtau_min){
+          w0=1.0-expo;
+          w1=w0-dt*expo;
+        }else{
+          w0=dt-dt*dt/2.0+dt*dt*dt/6.0;
+          w1=dt*dt/2.0-dt*dt*dt/3.0;
+        }
+        double source=S0[zi]*(w0-w1/dt)+S_upw[zi]*(w1/dt);
 
-        i_nu+=1;
+        if (dt > dtau_min2){
+          coeff[i_nu][0] = expo;
+          coeff[i_nu][1] = source;
+        }else{
+          coeff[i_nu][0] = 1.0; 
+          coeff[i_nu][1] = 0.0;
+        }
+      i_nu+=1;
       }
     }
   }
@@ -1154,13 +1181,13 @@ void RTS::interpol(int zi_i,int zi_f,int zstep,int xi_i,int xi_f,int xstep,
 double RTS::error(int band,int l,int ZDIR,int XDIR,int YDIR,double I_min)
 {
   int z0=(ZDIR==UP),z1=(ZDIR==DOWN); 
-  int y0=(YDIR==FWD),y1=(YDIR==BWD); 
+  int x0=(XDIR==RIGHT),x1=(XDIR==LEFT); 
   double err_max=0.0;
 //
   if (NDIM==3){
     real *ysb=y_sbuf[band][YDIR][XDIR][ZDIR][l],*yob=y_oldbuf[band][YDIR][XDIR][ZDIR][l];
-    for(int z=0+z0;z<nz-z1;++z)
-      for(int x=0;x<nx;++x){
+    for(int z=z0;z<nz-z1;++z)
+      for(int x=x0;x<nx-x1;++x){
         int ind=z*nx+x;
         err_max=max(err_max,fabs(((double) (ysb[ind]-yob[ind]))/max(I_min,(double) yob[ind])));
      }
@@ -1168,15 +1195,17 @@ double RTS::error(int band,int l,int ZDIR,int XDIR,int YDIR,double I_min)
 //
   if (NDIM>1){
   real *xsb=x_sbuf[band][YDIR][XDIR][ZDIR][l],*xob=x_oldbuf[band][YDIR][XDIR][ZDIR][l];
-  for(int z=0+z0;z<nz-z1;++z)
-    for(int y=0+y0;y<ny-y1;++y){
+  for(int z=z0;z<nz-z1;++z)
+    for(int y=0;y<ny;++y){
       int ind=z*ny+y;
       err_max=max(err_max,fabs(((double) (xsb[ind]-xob[ind]))/max( I_min,(double)xob[ind])));
     }
   }
 //
   real *zsb=z_sbuf[band][YDIR][XDIR][ZDIR][l],*zob=z_oldbuf[band][YDIR][XDIR][ZDIR][l];
-  for(int ind=0;ind<nx*ny;++ind) err_max=max(err_max,fabs(((double) (zsb[ind]-zob[ind]))/max(I_min,(double)zob[ind])));
+  for(int ind=0;ind<nx*ny;++ind){
+    err_max=max(err_max,fabs(((double) (zsb[ind]-zob[ind]))/max(I_min,(double)zob[ind])));
+  }
 //
   return err_max;
 }
@@ -1200,8 +1229,7 @@ void RTS::readbuf(int band,int l,int ZDIR,int XDIR,int YDIR)
   memcpy(z_oldbuf[band][YDIR][XDIR][ZDIR][l],z_sbuf[band][YDIR][XDIR][ZDIR][l],nx*ny*sizeof(real));  
 }
 
-void RTS::writebuf(int band, int l,int ZDIR,int XDIR,int YDIR)
-{
+void RTS::writebuf(int band, int l,int ZDIR,int XDIR,int YDIR){
   if (NDIM==3){
     int y0=(YDIR==FWD)?ny-1:0;
     for(int x=0;x<nx;++x) for(int z=0;z<nz;++z) y_sbuf[band][YDIR][XDIR][ZDIR][l][z*nx+x]=(real) I_n[yl+y0][xl+x ][zl+z ];
@@ -1260,8 +1288,6 @@ void RTS::exchange(int band,int l,int ZDIR,int XDIR,int YDIR)
     for(int y=0;y<ny;++y)
       z_sbuf[band][YDIR][XDIR][ZDIR][l][x0*ny+y]=x_rbuf[band][YDIR][XDIR][ZDIR][l][z0*ny+y];
   }
-
-
   
 // z-direction
   dest_rk  =(ZDIR==UP)?rightr[0]:leftr[0];
@@ -1298,6 +1324,9 @@ void RTS::get_Tau_and_Iout(GridData &Grid, const RunData &Run, const PhysicsData
   
   double N = pow(2,Grid.NDIM);
 
+  const double Temp_TR = Physics.rt[i_rt_tr_tem];
+  const double Pres_TR = Physics.rt[i_rt_tr_pre];
+
   for(int y=yl;y<=yh;++y){ // loop over RT grid
     for(int x=xl;x<=xh;++x){
       int off0 = x*next[1]+y*next[2];
@@ -1313,46 +1342,57 @@ void RTS::get_Tau_and_Iout(GridData &Grid, const RunData &Run, const PhysicsData
           lgT+=Grid.temp[inode[l]];
           rm +=Grid.U[inode[l]].d;
         }
-    
-    lgP /= N;
-    lgT /= N;
-    rm  /= N;
+	
+	lgP /= N;
+	lgT /= N;
+	rm  /= N;
+	
+	//disbale RT if Temp > Temp_TR above the photosphere
+	double pswitch  = min(max(lgP-Pres_TR,0.0),1.0);
+	double tswitch  = min(max(Temp_TR-lgT,0.0),1.0);
+	double trswitch = max(pswitch,tswitch);
+	
+	lgP          = log(lgP);
+	lgT          = log(lgT);
+	rho[y][x][z] = rm;
+	
+	lgT = min(max(lgT, (double) tab_T[0]),(double) tab_T[NT-1]);
+	lgP = min(max(lgP, (double) tab_p[0]),(double) tab_p[Np-1]);
+	
+	int l=0;
+	int m=0;
+	if(lgT<tab_T[0])
+	  l=0;
+	else if(lgT>tab_T[NT-1])
+	  l=NT-2;
+	else
+	  for (l=0; l<=NT-2; l++)
+	    if ((lgT >= tab_T[l]) && (lgT <= tab_T[l+1]))
+	      break;
+	
+	if(lgP<tab_p[0])
+	  m=0;
+	else if(lgP>tab_p[Np-1])
+	  m=Np-2;
+	else
+	  for (m=0; m<=Np-2; m++)
+	    if ((lgP >= tab_p[m]) && (lgP <= tab_p[m+1]))
+	      break;
 
-    lgP          = log(lgP);
-    lgT          = log(lgT);
-    rho[y][x][z] = rm;
+	double xt = (lgT-tab_T[l])*invT_tab[l];
+	double xp = (lgP-tab_p[m])*invP_tab[m];
 
-    lgT = min(max(lgT, (double) tab_T[0]),(double) tab_T[NT-1]);
-    lgP = min(max(lgP, (double) tab_p[0]),(double) tab_p[Np-1]);
+	// Interpolate for kappa and B
+	B[y][x][z]=exp(xt*B_Iout_tab[l+1]+(1.-xt)*B_Iout_tab[l]);
+	
+	kap[y][x][z] = exp(xt*(xp*kap_Iout_tab[l+1][m+1]+(1.-xp)*kap_Iout_tab[l+1][m])+
+			   (1.-xt)*(xp*kap_Iout_tab[l][m+1]+(1.-xp)*kap_Iout_tab[l][m]));
+	
 
-    int l=0;
-    int m=0;
-    if(lgT<tab_T[0])
-      l=0;
-    else if(lgT>tab_T[NT-1])
-      l=NT-2;
-    else
-      for (l=0; l<=NT-2; l++)
-        if ((lgT >= tab_T[l]) && (lgT <= tab_T[l+1]))
-          break;
-
-    if(lgP<tab_p[0])
-      m=0;
-    else if(lgP>tab_p[Np-1])
-      m=Np-2;
-    else
-      for (m=0; m<=Np-2; m++)
-        if ((lgP >= tab_p[m]) && (lgP <= tab_p[m+1]))
-          break;
-
-    double xt = (lgT-tab_T[l])*invT_tab[l];
-    double xp = (lgP-tab_p[m])*invP_tab[m];
-
-    // Interpolate for kappa and B
-    B[y][x][z]=exp(xt*B_Iout_tab[l+1]+(1.-xt)*B_Iout_tab[l]);
-    
-    kap[y][x][z] = exp(xt*(xp*kap_Iout_tab[l+1][m+1]+(1.-xp)*kap_Iout_tab[l+1][m])+
-        (1.-xt)*(xp*kap_Iout_tab[l][m+1]+(1.-xp)*kap_Iout_tab[l][m]));
+	// apply tr_switch
+	B[y][x][z]   *= trswitch;
+	kap[y][x][z] *= trswitch;
+	
       }
       Tau[y][x][zh]=1.0e-12;
       for(int z=zh-1;z>=zl;--z){
@@ -1363,7 +1403,7 @@ void RTS::get_Tau_and_Iout(GridData &Grid, const RunData &Run, const PhysicsData
     }
   }
 
-  for(int y=yl;y<=yh;++y){ // loop over MHD grid
+  for(int y=yl;y<=yh;++y){ // loop over RT grid
     for(int x=xl;x<=xh;++x){
       rbuf[y][x]=0.e0;
       sbuf[y][x]=Tau[y][x][zl];
@@ -1373,7 +1413,7 @@ void RTS::get_Tau_and_Iout(GridData &Grid, const RunData &Run, const PhysicsData
   double ctime=MPI_Wtime(); 
   MPI_Scan(sbuf[yl]+xl,rbuf[yl]+xl,nx*ny,MPI_DOUBLE,MPI_SUM,comm_col[lrank[2]][lrank[1]]);
   stime+=MPI_Wtime()-ctime;
-  for(int y=yl;y<=yh;++y){ // loop over MHD grid
+  for(int y=yl;y<=yh;++y){ // loop over RT grid
     for(int x=xl;x<=xh;++x){
       rbuf[y][x]-=Tau[y][x][zl];
       for(int z=zl;z<=zh;++z){
@@ -1384,7 +1424,7 @@ void RTS::get_Tau_and_Iout(GridData &Grid, const RunData &Run, const PhysicsData
 
   if (calc_int){
   //  Outgoing Intensity at top (Long Characteristics)
-  for(int y=yl;y<=yh;++y){ // loop over MHD grid
+  for(int y=yl;y<=yh;++y){ // loop over RT grid
     for(int x=xl;x<=xh;++x){
       rbuf[y][x]=0.0;
       sbuf[y][x]=0.0;
@@ -1445,7 +1485,7 @@ void RTS::tauscale_qrad(int band, double DX,double DY,double DZ, double *** Ss){
     }
   }
 
-  for(int y=yl;y<=yh;++y){ // loop over MHD grid
+  for(int y=yl;y<=yh;++y){ // loop over RT grid
     for(int x=xl;x<=xh;++x){
       rbuf[y][x]=0.e0;
       sbuf[y][x]=Tau[y][x][zl];
@@ -1455,7 +1495,7 @@ void RTS::tauscale_qrad(int band, double DX,double DY,double DZ, double *** Ss){
   double ctime=MPI_Wtime(); 
   MPI_Scan(sbuf[yl]+xl,rbuf[yl]+xl,nx*ny,MPI_DOUBLE,MPI_SUM,comm_col[lrank[2]][lrank[1]]);
   stime+=MPI_Wtime()-ctime;
-  for(int y=yl;y<=yh;++y){ // loop over MHD grid
+  for(int y=yl;y<=yh;++y){ // loop over RT grid
     for(int x=xl;x<=xh;++x){
       rbuf[y][x]-=Tau[y][x][zl];
       for(int z=zl;z<=zh;++z){
@@ -1465,7 +1505,7 @@ void RTS::tauscale_qrad(int band, double DX,double DY,double DZ, double *** Ss){
   }
   if (need_I){
     //  Outgoing Intensity at top (Long Characteristics)
-    for(int y=yl;y<=yh;++y){ // loop over MHD grid
+    for(int y=yl;y<=yh;++y){ // loop over RT grid
       for(int x=xl;x<=xh;++x){
         rbuf[y][x]=0.0;
         sbuf[y][x]=0.0;

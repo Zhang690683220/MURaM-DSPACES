@@ -35,6 +35,7 @@
 #define TENLOG 2.30258509299405e0
 
 #define dtau_min  1.0E-5
+#define dtau_min2  1.0E-10
 #define threshold 1.0E-3
 
 #define C   2.99792458E10            // cm/s

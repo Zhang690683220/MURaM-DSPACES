@@ -111,7 +111,8 @@ void ComputeSolution(RunData& Run,GridData& Grid,const PhysicsData& Physics,RTS 
 	dt_rad=rts->wrapper(rt_upd,Grid,Run,Physics);
         rt_time+=MPI_Wtime()-clock;
     
-        int needoutput = ((Run.NeedsOutput())&&(Run.outcad==0));
+        int needoutput = ((Run.NeedsOutput())&&(Run.outcad==0)||(Run.dt_rem()==0.0)&&(Run.outcad>0));
+      
         if(needoutput){
 	  clock=MPI_Wtime();
 	  eos_output(Run,Grid,Physics,rts);
@@ -278,28 +279,19 @@ void ComputeSolution(RunData& Run,GridData& Grid,const PhysicsData& Physics,RTS 
       endWtime = 1;  
     }   
 
-    int needoutput = ( ((Run.NeedsOutput())&&(Run.outcad==0)) || ((Run.dt_rem()==0)&&(Run.outcad>0)) || 
-		       Run.NeedsBackup() || (wtime_backup == 1) );
+    int needoutput = (((Run.NeedsOutput())&&(Run.outcad==0)) || ((Run.dt_rem()==0)&&(Run.outcad>0)) || 
+		       Run.NeedsBackup() || (wtime_backup == 1));
+
     if(needoutput){
       clock=MPI_Wtime();  
       BackupSolution(Run,Grid,Physics);
       bc_time = MPI_Wtime()-clock;
       
-      if (Run.rank == 0){
-	if(Run.verbose >0) cout << "Output(Res)in " << MPI_Wtime()-clock 
-				<< " seconds" << endl;
-      }
+      if ((Run.rank == 0)&&(Run.verbose >0))
+          cout << "Output(Res)in " << MPI_Wtime()-clock << " seconds" << endl;
+      
       io_time += MPI_Wtime()-clock;
 
-      if ((Run.dt_rem()==0)&&(Run.outcad>0)) {
-	clock=MPI_Wtime();
-	eos_output(Run,Grid,Physics,rts); 
-	io_time+=MPI_Wtime()-clock;
-	if (Run.rank == 0){
-	  if(Run.verbose >0) cout << "Output (EOS) in " << MPI_Wtime()-clock 
-				  << " seconds" << endl;
-	}
-      }
     }
  
     if( Run.rank==0 ){
@@ -399,7 +391,8 @@ void Sync_timestep(RunData& Run, const PhysicsData& Physics, const double dt_rad
 
   if (Run.outcad > 0) {
     double rem =  Run.dt_rem();
-    if (rem > 0.0) dt = min(dt,rem);
+    if (rem > 0.0)
+      dt = min(dt,rem);
   }
 
   if( Run.autostep ) Run.dt = dt;

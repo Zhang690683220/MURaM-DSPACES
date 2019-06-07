@@ -148,7 +148,7 @@ void exchange_grid(GridData& Grid, const PhysicsData& Physics, const int needs_s
       }
       if(ambipolar){
 	GLOOP(gs,j,k,d2,d3){
-	  i=Grid.lbeg[d1]+igh;
+	  i=Grid.lend[d1]-Grid.ghosts[d1]+1+igh;
 	  i_nu  = i*i_next[d1]+j*i_next[d2]+k*i_next[d3];
 	  for(v=0;v<3;v++)
 	    sndbuf_r[buf++] = v_amb[i_nu*3+v];
@@ -213,7 +213,7 @@ void exchange_grid(GridData& Grid, const PhysicsData& Physics, const int needs_s
 	}
 	if(ambipolar){
 	  GLOOP(gs,j,k,d2,d3){
-	    i=Grid.lend[d1]+1+igh;
+	    i =Grid.lbeg[d1]-Grid.ghosts[d1]+igh;
 	    i_nu  = i*i_next[d1]+j*i_next[d2]+k*i_next[d3];
 	    for(v=0;v<3;v++)
 	      v_amb[i_nu*3+v] = recbuf_l[buf++];
