@@ -529,8 +529,9 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
     PGI_COMPARE(Grid.tvar1, double, Grid.bufsize, "tvar1", "mhdres_SR.C", "MHD", 7)
     PGI_COMPARE(Grid.tvar2, double, Grid.bufsize, "tvar2", "mhdres_SR.C", "MHD", 8)
     PGI_COMPARE(Grid.tvar3, double, Grid.bufsize, "tvar3", "mhdres_SR.C", "MHD", 9)
-    if(ambipolar)
+    if(ambipolar) {
       PGI_COMPARE(Grid.Qamb, double, Grid.bufsize, "Qamb", "mhdres_SR.C", "MHD", 10)
+    }
   }
   PGI_COMPARE(&dt_cfl, double, 1, "dt_cfl", "mhdres_SR.C", "MHD", 11)
 
