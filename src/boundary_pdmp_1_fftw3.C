@@ -8,6 +8,7 @@
 #include "eos.H"
 #include "comm_split.H"
 #include "rt/rt.h"
+#include "muramacc.H"
 
 using namespace std;
 
@@ -70,6 +71,8 @@ void WriteBClog(const char *file,int iter,double time,RTS *rts){
 void SetBoundaryConditions(const RunData&  Run, GridData& Grid,
                            const PhysicsData& Physics, 
 			   const int stage, const int pt_update,RTS *rts){
+
+  NVPROF_PUSH_RANGE("SetBoundaryCondition", 8)
 
   static int bnd_ini_flag = 1;
 
@@ -165,6 +168,8 @@ void SetBoundaryConditions(const RunData&  Run, GridData& Grid,
       lbuf[8] += pow(U1.M.x/U1.d,2);
     } 
 
+    PGI_COMPARE(lbuf, double, 9, "lbuf", "boundary_pdmp_1_fftw3.C", "SetBoundaryConditions", 1)
+
     MPI_Allreduce(lbuf,gbuf,9,MPI_DOUBLE,MPI_SUM,YZ_COMM);
     Bh_rms = sqrt(gbuf[1]/gbuf[0]);
     By_rms = sqrt(gbuf[2]/gbuf[0]);
@@ -257,6 +262,18 @@ void SetBoundaryConditions(const RunData&  Run, GridData& Grid,
 	Grid.v_amb[Grid.node(Grid.lbeg[0]-2,j,k)] = Vector(0.0,0.0,0.0);
       }
     }
+
+    PGI_COMPARE(Grid.U, double, Grid.bufsize*8, "U", "boundary_pdmp_1_fftw3.C",
+                "SetBoundaryConditions", 2)
+    if(Physics.params[i_param_spitzer] > 0.0) {
+      PGI_COMPARE(Grid.sflx, double, Grid.bufsize, "sflx", "boundary_pdmp_1_fftw3.C",
+                  "SetBoundaryConditions", 3)
+    }
+    if(Physics.params[i_param_ambipolar] > 0.0) {
+      PGI_COMPARE(Grid.v_amb, double, Grid.bufsize*3, "v_amb", "boundary_pdmp_1_fftw3.C",
+                  "SetBoundaryConditions", 4)
+    }
+
   } // endif Grid.is_gbeg[0]
 
   //--------POTENTIAL FIELD--------------------------------------------
@@ -271,6 +288,8 @@ void SetBoundaryConditions(const RunData&  Run, GridData& Grid,
 	  bz0[j+k*Grid.lsize[1]] = Grid.U[node].B.x;
 	}
       }
+      PGI_COMPARE(bz0, double, localsize, "bz0", "boundary_pdmp_1_fftw3.C",
+                  "SetBoundaryConditions", 5)
     }
 
     if( Grid.procs[0] < 8){
@@ -283,6 +302,9 @@ void SetBoundaryConditions(const RunData&  Run, GridData& Grid,
       potential_ext_fftw3_par(Grid, bz0, b_ext);
       if( (Run.verbose > 1) && (Run.rank == 0)) cout << "potential update parallel" << endl;
     }
+
+    PGI_COMPARE(b_ext, double, 8*localghostsize, "b_ext", "boundary_pdmp_1_fftw3.C",
+                "SetBoundaryConditions", 6)
 
   }
 
@@ -355,17 +377,32 @@ void SetBoundaryConditions(const RunData&  Run, GridData& Grid,
 	Grid.v_amb[Grid.node(Grid.lend[0]+2,j,k)] = Vector(0.0,0.0,0.0);
       }
     }
+
+    PGI_COMPARE(Grid.U, double, Grid.bufsize*8, "U", "boundary_pdmp_1_fftw3.C",
+                "SetBoundaryConditions", 7)
+    if(Physics.params[i_param_spitzer] > 0.0) {
+      PGI_COMPARE(Grid.sflx, double, Grid.bufsize, "sflx", "boundary_pdmp_1_fftw3.C",
+                  "SetBoundaryConditions", 8)
+    }
+    if(Physics.params[i_param_ambipolar] > 0.0) {
+      PGI_COMPARE(Grid.v_amb, double, Grid.bufsize*3, "v_amb", "boundary_pdmp_1_fftw3.C",
+                  "SetBoundaryConditions", 9)
+    }
     
   }// endif Grid.is_gend[0]   
   
   ttime = MPI_Wtime() - ttime;
   
   if ( (Run.rank == 0) and (Run.verbose  > 2) && (stage == 1) ) cout << "boundary time = " << ttime << endl;
+
+  NVPROF_POP_RANGE
   
 }
 // ***************************************************************************
 
 void set_p_s_bc(const GridData& Grid, const PhysicsData& Physics, const RunData& Run) {
+
+  NVPROF_PUSH_RANGE("set_p_s_bc", 9)
 
   register int i,k;
   
@@ -393,6 +430,9 @@ void set_p_s_bc(const GridData& Grid, const PhysicsData& Physics, const RunData&
       }
 	bnd_loc[4] += s_interp(eps1,U1.d);
     }
+
+    PGI_COMPARE(bnd_loc, double, 5, "bnd_loc", "boundary_pdmp_1_fftw3.C",
+                "set_p_s_bc", 10)
     
     MPI_Allreduce(bnd_loc,bnd,5,MPI_DOUBLE,MPI_SUM,YZ_COMM);
     bnd[0] /= double(Grid.gsize[1]*Grid.gsize[2]);
@@ -411,5 +451,7 @@ void set_p_s_bc(const GridData& Grid, const PhysicsData& Physics, const RunData&
 
   MPI_Bcast(&p_bc,1,MPI_DOUBLE,0,XCOL_COMM);
   MPI_Bcast(&s_bc,1,MPI_DOUBLE,0,XCOL_COMM);
+
+  NVPROF_POP_RANGE
     
 }

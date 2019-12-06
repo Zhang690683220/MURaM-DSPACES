@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include "eos.H"
 #include "limit_va.H"
+#include "muramacc.H"
 
 /*
    - Special Corona version. Allows to set numerical pm in Corona. 
@@ -25,6 +26,8 @@ double * qft;
 /********************************************************************/
 void TVDlimit(const RunData&  Run, GridData& Grid, 
 	      const PhysicsData& Physics, const double dt_tvd){
+
+  NVPROF_PUSH_RANGE("TVDlimit", 1)
 
   //double time,s_time;
   //static double t_time = 0.0 ,c_time = 0.0 , r_time = 0.0;
@@ -626,6 +629,20 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
   // cout << "TVD: " << t_time/call_count << ' ' 
   // << c_time/call_count << ' ' 
   // << r_time/call_count << endl; 
+
+  NVPROF_POP_RANGE
+
+  PGI_COMPARE(Grid.U, double, Grid.bufsize*8, "U", "tvdlimit_SR.C", "TVD", 1)
+  if(ambipolar) {
+    PGI_COMPARE(Grid.v_amb, double, Grid.bufsize*3, "v_amb", "tvdlimit_SR.C", "TVD", 2)
+  }
+  if(need_diagnostics) {
+    PGI_COMPARE(Grid.tvar6, double, Grid.bufsize, "tvar6", "tvdlimit_SR.C", "TVD", 3)
+    PGI_COMPARE(Grid.tvar7, double, Grid.bufsize, "tvar7", "tvdlimit_SR.C", "TVD", 4)
+    PGI_COMPARE(Grid.tvar8, double, Grid.bufsize, "tvar8", "tvdlimit_SR.C", "TVD", 5)
+    PGI_COMPARE(Grid.Qres, double, Grid.bufsize, "Qres", "tvdlimit_SR.C", "TVD", 6)
+    PGI_COMPARE(Grid.Qvis, double, Grid.bufsize, "Qvis", "tvdlimit_SR.C", "TVD", 7)
+  }
 
 
 }

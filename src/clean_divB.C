@@ -5,6 +5,7 @@
 #include "grid.H"
 #include "run.H"
 #include "exchange.H"
+#include "muramacc.H"
 
 /*
   Add contributions from divB heating to Qres for diagnostic reasons.
@@ -25,6 +26,8 @@
   for((j)=(G).lbeg[1];(j)<=(G).lend[1];(j)++)
 
 void Clean_divB(const RunData&  Run, GridData& Grid, const PhysicsData&  Physics) {
+
+  NVPROF_PUSH_RANGE("Clean_divB", 0)
 
   double ttime, atime, etime, time;
   ttime=MPI_Wtime();
@@ -142,6 +145,9 @@ void Clean_divB(const RunData&  Run, GridData& Grid, const PhysicsData&  Physics
     err_loc[0] = max(err_loc[0],err);
     
   }
+
+  PGI_COMPARE(divB, double, Grid.bufsize, "divB", "clean_divB.C",
+              "Clean_divB", 1)
     
   for(iter=0;iter<next_iter;iter++){
 
@@ -152,10 +158,16 @@ void Clean_divB(const RunData&  Run, GridData& Grid, const PhysicsData&  Physics
       for(i=i_beg;i<=i_end;i++)
 	phi[off0+i] += divB_fac*divB[off0+i] - divB_damp*phi[off0+i];
     }
+
+    PGI_COMPARE(phi, double, Grid.bufsize, "phi", "clean_divB.C",
+                "Clean_divB", 2)
       
     time=MPI_Wtime();    
     exchange_single(Grid,phi);
     etime+=MPI_Wtime()-time;
+
+    PGI_COMPARE(phi, double, Grid.bufsize, "phi", "clean_divB.C",
+                "Clean_divB", 3)
     
     /* vertical boundaries divB anti-symmetric */ 
     // This can probably be done differently now that vertical is x
@@ -166,6 +178,10 @@ void Clean_divB(const RunData&  Run, GridData& Grid, const PhysicsData&  Physics
 	phi[Grid.node(i-1,j,k)] = -phi[Grid.node(i,j,k)]; 
 	phi[Grid.node(i-2,j,k)] = -phi[Grid.node(i+1,j,k)];      
       }
+
+      PGI_COMPARE(phi, double, Grid.bufsize, "phi", "clean_divB.C",
+                  "Clean_divB", 4)
+
     }
     
     if( Grid.is_gend[0] ) {
@@ -174,6 +190,10 @@ void Clean_divB(const RunData&  Run, GridData& Grid, const PhysicsData&  Physics
 	phi[Grid.node(i+1,j,k)] = -phi[Grid.node(i,j,k)]; 
 	phi[Grid.node(i+2,j,k)] = -phi[Grid.node(i-1,j,k)];   
       }
+
+      PGI_COMPARE(phi, double, Grid.bufsize, "phi", "clean_divB.C",
+                  "Clean_divB", 5)
+
     }
 
     YZ_LOOP(Grid,j,k){
@@ -210,9 +230,19 @@ void Clean_divB(const RunData&  Run, GridData& Grid, const PhysicsData&  Physics
             
     }
 
+    PGI_COMPARE(U, double, Grid.bufsize*8, "U", "clean_divB.C",
+                "Clean_divB", 6)
+    if(need_diagnostics) {
+      PGI_COMPARE(Grid.Qres, double, Grid.bufsize, "Qres",
+                  "clean_divB.C", "Clean_divB", 7)
+    }
+
     time=MPI_Wtime();
     exchange_B(Grid);    
     etime+=MPI_Wtime()-time;
+
+    PGI_COMPARE(U, double, Grid.bufsize*8, "U", "clean_divB.C",
+                "Clean_divB", 8)
     
     err_loc[1] = 0.0;
     YZ_LOOP(Grid,j,k){
@@ -246,6 +276,9 @@ void Clean_divB(const RunData&  Run, GridData& Grid, const PhysicsData&  Physics
 
       err_loc[1] = max(err_loc[1],err);
     }
+
+    PGI_COMPARE(divB, double, Grid.bufsize, "divB", "clean_divB.C",
+                "Clean_divB", 9)
     
   }
 
@@ -280,5 +313,7 @@ void Clean_divB(const RunData&  Run, GridData& Grid, const PhysicsData&  Physics
            << (etime+atime)/ttime << endl;
     }
   }
+
+  NVPROF_POP_RANGE
 
 }

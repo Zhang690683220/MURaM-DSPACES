@@ -7,6 +7,7 @@
 #include "rt.h"
 #include "rt_scatter.h"
 #include "comm_split.H"
+#include "muramacc.H"
 
 RTS *rt_new(GridData &Grid,RunData &Run,PhysicsData &Physics)
 {
@@ -586,6 +587,7 @@ double RTS::wrapper(int rt_upd,GridData &Grid,RunData &Run,const PhysicsData &Ph
         for (int x=xl;x<=xh;x++)
           I_o[y][x] +=I_band[y][x];
       }
+      PGI_COMPARE(&I_o[yl][xl], double, ny*nx, "I_o", "rt.cc", "RTS::wrapper", 1)
     }
     // If cont_bin = 0 and need_I = 1 we want the output intensity to be the 0th continuum bin
     if (cont_bin==0){
@@ -593,6 +595,7 @@ double RTS::wrapper(int rt_upd,GridData &Grid,RunData &Run,const PhysicsData &Ph
       for (int y=yl;y<=yh;y++)
         for (int x=xl;x<=xh;x++)
           I_o[y][x] +=I_band[y][x];
+      PGI_COMPARE(&I_o[yl][xl], double, ny*nx, "I_o", "rt.cc", "RTS::wrapper", 2)
     }
     // if we have the band, we want a tau5000 reference wavelength. If cont_bin=1 and need_I we want
     // output intensity to be 5000A.
@@ -604,10 +607,12 @@ double RTS::wrapper(int rt_upd,GridData &Grid,RunData &Run,const PhysicsData &Ph
       
       get_Tau_and_Iout(Grid, Run, Physics,DZ,B_5000_tab,kap_5000_tab,I_band,I5000_out);
      
-      if ((cont_bin==1)&&(need_I==1))
+      if ((cont_bin==1)&&(need_I==1)) {
         for (int y=yl;y<=yh;y++)
           for (int x=xl;x<=xh;x++)
             I_o[y][x] += I_band[y][x];
+        PGI_COMPARE(&I_o[yl][xl], double, ny*nx, "I_o", "rt.cc", "RTS::wrapper", 3)
+      }
     }
 
     calc_Qtot_and_Tau(Grid, Run, Physics);
@@ -684,6 +689,12 @@ double RTS::wrapper(int rt_upd,GridData &Grid,RunData &Run,const PhysicsData &Ph
       }
     }
   }
+
+  PGI_COMPARE(&lgTe[yl][xl][zl], double, ny*nx*nz, "lgTe", "rt.cc", "RTS::wrapper", 4)
+  PGI_COMPARE(&lgPe[yl][xl][zl], double, ny*nx*nz, "lgPe", "rt.cc", "RTS::wrapper", 5)
+  PGI_COMPARE(&rho[yl][xl][zl], double, ny*nx*nz, "rho", "rt.cc", "RTS::wrapper", 6)
+  PGI_COMPARE(&T_ind[yl][xl][zl], int, ny*nx*nz, "T_ind", "rt.cc", "RTS::wrapper", 7)
+  PGI_COMPARE(&P_ind[yl][xl][zl], int, ny*nx*nz, "P_ind", "rt.cc", "RTS::wrapper", 8)
   
   // Begin RT loop, work band by band,
   memset(St[yl][xl]+zl,0,nx*ny*nz*sizeof(double));
@@ -727,6 +738,9 @@ double RTS::wrapper(int rt_upd,GridData &Grid,RunData &Run,const PhysicsData &Ph
       }
     }
 
+    PGI_COMPARE(&B[yl][xl][zl], double, ny*nx*nz, "B", "rt.cc", "RTS::wrapper", 9)
+    PGI_COMPARE(&kap[yl][xl][zl], double, ny*nx*nz, "kap", "rt.cc", "RTS::wrapper", 10)
+
 // *****************************************************************
 // *    update diffusion-approx. boundary condition at bottom      *
 // *****************************************************************
@@ -737,6 +751,8 @@ double RTS::wrapper(int rt_upd,GridData &Grid,RunData &Run,const PhysicsData &Ph
         for(int y=0;y<ny;++y)
           for(int x=0;x<nx;++x)
             z_rbuf[band][YDIR][XDIR][UP][l][x*ny+y]=B[yl+y][xl+x][zl];
+
+  PGI_COMPARE(&z_rbuf[band][0][0][0][0][0], double, 2*2*2*NMU*ny*nx, "z_rbuf", "rt.cc", "RTS::wrapper", 11)
           
 // *****************************************************************
 // *    no incoming radiation on the top                           *
@@ -760,14 +776,17 @@ double RTS::wrapper(int rt_upd,GridData &Grid,RunData &Run,const PhysicsData &Ph
         gFr_mean[band]+=Fz[y][x][zh]+Fz[y+yo][x][zh]+
           Fz[y][x+xo][zh]+Fz[y+yo][x+xo][zh];
     gFr_mean[band]*=0.25;
+    PGI_COMPARE(&gFr_mean[band], double, 1, "gFr_mean", "rt.cc", "RTS::wrapper", 12)
   }
  
   // If I am saving 5000A intensity then wipe after last bin. if I am saving the continuum bin then wipe the second last bin.
 
-  if (((cont_bin==1)&&(band==0))||((cont_bin==0)&&(band==1)))
+  if (((cont_bin==1)&&(band==0))||((cont_bin==0)&&(band==1))) {
     for(int y=yl;y<=yh;++y)
       for(int x=xl;x<=xh;++x)
         I_o[y][x] = 0.0;
+  PGI_COMPARE(&I_o[yl][xl], double, ny*nx, "I_o", "rt.cc", "RTS::wrapper", 13)
+  }
 
   }// end loop over bands
 
@@ -790,10 +809,12 @@ double RTS::wrapper(int rt_upd,GridData &Grid,RunData &Run,const PhysicsData &Ph
     
     get_Tau_and_Iout(Grid, Run, Physics,DZ,B_5000_tab,kap_5000_tab,I_band,I5000_out);
    
-    if ((cont_bin==1)&&(need_I==1))
+    if ((cont_bin==1)&&(need_I==1)) {
       for (int y=yl;y<=yh;y++)
         for (int x=xl;x<=xh;x++)
           I_o[y][x] +=I_band[y][x];
+      PGI_COMPARE(&I_o[yl][xl], double, ny*nx, "I_o", "rt.cc", "RTS::wrapper", 14)
+    }
   }
 
   calc_Qtot_and_Tau(Grid, Run, Physics);
@@ -801,7 +822,9 @@ double RTS::wrapper(int rt_upd,GridData &Grid,RunData &Run,const PhysicsData &Ph
   del_d2dim(I_band,yl,yh,xl,xh);
   
   if (Run.NeedsSlice() && Run.RT_HAVG)
-    save_1D_avg(Run.path_2D,Run.globiter,Run.time);  
+    save_1D_avg(Run.path_2D,Run.globiter,Run.time); 
+
+  PGI_COMPARE(&dt_rad, double, 1, "dt_rad", "rt.cc", "RTS::wrapper", 15) 
 
   return dt_rad;
 }
@@ -846,7 +869,15 @@ void RTS::calc_Qtot_and_Tau(GridData &Grid, const RunData &Run, const PhysicsDat
     }
   }
 
+  PGI_COMPARE(Grid.Tau, double, Grid.bufsize, "Tau", "rt.cc", "RTS::calc_Qtot_and_Tau", 16)
+  PGI_COMPARE(Grid.Jtot, double, Grid.bufsize, "Jtot", "rt.cc", "RTS::calc_Qtot_and_Tau", 17)
+  PGI_COMPARE(Grid.Stot, double, Grid.bufsize, "Stot", "rt.cc", "RTS::calc_Qtot_and_Tau", 18)
+  PGI_COMPARE(&qsum, double, 1, "qsum", "rt.cc", "RTS::calc_Qtot_and_Tau", 19)
+  PGI_COMPARE(Grid.Qtot, double, Grid.bufsize, "Qtot", "rt.cc", "RTS::calc_Qtot_and_Tau", 20)
+
   exchange_single(Grid,Grid.Tau);
+
+  PGI_COMPARE(Grid.Tau, double, Grid.bufsize, "Tau", "rt.cc", "RTS::calc_Qtot_and_Tau", 21)
 
   double Fqrad;
 
@@ -876,6 +907,8 @@ void RTS::driver(double DZ, double DX, double DY, int band){
   memset(Fx[yl][xl]+zl,0,nx*ny*nz*sizeof(double));
   memset(Fy[yl][xl]+zl,0,nx*ny*nz*sizeof(double));
   memset(J_band[yl][xl]+zl,0,nx*ny*nz*sizeof(double));
+
+  PGI_COMPARE(&I_n[yl][xl][zl], double, nx*ny*nz, "I_n", "rt.cc", "RTS::driver", 500);
 
   double maxerr_up=0.0,maxerr_down=0.0;
 // loop over octants & determination of loop direction
@@ -929,6 +962,7 @@ void RTS::driver(double DZ, double DX, double DY, int band){
                   i_nu+=1;
                 }
               }
+            PGI_COMPARE(&I_n[yl][xl][zl], double, nx*ny*nz, "I_n", "rt.cc", "RTS::driver", 22)
           }
 
           if(NDIM==2){
@@ -1082,6 +1116,9 @@ void RTS::interpol(int zi_i,int zi_f,int zstep,int xi_i,int xi_f,int xstep,
         }
       }
     }
+
+    //PGI_COMPARE(&coeff[0][0], double, (nx-1)*(ny-1)*(nz-1)*2, "coeff", "rt.cc", "RTS::interpol", 23)
+
   }
 
   if(NDIM==1){
@@ -1186,6 +1223,8 @@ double RTS::error(int band,int l,int ZDIR,int XDIR,int YDIR,double I_min)
 //
   if (NDIM==3){
     real *ysb=y_sbuf[band][YDIR][XDIR][ZDIR][l],*yob=y_oldbuf[band][YDIR][XDIR][ZDIR][l];
+    PGI_COMPARE(ysb, double, nx*nz, "ysb", "rt.cc", "RTS::error", 100)
+    PGI_COMPARE(yob, double, nx*nz, "yob", "rt.cc", "RTS::error", 101)
     for(int z=z0;z<nz-z1;++z)
       for(int x=x0;x<nx-x1;++x){
         int ind=z*nx+x;
@@ -1195,6 +1234,8 @@ double RTS::error(int band,int l,int ZDIR,int XDIR,int YDIR,double I_min)
 //
   if (NDIM>1){
   real *xsb=x_sbuf[band][YDIR][XDIR][ZDIR][l],*xob=x_oldbuf[band][YDIR][XDIR][ZDIR][l];
+    PGI_COMPARE(xsb, double, ny*nz, "xsb", "rt.cc", "RTS::error", 102)
+    PGI_COMPARE(xob, double, ny*nz, "xob", "rt.cc", "RTS::error", 103)
   for(int z=z0;z<nz-z1;++z)
     for(int y=0;y<ny;++y){
       int ind=z*ny+y;
@@ -1203,33 +1244,45 @@ double RTS::error(int band,int l,int ZDIR,int XDIR,int YDIR,double I_min)
   }
 //
   real *zsb=z_sbuf[band][YDIR][XDIR][ZDIR][l],*zob=z_oldbuf[band][YDIR][XDIR][ZDIR][l];
+    PGI_COMPARE(zsb, double, nx*ny, "zsb", "rt.cc", "RTS::error", 104)
+    PGI_COMPARE(zob, double, nx*ny, "zob", "rt.cc", "RTS::error", 105)
   for(int ind=0;ind<nx*ny;++ind){
     err_max=max(err_max,fabs(((double) (zsb[ind]-zob[ind]))/max(I_min,(double)zob[ind])));
   }
 //
+
+  PGI_COMPARE(&err_max, double, 1, "err_max", "rt.cc", "RTS::error", 24)
   return err_max;
 }
 
 void RTS::readbuf(int band,int l,int ZDIR,int XDIR,int YDIR)
 {//RHC
+  
   if(NDIM==3){
     int y0=(YDIR==FWD)?0:ny-1;
+    PGI_COMPARE(y_rbuf[band][YDIR][XDIR][ZDIR][l], double, nx*nz, "yrb", "rt.cc", "RTS::readbuf", 300)
     for(int x=0;x<nx;++x) for(int z=0;z<nz;++z) I_n[yl+y0][xl+x ][zl+z ]= (double) y_rbuf[band][YDIR][XDIR][ZDIR][l][z*nx+x];
   memcpy(y_oldbuf[band][YDIR][XDIR][ZDIR][l],y_sbuf[band][YDIR][XDIR][ZDIR][l],nz*nx*sizeof(real));
   }
 
   if(NDIM>1){
     int x0=(XDIR==RIGHT)?0:nx-1;
+    PGI_COMPARE(x_rbuf[band][YDIR][XDIR][ZDIR][l], double, ny*nz, "xrb", "rt.cc", "RTS::readbuf", 301)
     for(int y=0;y<ny;++y) for(int z=0;z<nz;++z) I_n[yl+y ][xl+x0][zl+z ]= (double) x_rbuf[band][YDIR][XDIR][ZDIR][l][z*ny+y];
     memcpy(x_oldbuf[band][YDIR][XDIR][ZDIR][l],x_sbuf[band][YDIR][XDIR][ZDIR][l],ny*nz*sizeof(real));  
   }
   
   int z0=(ZDIR==UP)?0:nz-1;
+    PGI_COMPARE(z_rbuf[band][YDIR][XDIR][ZDIR][l], double, nx*ny, "zrb", "rt.cc", "RTS::readbuf", 302)
   for(int y=0;y<ny;++y) for(int x=0;x<nx;++x) I_n[yl+y ][xl+x ][zl+z0]= (double) z_rbuf[band][YDIR][XDIR][ZDIR][l][x*ny+y];
   memcpy(z_oldbuf[band][YDIR][XDIR][ZDIR][l],z_sbuf[band][YDIR][XDIR][ZDIR][l],nx*ny*sizeof(real));  
+
+  PGI_COMPARE(&I_n[yl][xl][zl], double, nx*ny*nz, "I_n", "rt.cc", "RTS::readbuf", 25)
+
 }
 
 void RTS::writebuf(int band, int l,int ZDIR,int XDIR,int YDIR){
+  PGI_COMPARE(&I_n[yl][xl][zl], double, nx*ny*nz, "I_n", "rt.cc", "RTS::writebuf", 200)
   if (NDIM==3){
     int y0=(YDIR==FWD)?ny-1:0;
     for(int x=0;x<nx;++x) for(int z=0;z<nz;++z) y_sbuf[band][YDIR][XDIR][ZDIR][l][z*nx+x]=(real) I_n[yl+y0][xl+x ][zl+z ];
@@ -1242,6 +1295,7 @@ void RTS::writebuf(int band, int l,int ZDIR,int XDIR,int YDIR){
 
   int z0=(ZDIR==UP)?nz-1:0;
   for(int y=0;y<ny;++y) for(int x=0;x<nx;++x) z_sbuf[band][YDIR][XDIR][ZDIR][l][x*ny+y]=(real) I_n[yl+y ][xl+x ][zl+z0];
+
 }
 
 void RTS::exchange(int band,int l,int ZDIR,int XDIR,int YDIR)
@@ -1256,6 +1310,12 @@ void RTS::exchange(int band,int l,int ZDIR,int XDIR,int YDIR)
   int source_rk;
 
   if (NDIM==3){
+    PGI_COMPARE(y_sbuf[band][YDIR][XDIR][ZDIR][l], double, nx*nz, "ysb", "rt.cc", "RTS::exchange", 601)
+    PGI_COMPARE(y_rbuf[band][YDIR][XDIR][ZDIR][l], double, nx*nz, "yrb", "rt.cc", "RTS::exchange", 602)
+    PGI_COMPARE(x_sbuf[band][YDIR][XDIR][ZDIR][l], double, ny*nz, "xsb", "rt.cc", "RTS::exchange", 603)
+    PGI_COMPARE(x_rbuf[band][YDIR][XDIR][ZDIR][l], double, ny*nz, "xrb", "rt.cc", "RTS::exchange", 604)
+    PGI_COMPARE(z_sbuf[band][YDIR][XDIR][ZDIR][l], double, nx*ny, "zsb", "rt.cc", "RTS::exchange", 605)
+    PGI_COMPARE(z_rbuf[band][YDIR][XDIR][ZDIR][l], double, nx*ny, "zrb", "rt.cc", "RTS::exchange", 606)
 	// y-direction
 	dest_rk=(YDIR==FWD)?rightr[2]:leftr[2];
 	source_rk=(YDIR==FWD)?leftr[2]:rightr[2];
@@ -1295,6 +1355,18 @@ void RTS::exchange(int band,int l,int ZDIR,int XDIR,int YDIR)
   MPI_Irecv(z_rbuf[band][YDIR][XDIR][ZDIR][l],nx*ny,REALTYPE,source_rk,tag3,MPI_COMM_WORLD,r3+0);
   MPI_Isend(z_sbuf[band][YDIR][XDIR][ZDIR][l],nx*ny,REALTYPE,dest_rk,tag3,MPI_COMM_WORLD,r3+1);
   MPI_Waitall(2,r3,s3);
+
+    PGI_COMPARE(y_sbuf[band][YDIR][XDIR][ZDIR][l], double, nx*nz, "ysb", "rt.cc", "RTS::exchange", 607)
+    PGI_COMPARE(y_rbuf[band][YDIR][XDIR][ZDIR][l], double, nx*nz, "yrb", "rt.cc", "RTS::exchange", 608)
+    PGI_COMPARE(x_sbuf[band][YDIR][XDIR][ZDIR][l], double, ny*nz, "xsb", "rt.cc", "RTS::exchange", 609)
+    PGI_COMPARE(x_rbuf[band][YDIR][XDIR][ZDIR][l], double, ny*nz, "xrb", "rt.cc", "RTS::exchange", 610)
+    PGI_COMPARE(z_sbuf[band][YDIR][XDIR][ZDIR][l], double, nx*ny, "zsb", "rt.cc", "RTS::exchange", 611)
+    PGI_COMPARE(z_rbuf[band][YDIR][XDIR][ZDIR][l], double, nx*ny, "zrb", "rt.cc", "RTS::exchange", 612)
+
+  //PGI_COMPARE(&y_rbuf[band][YDIR][XDIR][ZDIR][0], double, nx*nz, "y_rbuf", "rt.cc", "RTS::exchange", 26)
+  //PGI_COMPARE(&x_rbuf[band][YDIR][XDIR][ZDIR][0], double, ny*nz, "x_rbuf", "rt.cc", "RTS::exchange", 27)
+  //PGI_COMPARE(&z_rbuf[band][YDIR][XDIR][ZDIR][0], double, nx*ny, "z_rbuf", "rt.cc", "RTS::exchange", 28)
+
 }
 
 void RTS::flux(int l,int ZDIR,int XDIR,int YDIR)
@@ -1314,6 +1386,10 @@ void RTS::flux(int l,int ZDIR,int XDIR,int YDIR)
       }
     }
   }
+  PGI_COMPARE(&J_band[yl][xl][zl], double, nx*ny*nz, "J_band", "rt.cc", "RTS::flux", 29)
+  PGI_COMPARE(&Fx[yl][xl][zl], double, nx*ny*nz, "Fx", "rt.cc", "RTS::flux", 30)
+  PGI_COMPARE(&Fy[yl][xl][zl], double, nx*ny*nz, "Fy", "rt.cc", "RTS::flux", 31)
+  PGI_COMPARE(&Fz[yl][xl][zl], double, nx*ny*nz, "Fz", "rt.cc", "RTS::flux", 32)
 }
 
 void RTS::get_Tau_and_Iout(GridData &Grid, const RunData &Run, const PhysicsData &Physics, double DZ, float * B_Iout_tab, float ** kap_Iout_tab, double ** I_band, int calc_int){
@@ -1403,6 +1479,10 @@ void RTS::get_Tau_and_Iout(GridData &Grid, const RunData &Run, const PhysicsData
     }
   }
 
+  PGI_COMPARE(&B[yl][xl][zl], double, nx*ny*nz, "B", "rt.cc", "RTS::get_Tau_and_Iout", 33)
+  PGI_COMPARE(&kap[yl][xl][zl], double, nx*ny*nz, "kap", "rt.cc", "RTS::get_Tau_and_Iout", 34)
+  PGI_COMPARE(&Tau[yl][xl][zl], double, nx*ny*nz, "Tau", "rt.cc", "RTS::get_Tau_and_Iout", 35)
+
   for(int y=yl;y<=yh;++y){ // loop over RT grid
     for(int x=xl;x<=xh;++x){
       rbuf[y][x]=0.e0;
@@ -1421,6 +1501,8 @@ void RTS::get_Tau_and_Iout(GridData &Grid, const RunData &Run, const PhysicsData
       }
     }
   }
+
+  PGI_COMPARE(&Tau[yl][xl][zl], double, nx*ny*nz, "Tau", "rt.cc", "RTS::get_Tau_and_Iout", 36)
 
   if (calc_int){
   //  Outgoing Intensity at top (Long Characteristics)
@@ -1450,6 +1532,7 @@ void RTS::get_Tau_and_Iout(GridData &Grid, const RunData &Run, const PhysicsData
       I_band[y][x]+=rbuf[y][x];
     }
   }
+  PGI_COMPARE(&I_band[yl][xl], double, nx*ny, "I_band", "rt.cc", "RTS::get_Tau_and_Iout", 37)
   }
   del_d2dim(sbuf,yl,yh,xl,xh);
   del_d2dim(rbuf,yl,yh,xl,xh);
@@ -1485,6 +1568,8 @@ void RTS::tauscale_qrad(int band, double DX,double DY,double DZ, double *** Ss){
     }
   }
 
+  PGI_COMPARE(&Tau[yl][xl][zl], double, nx*ny*nz, "Tau", "rt.cc", "RTS::tauscale_qrad", 38)
+
   for(int y=yl;y<=yh;++y){ // loop over RT grid
     for(int x=xl;x<=xh;++x){
       rbuf[y][x]=0.e0;
@@ -1503,6 +1588,9 @@ void RTS::tauscale_qrad(int band, double DX,double DY,double DZ, double *** Ss){
       }
     }
   }
+
+  PGI_COMPARE(&Tau[yl][xl][zl], double, nx*ny*nz, "Tau", "rt.cc", "RTS::tauscale_qrad", 39)
+
   if (need_I){
     //  Outgoing Intensity at top (Long Characteristics)
     for(int y=yl;y<=yh;++y){ // loop over RT grid
@@ -1532,6 +1620,9 @@ void RTS::tauscale_qrad(int band, double DX,double DY,double DZ, double *** Ss){
         I_o[y][x]+=rbuf[y][x];
       }
     }
+
+    PGI_COMPARE(&I_o[yl][xl], double, nx*ny, "I_o", "rt.cc", "RTS::tauscale_qrad", 40)
+
   }
 //  radiative energy imbalance
   for(int y=yl;y<=yh;++y){
@@ -1543,6 +1634,10 @@ void RTS::tauscale_qrad(int band, double DX,double DY,double DZ, double *** Ss){
       }
     }
   }
+
+  PGI_COMPARE(&I_n[yl][xl][zl], double, nx*ny*nz, "I_n", "rt.cc", "RTS::tauscale_qrad", 41)
+  PGI_COMPARE(&St[yl][xl][zl], double, nx*ny*nz, "St", "rt.cc", "RTS::tauscale_qrad", 42)
+  PGI_COMPARE(&Jt[yl][xl][zl], double, nx*ny*nz, "Jt", "rt.cc", "RTS::tauscale_qrad", 43)
 // 
   double inv_tau_0=1.0e1;
   for(int y=yl;y<=yh-yo;++y){
@@ -1568,6 +1663,9 @@ void RTS::tauscale_qrad(int band, double DX,double DY,double DZ, double *** Ss){
       }
     }
   }
+
+  PGI_COMPARE(&Qt[yl+yo][xl+xo][zl+zo], double, (nx-xo)*(ny-yo)*(nz-zo), "Qt", "rt.cc", "RTS::tauscale_qrad", 44)
+  //PGI_COMPARE(&Qtemp[yl][xl][zl][0], double, nx*ny*nz*2, "Qtemp", "rt.cc", "RTS::tauscale_qrad", 45)
 
    if (save_col){
      for (int y=col_bnd[2];y<=col_bnd[3];++y){

@@ -111,7 +111,17 @@ public:
 
   // Remember, use only local indexes !!!
   int node(const int i, const int j, const int k) const {
+#ifdef DEBUG
+    int offset = i*stride[0]+j*stride[1]+k*stride[2];
+    if(offset >= bufsize) {
+      cerr << "Accessing grid out of bounds: "
+	   << offset << " > " << bufsize
+	   << endl;
+    }
+    return offset;
+#else
     return i*stride[0]+j*stride[1]+k*stride[2];
+#endif
   }
   real coord(const int ind, const int dir) const {
     return lxmin[dir]+(0.5+(ind-lbeg[dir]))*dx[dir];

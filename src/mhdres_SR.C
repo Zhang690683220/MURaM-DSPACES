@@ -6,6 +6,7 @@
 #include "grid.H"
 #include "run.H"
 #include "limit_va.H"
+#include "muramacc.H"
 
 #define OUTER_LOOP(G,i,j,d1,d2) \
   for((j)=(G)[(d2)][0];(j)<=(G)[(d2)][1];(j)++) \
@@ -17,6 +18,8 @@ const double hall_const = 2.99792458e10/(16.0*atan(1)*1.60217733E-19);
 //-------------------------------------------------------------
 double MHD_Residual(const RunData&  Run, GridData& Grid, 
 		    const PhysicsData& Physics) {
+
+  NVPROF_PUSH_RANGE("MHD_Residual", 0)
 
   //double time,s_time;
   //static double t_time = 0.0 ,c_time = 0.0 , r_time = 0.0;
@@ -507,6 +510,29 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
   // << r_time/call_count << endl;
 
   call_count += 1;
+
+  NVPROF_POP_RANGE
+
+  PGI_COMPARE(Grid.U, double, Grid.bufsize*8, "U", "mhdres_SR.C", "MHD", 1)
+  if(needs_curlB) {
+    PGI_COMPARE(Grid.curlB, double, Grid.bufsize*3, "curlB", "mhdres_SR.C", "MHD", 2)
+  }
+  if(spitzer) {
+    PGI_COMPARE(Grid.BgradT, double, Grid.bufsize, "BgradT", "mhdres_SR.C", "MHD", 3)
+    PGI_COMPARE(Grid.Rflx, double, Grid.bufsize, "Rflx", "mhdres_SR.C", "MHD", 4)
+  }
+  if(ambipolar) {
+    PGI_COMPARE(Grid.curlBxB, double, Grid.bufsize*3, "curlBxB", "mhdres_SR.C", "MHD", 5)
+    PGI_COMPARE(Grid.R_amb, double, Grid.bufsize*3, "R_amb", "mhdres_SR.C", "MHD", 6)
+  }
+  if(need_diagnostics) {
+    PGI_COMPARE(Grid.tvar1, double, Grid.bufsize, "tvar1", "mhdres_SR.C", "MHD", 7)
+    PGI_COMPARE(Grid.tvar2, double, Grid.bufsize, "tvar2", "mhdres_SR.C", "MHD", 8)
+    PGI_COMPARE(Grid.tvar3, double, Grid.bufsize, "tvar3", "mhdres_SR.C", "MHD", 9)
+    if(ambipolar)
+      PGI_COMPARE(Grid.Qamb, double, Grid.bufsize, "Qamb", "mhdres_SR.C", "MHD", 10)
+  }
+  PGI_COMPARE(&dt_cfl, double, 1, "dt_cfl", "mhdres_SR.C", "MHD", 11)
 
   return dt_cfl;
 }

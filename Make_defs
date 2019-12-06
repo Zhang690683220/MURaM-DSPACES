@@ -1,14 +1,14 @@
-MURaM_HOME_DIR = /home/przybylski/MURaM_GIT
-FFTW3_HOME = /usr
+MURaM_HOME_DIR = /home/efwright/MURaM_main
+FFTW3_HOME = /home/efwright/fftw
 
 # output name
 PROGRAM = mhd3d.x
 
 # Optimization option
-OPT = -O3 -ffast-math -ftree-vectorize 
+OPT = -fast 
 
 # Debugging option (for development) use -pg -g3
-DBG = -Wshadow -Wall 
+DBG = -g
 
 # FILEPATH option (default: ./) - This is useful
 # to write files to special directories on some machines

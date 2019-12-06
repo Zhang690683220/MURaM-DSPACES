@@ -36,3 +36,4 @@ Note: The processors layout needs to be set in parameters.dat -> procs = 2 1 1
 #######################
 Verify for correctnes:
 In order to benchmark against a reference run use the Jupyter notebook TEST/verify_run.ipynb
+

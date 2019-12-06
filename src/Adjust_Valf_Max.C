@@ -5,6 +5,7 @@
 #include "grid.H"
 #include "run.H"
 #include "comm_split.H"
+#include "muramacc.H"
 
 using namespace std;
 
@@ -24,6 +25,8 @@ double lfac(double va2) {
 void Adjust_Valf_Max(const RunData& Run,const GridData& Grid,
 		     const PhysicsData& Physics) {
   
+  NVPROF_PUSH_RANGE("get_damping", 7)
+
   static int ini_flag = 1;
 
   const double max_fill  = Physics.params[i_param_max_fill];
@@ -59,6 +62,9 @@ void Adjust_Valf_Max(const RunData& Run,const GridData& Grid,
       l_sum[1] += 1.0;
     }
   }
+
+  PGI_COMPARE(l_max, double, 3, "l_max", "Adjust_Valf_Max.C", "Adjust_Valf_Max", 1)
+  PGI_COMPARE(l_sum, double, 2, "l_sum", "Adjust_Valf_Max.C", "Adjust_Valf_Max", 2)
   
   MPI_Allreduce(l_max,g_max,3,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
   g_max[1] = sqrt(g_max[1]);
@@ -118,4 +124,6 @@ void Adjust_Valf_Max(const RunData& Run,const GridData& Grid,
     cout << "Adjust_va_max [" << Run.globiter<<"]   " << g_max[0] << "   " << g_max[1] << "   " << va_max << "   |   "
 	 << v_lim << " (" << g_sum[0]<< ")   " << e_lim << " (" << g_sum[1] << ") " << endl;
   
+  NVPROF_POP_RANGE
+
 }

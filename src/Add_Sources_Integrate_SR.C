@@ -9,6 +9,7 @@
 #include "limit_va.H"
 #include "exchange.H"
 #include <stdio.h>
+#include "muramacc.H"
 
 #define XZ_LOOP(G,i,k) \
   for((k)=(G).lbeg[2];(k)<=(G).lend[2];(k)++) \
@@ -34,6 +35,8 @@ void get_damping(const RunData&, const GridData&, const PhysicsData&, double*);
 void Source_Integrate_Tcheck(const RunData& Run, GridData& Grid, 
 			     const PhysicsData& Physics, const int stage) {
   
+  NVPROF_PUSH_RANGE("Source_Integrate_Tcheck", 3)
+
   int i,j,k,node,off0,v;
 
   const double wdt = Run.dt/double(maxstage+1-stage);
@@ -265,10 +268,37 @@ void Source_Integrate_Tcheck(const RunData& Run, GridData& Grid,
     }
 
   }
- 
+
+  NVPROF_POP_RANGE
+
+  PGI_COMPARE(Grid.U, double, Grid.bufsize*8, "U", "Add_Sources_Integrate_SR.C",
+              "Source_Integrate_Tcheck", 1)
+  PGI_COMPARE(Grid.Res, double, Grid.bufsize*8, "Res", "Add_Sources_Integrate_SR.C",
+              "Source_Integrate_Tcheck", 2)
+  if(spitzer) {
+      PGI_COMPARE(Grid.sflx, double, Grid.bufsize, "sflx", "Add_Sources_Integrate_SR.C",
+              "Source_Integrate_Tcheck", 3)
+  }
+  if(ambipolar) {
+      PGI_COMPARE(Grid.v_amb, double, Grid.bufsize*3, "v_amb", "Add_Sources_Integrate_SR.C",
+              "Source_Integrate_Tcheck", 4)
+  }
+  if(Run.need_diagnostics) {
+      PGI_COMPARE(Grid.tvar4, double, Grid.bufsize, "tvar4", "Add_Sources_Integrate_SR.C",
+              "Source_Integrate_Tcheck", 5)
+      PGI_COMPARE(Grid.tvar5, double, Grid.bufsize, "tvar5", "Add_Sources_Integrate_SR.C",
+              "Source_Integrate_Tcheck", 6)
+      PGI_COMPARE(Grid.tvar6, double, Grid.bufsize, "tvar6", "Add_Sources_Integrate_SR.C",
+              "Source_Integrate_Tcheck", 7)
+      PGI_COMPARE(Grid.tvar7, double, Grid.bufsize, "tvar7", "Add_Sources_Integrate_SR.C",
+              "Source_Integrate_Tcheck", 8)
+  }
+   
 }
 /*****************************************************************************/
 void SaveCons(GridData& Grid,const PhysicsData& Physics) {
+
+  NVPROF_PUSH_RANGE("SaveCons", 4)
 
   const int i_beg    = Grid.lbeg[0];
   const int i_end    = Grid.lend[0];
@@ -289,9 +319,24 @@ void SaveCons(GridData& Grid,const PhysicsData& Physics) {
     memcpy(&Grid.v0_amb[off0+i_beg],&Grid.v_amb[off0+i_beg],bufsz*sizeof(Vector));
   }
 
+  NVPROF_POP_RANGE
+
+  PGI_COMPARE(Grid.U0, double, Grid.bufsize*8, "U0", "Add_Sources_Integrate_SR.C",
+              "SaveCons", 9)
+  if(Physics.params[i_param_spitzer] > 0.0) {
+    PGI_COMPARE(Grid.sflx0, double, Grid.bufsize, "sflx0", "Add_Sources_Integrate_SR.C",
+                "SaveCons", 10)
+  }
+  if(Physics.params[i_param_ambipolar] > 0.0) {
+    PGI_COMPARE(Grid.v0_amb, double, Grid.bufsize*3, "v0_amb", "Add_Sources_Integrate_SR.C",
+                "SaveCons", 11)
+  }
+
 } 
 /*****************************************************************************/
 void TCheck(const RunData&  Run, GridData& Grid, const PhysicsData& Physics) {
+
+  NVPROF_PUSH_RANGE("TCheck", 5)
 
   static int ini_flag = 1;
 
@@ -382,10 +427,19 @@ void TCheck(const RunData&  Run, GridData& Grid, const PhysicsData& Physics) {
       
   }
 
+  NVPROF_POP_RANGE
+
+  PGI_COMPARE(Grid.U, double, Grid.bufsize*8, "U", "Add_Sources_Integrate_SR.C", "TCheck", 12)
+  if(Run.need_diagnostics) {
+    PGI_COMPARE(Grid.tvar7, double, Grid.bufsize, "tvar7", "Add_Sources_Integrate_SR.C", "TCheck", 13)
+  }
+
 }
 /*****************************************************************************/
 void get_damping(const RunData&  Run, const GridData& Grid,
 		 const PhysicsData& Physics, double* my_mean) {
+
+  NVPROF_PUSH_RANGE("get_damping", 6)
 
   static int ini_flag = 1;
 
@@ -466,5 +520,14 @@ void get_damping(const RunData&  Run, const GridData& Grid,
       cout << "damp: tau_phot = " << rbuf[3] << endl;
     }
   }
+
+  NVPROF_POP_RANGE
+
+  PGI_COMPARE(&fmax, double, 1, "fmax", "Add_Sources_Integrate_SR.C", "get_damping", 14)
+  PGI_COMPARE(&vmax, double, 1, "vmax", "Add_Sources_Integrate_SR.C", "get_damping", 15)
+  PGI_COMPARE(&hmax, double, 1, "hmax", "Add_Sources_Integrate_SR.C", "get_damping", 16)
+  PGI_COMPARE(&hphot, double, 1, "hphot", "Add_Sources_Integrate_SR.C", "get_damping", 17)
+  PGI_COMPARE(my_mean, double, vsize, "my_mean", "Add_Sources_Integrate_SR.C", "get_damping", 18)
+
 }
 /*****************************************************************************/

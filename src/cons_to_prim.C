@@ -7,6 +7,7 @@
 #include "precision.h"
 #include "eos.H"
 #include "run.H"
+#include "muramacc.H"
 
 double eos_gamma = 1.65;
 double eos_mu = 0.62;
@@ -27,6 +28,8 @@ inline int invalid_eos(double a, double b){
 }
 
 void ConsToPrim(GridData& Grid, const PhysicsData& Physics, const RunData& Run) {
+
+  NVPROF_PUSH_RANGE("ConsToPrim", 2)
 
   //double time,s_time;
   //static double t_time = 0.0 ,c_time = 0.0 , r_time = 0.0;
@@ -214,4 +217,14 @@ void ConsToPrim(GridData& Grid, const PhysicsData& Physics, const RunData& Run) 
 
     }
   }
+
+  NVPROF_POP_RANGE
+
+  PGI_COMPARE(Grid.U, double, Grid.bufsize*8, "U", "cons_to_prim.C", "ConsToPrim", 1)
+  PGI_COMPARE(Grid.pres, double, Grid.bufsize, "pres", "cons_to_prim.C", "ConsToPrim", 2)
+  PGI_COMPARE(Grid.temp, double, Grid.bufsize, "temp", "cons_to_prim.C", "ConsToPrim", 3)
+  PGI_COMPARE(Grid.ne, double, Grid.bufsize, "ne", "cons_to_prim.C", "ConsToPrim", 4)
+  PGI_COMPARE(Grid.rhoi, double, Grid.bufsize, "rhoi", "cons_to_prim.C", "ConsToPrim", 5)
+  PGI_COMPARE(Grid.amb, double, Grid.bufsize, "amb", "cons_to_prim.C", "ConsToPrim", 6)
+
 }

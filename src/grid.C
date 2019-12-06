@@ -3,6 +3,7 @@
 #include "grid.H"
 #include "run.H"
 #include "comm_split.H"
+#include "muramacc.H"
 using namespace std;
 
 GridData::GridData() {
