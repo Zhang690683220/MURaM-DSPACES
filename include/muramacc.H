@@ -27,11 +27,16 @@ const uint32_t ProfilerColors[] = { 0xff00ff00, 0xff0000ff, 0xffffff00, 0xffff00
 // PGI acc_compare pgi_compare for C++
 #if defined(DEBUG) && defined(PGICOMPARE) && defined(__PGI)
 #include <openacc.h>
-#define PGI_COMPARE(ptr,type,size,name,file,func,line) {         \
-    type* pgi_compare_ptr = (type*)ptr;                          \
-    _Pragma(STRINGIFY(acc update self(pgi_compare_ptr[:size])))  \
-    pgi_compare(pgi_compare_ptr, #type, size,                    \
-    name, file, func, line);                                     \
+#define PGI_COMPARE(ptr,type,numele,name,file,func,line) {          \
+    type* pgi_compare_ptr = (type*)ptr;                             \
+    if( acc_is_present( pgi_compare_ptr , numele*sizeof(type) ) ) { \
+    _Pragma(STRINGIFY(acc update self(pgi_compare_ptr[:numele])))   \
+    }                                                               \
+    pgi_compare(pgi_compare_ptr, #type, numele,                     \
+    name, file, func, line);                                        \
+    if( acc_is_present( pgi_compare_ptr , numele*sizeof(type) ) ) { \
+    _Pragma(STRINGIFY(acc update device(pgi_compare_ptr[:numele])))   \
+    }                                                               \
 }
 #else
 #define PGI_COMPARE(ptr,type,size,name,file,func,line)

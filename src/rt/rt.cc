@@ -747,17 +747,18 @@ double RTS::wrapper(int rt_upd,GridData &Grid,RunData &Run,const PhysicsData &Ph
   for(int YDIR=FWD;YDIR<=BWD;++YDIR)
     for(int XDIR=RIGHT;XDIR<=LEFT;++XDIR){
       if(isgbeg[0]==1)
-        for(int l=0;l<NMU;++l)
+        for(int l=0;l<NMU;++l) {
         for(int y=0;y<ny;++y)
           for(int x=0;x<nx;++x)
             z_rbuf[band][YDIR][XDIR][UP][l][x*ny+y]=B[yl+y][xl+x][zl];
-
-  PGI_COMPARE(&z_rbuf[band][0][0][0][0][0], double, 2*2*2*NMU*ny*nx, "z_rbuf", "rt.cc", "RTS::wrapper", 11)
-          
+        PGI_COMPARE(&z_rbuf[band][0][0][0][l][0], double, ny*nx, "z_rbuf", "rt.cc", "RTS::wrapper", 11)
+        } // end l
 // *****************************************************************
 // *    no incoming radiation on the top                           *
 // *****************************************************************
-          if(isgend[0]==1) memset(z_rbuf[band][YDIR][XDIR][DOWN][0],0,NMU*nx*ny*sizeof(real));
+          if(isgend[0]==1) {
+            memset(z_rbuf[band][YDIR][XDIR][DOWN][0],0,NMU*nx*ny*sizeof(real));
+          } // end isgend[0]
           }
 // *****************************************************************
 // *  solve the transfer                                           *

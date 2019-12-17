@@ -6,6 +6,7 @@
 #include "grid.H"
 #include "run.H"
 #include "limit_va.H"
+#include "src_int_tck.H"
 #include "muramacc.H"
 
 #define OUTER_LOOP(G,i,j,d1,d2) \
@@ -97,15 +98,30 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
     sflx[vsize],fcond[vsize],curlB[3][vsize], bb[vsize], vv[vsize], vv_amb[vsize],
     v_amb[3][vsize], amb_fac[vsize], D_n[vsize], temp[vsize], BgradT[vsize], hyp_spt[vsize];
     
-  // Estimate max characteristic velocity from previous time step (not defined at restart, use va_max instead) 
+  // Estimate max characteristic velocity from previous time step (not defined at restart, set to zero) 
   if (Run.dt > 0.0) {
     cmax_hyp   = min(Run.CFL,CFL_hyp)*dxmin/Run.dt;
     nu_hyp_max = avr_max/Run.dt;
     hyp_diff   = eps_hyp/Run.dt;
   } else {
-    cmax_hyp   = 1.0/sqrt(inv_va2max);
+    cmax_hyp   = 0.0;
     nu_hyp_max = avr_max*cmax_hyp/(min(Run.CFL,CFL_hyp)*dxmin);
     hyp_diff   = eps_hyp*cmax_hyp/(min(Run.CFL,CFL_hyp)*dxmin);
+  }
+
+  double dt_diff_fac;
+  if(Grid.NDIM == 1){
+    dx=Grid.dx[0];
+    dt_diff_fac = 0.5*dx*dx;
+  } else if(Grid.NDIM == 2){
+    dx=Grid.dx[0];
+    dy=Grid.dx[1];
+    dt_diff_fac = 0.5/(1./(dx*dx)+1./(dy*dy));
+  } else {
+    dx=Grid.dx[0];
+    dy=Grid.dx[1];
+    dz=Grid.dx[2]; 
+    dt_diff_fac = 0.5/(1./(dx*dx)+1./(dy*dy)+1./(dz*dz));
   }
   
   if(needs_curlB)
@@ -432,7 +448,8 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
 	    amb_vel_max = max(amb_vel_max,vv_amb[i]);
 	    
 	    c_lim  = cmax_hyp - vv[i];
-	    nu_hyp = min(c_lim*c_lim/amb_diff,nu_hyp_max);
+            f_lim = 2.0*dt_diff_fac/(dxmin*dxmin);
+            nu_hyp = min(c_lim*c_lim*f_lim/amb_diff,nu_hyp_max);
 	    
 	    Grid.R_amb[node] += nu_hyp*(amb_fac[i]*Grid.curlBxB[node]-Grid.v_amb[node]);
 	  }
@@ -465,11 +482,12 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
 
   dt_cfl = dxmin/cmax;
 
-  if(ambipolar && !(call_count%4)){
-    dt_amb = Physics.params[i_param_ambipolar]*dxmin*dxmin/(amb_diff_max)/Run.CFL;
-    dt_cfl = min(dt_cfl,dt_amb);
-
-    if(Run.verbose > 3){
+  if(ambipolar){
+    dt_amb = dt_diff_fac/amb_diff_max;
+    if(Run.CFL > 1) dt_amb *= 0.5;
+    dt_cfl = min(dt_cfl,dt_amb*Physics.params[i_param_ambipolar]);
+    
+    if( !(call_count%maxstage) && (Run.verbose > 3) ){
       double sbuf[2],rbuf[2];
       sbuf[0] = amb_diff_max;
       sbuf[1] = amb_vel_max;
@@ -477,27 +495,15 @@ double MHD_Residual(const RunData&  Run, GridData& Grid,
       if( Run.rank == 0 ){
 	cout << " Amb_diff_max = " << rbuf[0]      << " cm^2/s"         << endl;
 	cout << " Amb_vel_max  = " << rbuf[1]*1e-5 << " km/s"           << endl;
-	cout << " Amb_speedup  = " << rbuf[0]*Run.dt/(dxmin*dxmin) << endl;;
+	cout << " Amb_speedup  = " << rbuf[0]*Run.dt/dt_diff_fac/Run.CFL << endl;
       }
     }
   }
   
   if (eta > 0.0) {
-    if(Grid.NDIM == 1){
-      dx=Grid.dx[0];
-      dt_res = 0.5*dx*dx / eta;
-    } else if(Grid.NDIM == 2){
-      dx=Grid.dx[0];
-      dy=Grid.dx[1];
-      dt_res = 0.5/(1./(dx*dx)+1./(dy*dy)) / eta;
-    } else {
-      dx=Grid.dx[0];
-      dy=Grid.dx[1];
-      dz=Grid.dx[2]; 
-      dt_res = 0.5/(1./(dx*dx)+1./(dy*dy)+1./(dz*dz)) / eta;
-    }
-    dt_res /= Run.CFL;
-    
+    dt_res = dt_diff_fac/eta;
+    if(Run.CFL > 1) dt_res *= 0.5;
+ 
     dt_cfl = min(dt_cfl,dt_res);
   }
 
