@@ -5,7 +5,7 @@
 #include "grid.H"
 #include "run.H"
 #include "comm_split.H"
-#include "muramacc.H"
+#include "ACCH.h"
 
 using namespace std;
 

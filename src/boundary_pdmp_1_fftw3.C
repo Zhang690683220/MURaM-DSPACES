@@ -8,7 +8,7 @@
 #include "eos.H"
 #include "comm_split.H"
 #include "rt/rt.h"
-#include "muramacc.H"
+#include "ACCH.h"
 
 using namespace std;
 

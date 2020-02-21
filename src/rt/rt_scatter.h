@@ -9,7 +9,7 @@
 
 class RTS_SCATTER:public RTS{
     protected:
-        double ****S;
+        double **S;
         double ** J_havg;
         double ***lambda_star,***lambda_old;
         double ** logtau_5000;

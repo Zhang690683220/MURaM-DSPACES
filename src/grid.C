@@ -3,7 +3,7 @@
 #include "grid.H"
 #include "run.H"
 #include "comm_split.H"
-#include "muramacc.H"
+#include "ACCH.h"
 using namespace std;
 
 GridData::GridData() {
@@ -93,21 +93,21 @@ GridData::GridData() {
 }
 
 GridData::~GridData() {
-    delete[] U;
+    ACCH::Free(U, bufsize*sizeof(cState));
     delete[] U0;
     delete[] Res;
     
-    delete[] pres;
-    delete[] temp;
+    ACCH::Free(pres, bufsize*sizeof(double));
+    ACCH::Free(temp, bufsize*sizeof(double));
 
     delete[] ne;
     delete[] amb;
     delete[] rhoi;
 
-    delete[] Qtot;
-    delete[] Stot;
-    delete[] Jtot;
-    delete[] Tau;
+    ACCH::Free(Qtot, bufsize*sizeof(double));
+    ACCH::Free(Stot, bufsize*sizeof(double));
+    ACCH::Free(Jtot, bufsize*sizeof(double));
+    ACCH::Free(Tau, bufsize*sizeof(double));
 
     delete[] Qthin;
     delete[] QH;
@@ -143,6 +143,8 @@ GridData::~GridData() {
     delete[] tvar6;
     delete[] tvar7;
     delete[] tvar8;
+
+    ACCH::Delete(this, sizeof(GridData));
 }
 
 void GridData::Init(const RunData &Run,const PhysicsData &Physics) {
@@ -264,12 +266,14 @@ void GridData::Init(const RunData &Run,const PhysicsData &Physics) {
     vsize = vsize > vs ? vsize : vs;
   }
 
-  U   = new cState[bufsize];
+  ACCH::Copyin(this, sizeof(GridData));
+
+  U = (cState*) ACCH::Malloc(bufsize*sizeof(cState));
   U0  = new cState[bufsize];
   Res = new cState[bufsize];
 
-  pres = new double[bufsize]();
-  temp = new double[bufsize]();
+  pres = (double*) ACCH::Malloc(bufsize*sizeof(double));
+  temp = (double*) ACCH::Malloc(bufsize*sizeof(double));
 
   divB = new double[bufsize]();
   phi = new double[bufsize]();
@@ -278,10 +282,10 @@ void GridData::Init(const RunData &Run,const PhysicsData &Physics) {
   rhoi = new double[bufsize]();
   amb = new double[bufsize]();
 
-  Qtot = new double[bufsize]();
-  Jtot = new double[bufsize]();
-  Stot = new double[bufsize]();
-  Tau  = new double[bufsize]();
+  Qtot = (double*) ACCH::Malloc(bufsize*sizeof(double));
+  Jtot = (double*) ACCH::Malloc(bufsize*sizeof(double));
+  Stot = (double*) ACCH::Malloc(bufsize*sizeof(double));
+  Tau  = (double*) ACCH::Malloc(bufsize*sizeof(double));
 
   if(Physics.rt_ext[i_ext_cor]>=1)
     Qthin = new double[bufsize]();

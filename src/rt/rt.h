@@ -101,13 +101,14 @@ protected:
   int zl,zh,nz,zo;
 // driver
   int ***** numits;
-  double **I_o, *** I_n;
+  double *I_o, *I_n;
   int ibase[NMU],ixstep[4],iystep[4],izstep[4];
-  double ***Fx,***Fy,***Fz;
+  double *Fx,*Fy,*Fz;
   double a_00[3][NMU],a_01[3][NMU],a_10[3][NMU],a_11[3][NMU];
-  double ***Tau;
+  double *Tau;
   double  xmu[3][NMU],wmu[NMU];
   double  ds_upw[NMU];//, ds_dnw[NMU] ,dz_upw, dz_dnw;
+  double **coeff;
 // wrapper
   double F_o,dt_rad;
   double * Fr_mean, * gFr_mean;
@@ -128,11 +129,11 @@ protected:
   double *** Col_out;
  
   // Multi-dim arrays
-  double ***Qt,***St,***Jt;
-  double ***rho,***lgTe,***lgPe,***ne;
-  double ***kap, ***abn, ***sig;
-  double ***B,***J_band;
-  int *** T_ind, *** P_ind;
+  double ***Qt,*St,*Jt;
+  double *rho,*lgTe,*lgPe,*ne;
+  double *kap, *abn, *sig;
+  double *B,*J_band;
+  int * T_ind, * P_ind;
 
   // Stuff for Kappa Tables
   // band-P-T tabulated opacities
@@ -173,18 +174,21 @@ protected:
   int fail_count;
   int total_iter;
 
-  int ***tr_switch;
+  double * I_band;
+
+  int *tr_switch;
   void driver(double DZ, double DX, double DY, int band); 
-  void interpol(int,int,int,int,int,int,int,int,int,int,double**,double***);
+  void interpol(int,int,int,int,int,int,int,int,int,int,double**,double*);
+  void integrate(double ** coeff, const double c[4], const int stride[2], int ystep, int xstep, int zstep, int yi_i, int yi_f, int xi_i, int xi_f, int zi_i, int zi_f);
   double error(int,int,int,int,int,double);
   void readbuf(int band,int l,int  DIR,int XDIR,int YDIR);
   void writebuf(int band, int l,int DIR,int XDIR,int YDIR);
   void exchange(int band,int l,int DIR,int XDIR,int YDIR);
   void flux(int l,int DIR,int XDIR,int YDIR);
   void qrad(const double DZ,const double DX,const double DY,const int band);
-  void tauscale_qrad(int band, double DX,double DY,double DZ,double*** Ss);
+  void tauscale_qrad(int band, double DX,double DY,double DZ,double* Ss);
   void calc_Qtot_and_Tau(GridData&, const RunData&, const PhysicsData&);
-  void get_Tau_and_Iout(GridData&, const RunData&, const PhysicsData&, double DZ, float * B_Iout_tab, float ** kap_Iout_tab, double ** I_band, int calc_Int);
+  void get_Tau_and_Iout(GridData&, const RunData&, const PhysicsData&, double DZ, float * B_Iout_tab, float ** kap_Iout_tab, double * I_band, int calc_Int);
   void load_bins(char *);
   void save_1D_avg(char*,int,double);
 

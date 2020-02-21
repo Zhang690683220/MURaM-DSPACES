@@ -5,7 +5,7 @@
 #include "grid.H"
 #include "run.H"
 #include "exchange.H"
-#include "muramacc.H"
+#include "ACCH.h"
 
 /*
   Add contributions from divB heating to Qres for diagnostic reasons.

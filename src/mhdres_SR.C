@@ -7,7 +7,7 @@
 #include "run.H"
 #include "limit_va.H"
 #include "src_int_tck.H"
-#include "muramacc.H"
+#include "ACCH.h"
 
 #define OUTER_LOOP(G,i,j,d1,d2) \
   for((j)=(G)[(d2)][0];(j)<=(G)[(d2)][1];(j)++) \

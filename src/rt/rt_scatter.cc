@@ -6,15 +6,16 @@
 #include "rt.h"
 #include "rt_scatter.h"
 #include "comm_split.H"
+#include "ACCH.h"
 
 
 RTS_SCATTER::~RTS_SCATTER(void)
 {
   // source function for each band
   if (!fullodf){
-    del_d4dim(S,0,Nbands-1,yl,yh,xl,xh,zl,zh);
+    ACCH::Free2D<double>(S, Nbands, nx*ny*nz);
   } else {
-    del_d4dim(S,0,0,yl,yh,xl,xh,zl,zh);
+    ACCH::Free2D<double>(S, 1, nx*ny*nz);
   }
 
   del_d2dim(J_havg,0,Nbands-1,zl,zh);
@@ -26,7 +27,7 @@ RTS_SCATTER::~RTS_SCATTER(void)
   del_d3dim(lgTau,yl,yh,xl,xh,zl,zh);
 
   // and the nel
-  del_d3dim(ne,yl,yh,xl,xh,zl,zh);
+  ACCH::Free(ne, nx*ny*nz*sizeof(double));
 
   if ((fullodf)&&(scatter==0)){
     del_f3dim(acont_pT,0,Nlam-1,0,NT-1,0,Np-1);
@@ -48,7 +49,7 @@ RTS_SCATTER::~RTS_SCATTER(void)
 RTS_SCATTER::RTS_SCATTER(GridData & Grid,RunData & Run,PhysicsData & Physics):RTS(Grid,Run,Physics){
   
   // electron number
-  ne = d3dim(yl,yh,xl,xh,zl,zh);
+  ne = (double*) ACCH::Malloc(nx*ny*nz*sizeof(double));
 
   // The lambda_star
   lambda_star = d3dim(yl,yh,xl,xh,zl,zh);
@@ -63,11 +64,11 @@ RTS_SCATTER::RTS_SCATTER(GridData & Grid,RunData & Run,PhysicsData & Physics):RT
    * averaged J */
 
   if (!fullodf){
-    S=d4dim(0,Nbands-1,yl,yh,xl,xh,zl,zh);
-    memset(S[0][yl][xl]+zl,0,nx*ny*nz*Nbands*sizeof(double)); // MHD grid
+    S = ACCH::Malloc2D<double>(Nbands, nx*ny*nz);
+    memset(S[0],0,nx*ny*nz*Nbands*sizeof(double)); // MHD grid
   } else {
-    S=d4dim(0,0,yl,yh,xl,xh,zl,zh);
-    memset(S[0][yl][xl]+zl,0,nx*ny*nz*sizeof(double)); // MHD grid
+    S = ACCH::Malloc2D<double>(1, nx*ny*nz);
+    memset(S[0],0,nx*ny*nz*sizeof(double)); // MHD grid
   }
 
   J_havg=d2dim(0,Nbands-1,zl,zh);
@@ -91,11 +92,8 @@ double RTS_SCATTER::wrapper(int rt_upd,GridData &Grid,RunData &Run,const Physics
   double VR_P[14] = {1.4925147328502524,1.3014386981388302, 1.160,0.956,0.758,0.493,
                     0.331,0.209,0.100,0.063,0.040,0.023,0.017041126723312636,0.014758048651498613};
 
-  double ** I_band;
-  I_band=d2dim(yl,yh,xl,xh);        // RT grid
-
-  memset(I_band[yl]+xl,0,nx*ny*sizeof(double));
-  memset(I_o[yl]+xl,0,nx*ny*sizeof(double));
+  memset(I_band,0,nx*ny*sizeof(double));
+  memset(I_o,0,nx*ny*sizeof(double));
 
   double DX=Grid.dx[1],DZ=Grid.dx[0],DY=Grid.dx[2];
   int cont_bin = Physics.rt[i_rt_iout];
@@ -116,7 +114,7 @@ double RTS_SCATTER::wrapper(int rt_upd,GridData &Grid,RunData &Run,const Physics
       get_Tau_and_Iout(Grid, Run, Physics,DZ,B_tab[band],kap_tab[band],I_band,need_I);
       for (int y=yl;y<=yh;y++)
         for (int x=xl;x<=xh;x++)
-          I_o[y][x] +=I_band[y][x];
+          I_o[(y-yl)*nx+(x-xl)] +=I_band[(y-yl)*nx+(x-xl)];
       }
     }
     // If cont_bin = 0 and need_I = 1 we want the output intensity to be the 0th continuum bin
@@ -124,7 +122,7 @@ double RTS_SCATTER::wrapper(int rt_upd,GridData &Grid,RunData &Run,const Physics
       get_Tau_and_Iout(Grid, Run, Physics,DZ,B_tab[0],kap_tab[0],I_band,need_I);
       for (int y=yl;y<=yh;y++)
         for (int x=xl;x<=xh;x++)
-          I_o[y][x] +=I_band[y][x];
+          I_o[(y-yl)*nx+(x-xl)] +=I_band[(y-yl)*nx+(x-xl)];
     }
     // if we have the band, we want a tau5000 reference wavelength. If cont_bin=1 and need_I we want
     // output intensity to be 5000A.
@@ -139,17 +137,16 @@ double RTS_SCATTER::wrapper(int rt_upd,GridData &Grid,RunData &Run,const Physics
       if ((cont_bin==1)&&(need_I==1))
         for (int y=yl;y<=yh;y++)
           for (int x=xl;x<=xh;x++)
-            I_o[y][x] +=I_band[y][x];
+            I_o[(y-yl)*nx+(x-xl)] +=I_band[(y-yl)*nx+(x-xl)];
     }
 
     calc_Qtot_and_Tau(Grid, Run, Physics);
-    del_d2dim(I_band,yl,yh,xl,xh);
     return dt_rad;
   }
   
-  memset(St[yl][xl]+zl,0,nx*ny*nz*sizeof(double)); // MHD grid
-  memset(Jt[yl][xl]+zl,0,nx*ny*nz*sizeof(double)); // MHD grid
-  memset(Qt[yl+yo][xl+xo]+zl+zo,0,(nx-xo)*(ny-yo)*(nz-zo)*sizeof(double)); // MHD grid
+  memset(St,0,nx*ny*nz*sizeof(double)); // MHD grid
+  memset(Jt,0,nx*ny*nz*sizeof(double)); // MHD grid
+  memset(Qt[0][0],0,(nx-xo)*(ny-yo)*(nz-zo)*sizeof(double)); // MHD grid
     
 // *****************************************************************
 // *        interpolate opacity and Planck function (B)            *
@@ -184,41 +181,41 @@ double RTS_SCATTER::wrapper(int rt_upd,GridData &Grid,RunData &Run,const Physics
         //disbale RT if Temp > 2e4 above the photosphere
         double pswitch = min(max(pm-Pres_TR,0.0),1.0);
         double tswitch = min(max(Temp_TR-Tm,0.0),1.0);
-        tr_switch[y][x][z] = (int) max(pswitch,tswitch);
+        tr_switch[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)] = (int) max(pswitch,tswitch);
 
-        ne[y][x][z] = nm;
-        lgTe[y][x][z]=log(Tm);
-        lgPe[y][x][z]=log(pm);
-        rho[y][x][z] = rm;
+        ne[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)] = nm;
+        lgTe[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)]=log(Tm);
+        lgPe[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)]=log(pm);
+        rho[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)] = rm;
 
-        lgTe[y][x][z] = min(max(lgTe[y][x][z],(double) tab_T[0]),(double) tab_T[NT-1]);
-        lgPe[y][x][z] = min(max(lgPe[y][x][z],(double) tab_p[0]),(double) tab_p[Np-1]);
+        lgTe[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)] = min(max(lgTe[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)],(double) tab_T[0]),(double) tab_T[NT-1]);
+        lgPe[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)] = min(max(lgPe[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)],(double) tab_p[0]),(double) tab_p[Np-1]);
         
         // Search table once for all RT bands
         int l=0;
         int m=0;
-        if(lgTe[y][x][z]<tab_T[0])
+        if(lgTe[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)]<tab_T[0])
           l=0;
-        else if(lgTe[y][x][z]>tab_T[NT-1])
+        else if(lgTe[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)]>tab_T[NT-1])
           l=NT-2;
         else
           for (l=0; l<=NT-2; l++)
-            if ((lgTe[y][x][z] >= tab_T[l]) && (lgTe[y][x][z] <= tab_T[l+1]))
+            if ((lgTe[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)] >= tab_T[l]) && (lgTe[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)] <= tab_T[l+1]))
               break;
 
-        if(lgPe[y][x][z]<tab_p[0])
+        if(lgPe[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)]<tab_p[0])
           m=0;
-        else if(lgPe[y][x][z]>tab_p[Np-1])
+        else if(lgPe[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)]>tab_p[Np-1])
           m=Np-2;
         else
           for (m=0; m<=Np-2; m++)
-             if ((lgPe[y][x][z] >= tab_p[m]) && (lgPe[y][x][z] <= tab_p[m+1]))
+             if ((lgPe[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)] >= tab_p[m]) && (lgPe[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)] <= tab_p[m+1]))
                break;
 
-        T_ind[y][x][z] = l;
-        P_ind[y][x][z] = m;
+        T_ind[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)] = l;
+        P_ind[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)] = m;
 
-        lgTau[y][x][z] = min(max(log(Tau[y][x][z]),(double) tau_pp_tab[0]),(double) tau_pp_tab[Npp-1]);
+        lgTau[y][x][z] = min(max(log(Tau[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)]),(double) tau_pp_tab[0]),(double) tau_pp_tab[Npp-1]);
 
         int t=0;
         if(lgTau[y][x][z] < tau_pp_tab[0])
@@ -271,27 +268,27 @@ double RTS_SCATTER::wrapper(int rt_upd,GridData &Grid,RunData &Run,const Physics
         for(int y=yl;y<=yh;++y){
           for(int x=xl;x<=xh;++x){
             for(int z=zl;z<=zh;++z){
-              int l = T_ind[y][x][z];
-              int m = P_ind[y][x][z];
+              int l = T_ind[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)];
+              int m = P_ind[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)];
         
-              double xt = (lgTe[y][x][z]-tab_T[l])*invT_tab[l];
-              double xp = (lgPe[y][x][z]-tab_p[m])*invP_tab[m];
+              double xt = (lgTe[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)]-tab_T[l])*invT_tab[l];
+              double xp = (lgPe[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)]-tab_p[m])*invP_tab[m];
         
               // Interpolate for kappa and B
-              B[y][x][z]=exp(xt*B_tab[band][l+1]+(1.-xt)*B_tab[band][l]);
+              B[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)]=exp(xt*B_tab[band][l+1]+(1.-xt)*B_tab[band][l]);
         
               double kap1 = exp(xt*(xp*kap_tab[band][l+1][m+1]+(1.-xp)*kap_tab[band][l+1][m])+
               (1.-xt)*(xp*kap_tab[band][l][m+1]+(1.-xp)*kap_tab[band][l][m]));
               
-              kap[y][x][z] = kap1;
-              abn[y][x][z] = eps_const;
-              sig[y][x][z] = (1.0-eps_const);
+              kap[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)] = kap1;
+              abn[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)] = eps_const;
+              sig[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)] = (1.0-eps_const);
 
               /* TR switch turn off kappa and B */
-              B[y][x][z] *= tr_switch[y][x][z];
-              sig[y][x][z] *= tr_switch[y][x][z];
-              abn[y][x][z] *= tr_switch[y][x][z];
-              kap[y][x][z] *= tr_switch[y][x][z];
+              B[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)] *= tr_switch[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)];
+              sig[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)] *= tr_switch[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)];
+              abn[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)] *= tr_switch[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)];
+              kap[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)] *= tr_switch[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)];
             }
           }
         }
@@ -299,18 +296,18 @@ double RTS_SCATTER::wrapper(int rt_upd,GridData &Grid,RunData &Run,const Physics
         for(int y=yl;y<=yh;++y){
           for(int x=xl;x<=xh;++x){
             for(int z=zl;z<=zh;++z){
-              int l = T_ind[y][x][z];
-              int m = P_ind[y][x][z];
+              int l = T_ind[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)];
+              int m = P_ind[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)];
 
               int t = Tau_ind[y][x][z];
 
-              double xt   = (lgTe[y][x][z]-tab_T[l])*invT_tab[l];
-              double xp   = (lgPe[y][x][z]-tab_p[m])*invP_tab[m];
+              double xt   = (lgTe[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)]-tab_T[l])*invT_tab[l];
+              double xp   = (lgPe[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)]-tab_p[m])*invP_tab[m];
              
               double xtau = (lgTau[y][x][z] - tau_pp_tab[t])*invtau_pp_tab[t];
 
               // Interpolate for kappa and B
-              B[y][x][z]=exp(xt*B_tab[band][l+1]+(1.-xt)*B_tab[band][l]);
+              B[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)]=exp(xt*B_tab[band][l+1]+(1.-xt)*B_tab[band][l]);
         
               double kap1 = exp(xt*(xp*kap_tab[band][l+1][m+1]+(1.0-xp)*kap_tab[band][l+1][m])+
               (1.-xt)*(xp*kap_tab[band][l][m+1]+(1.-xp)*kap_tab[band][l][m]));
@@ -331,16 +328,16 @@ double RTS_SCATTER::wrapper(int rt_upd,GridData &Grid,RunData &Run,const Physics
               kap1 = kap1*(1.0-weight) + kap2*weight;
               sig1 = sig1*(1.0-weight) + sig2*weight;
 
-              kap[y][x][z] = abn1+sig1;
-              abn[y][x][z] = abn1/(abn1+sig1);
-              sig[y][x][z] = sig1/(abn1+sig1);
+              kap[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)] = abn1+sig1;
+              abn[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)] = abn1/(abn1+sig1);
+              sig[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)] = sig1/(abn1+sig1);
 
               /* TR switch turn off kappa and B */
 
-              B[y][x][z] *= tr_switch[y][x][z];
-              sig[y][x][z] *= tr_switch[y][x][z];
-              abn[y][x][z] *= tr_switch[y][x][z];
-              kap[y][x][z] *= tr_switch[y][x][z];
+              B[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)] *= tr_switch[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)];
+              sig[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)] *= tr_switch[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)];
+              abn[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)] *= tr_switch[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)];
+              kap[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)] *= tr_switch[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)];
             }
           }
         }
@@ -348,8 +345,8 @@ double RTS_SCATTER::wrapper(int rt_upd,GridData &Grid,RunData &Run,const Physics
       if (ini_flag[band]){
         for(int y=yl;y<=yh;++y)
           for(int x=xl;x<=xh;++x){
-            S[band_S][y][x][zl] = B[y][x][zl];
-            S[band_S][y][x][zh] = 0.0;
+            S[band_S][(y-yl)*nx*nz+(x-xl)*nz] = B[(y-yl)*nx*nz+(x-xl)*nz];
+            S[band_S][(y-yl)*nx*nz+(x-xl)*nz+(nz-1)] = 0.0;
           }
         ini_flag = 0;
       }
@@ -359,14 +356,14 @@ double RTS_SCATTER::wrapper(int rt_upd,GridData &Grid,RunData &Run,const Physics
           for(int x=xl;x<=xh;++x){
             for(int z=zl;z<=zh;++z){
             
-              int l = T_ind[y][x][z];
-              int m = P_ind[y][x][z];
+              int l = T_ind[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)];
+              int m = P_ind[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)];
       
-              double xt = (lgTe[y][x][z]-tab_T[l])*invT_tab[l];
-              double xp = (lgPe[y][x][z]-tab_p[m])*invP_tab[m];
+              double xt = (lgTe[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)]-tab_T[l])*invT_tab[l];
+              double xp = (lgPe[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)]-tab_p[m])*invP_tab[m];
       
               // Interpolate for kappa and B
-              B[y][x][z]=exp(xt*B_tab[band][l+1]+(1.-xt)*B_tab[band][l]);
+              B[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)]=exp(xt*B_tab[band][l+1]+(1.-xt)*B_tab[band][l]);
       
               double kap1 = exp(xt*(xp*kap_tab[band][l+1][m+1]+(1.-xp)*kap_tab[band][l+1][m])+
               (1.-xt)*(xp*kap_tab[band][l][m+1]+(1.-xp)*kap_tab[band][l][m]));
@@ -375,20 +372,20 @@ double RTS_SCATTER::wrapper(int rt_upd,GridData &Grid,RunData &Run,const Physics
                 (1.-xt)*(xp*acont_pT[nu_ind][l][m+1]+(1.-xp)*acont_pT[nu_ind][l][m]);
 
               kap1 = kap1+acont;
-              kap[y][x][z] = kap1;
-              abn[y][x][z] = eps_const;
-              sig[y][x][z] = (1-eps_const);
+              kap[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)] = kap1;
+              abn[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)] = eps_const;
+              sig[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)] = (1-eps_const);
               
               /* TR switch turn off kappa and B */
               
-              B[y][x][z] *= tr_switch[y][x][z];
-              sig[y][x][z] *= tr_switch[y][x][z];
-              abn[y][x][z] *= tr_switch[y][x][z];
-              kap[y][x][z] *= tr_switch[y][x][z];
+              B[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)] *= tr_switch[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)];
+              sig[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)] *= tr_switch[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)];
+              abn[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)] *= tr_switch[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)];
+              kap[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)] *= tr_switch[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)];
               
               // For a full ODF only one band in S to save memory. Instead, use an averaged J as a first guess.
 
-              S[band_S][y][x][z]=B[y][x][z]*abn[y][x][z]+sig[y][x][z]*J_havg[band][z];
+              S[band_S][(y-yl)*nx*nz+(x-xl)*nz+(z-zl)]=B[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)]*abn[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)]+sig[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)]*J_havg[band][z];
               J_havg[band][z] = 0.0;
             }
           }
@@ -398,17 +395,17 @@ double RTS_SCATTER::wrapper(int rt_upd,GridData &Grid,RunData &Run,const Physics
           for(int x=xl;x<=xh;++x){
             for(int z=zl;z<=zh;++z){
         
-              double nel = ne[y][x][z];
-              double TT = exp(lgTe[y][x][z]);
+              double nel = ne[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)];
+              double TT = exp(lgTe[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)]);
               
-              int l = T_ind[y][x][z];
-              int m = P_ind[y][x][z];
+              int l = T_ind[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)];
+              int m = P_ind[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)];
       
-              double xt = (lgTe[y][x][z]-tab_T[l])*invT_tab[l];
-              double xp = (lgPe[y][x][z]-tab_p[m])*invP_tab[m];
+              double xt = (lgTe[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)]-tab_T[l])*invT_tab[l];
+              double xp = (lgPe[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)]-tab_p[m])*invP_tab[m];
       
               // Interpolate for kappa and B
-              B[y][x][z]=exp(xt*B_tab[band][l+1]+(1.-xt)*B_tab[band][l]);
+              B[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)]=exp(xt*B_tab[band][l+1]+(1.-xt)*B_tab[band][l]);
       
               double kap1 = exp(xt*(xp*kap_tab[band][l+1][m+1]+(1.-xp)*kap_tab[band][l+1][m])+
               (1.-xt)*(xp*kap_tab[band][l][m+1]+(1.-xp)*kap_tab[band][l][m]));
@@ -442,17 +439,17 @@ double RTS_SCATTER::wrapper(int rt_upd,GridData &Grid,RunData &Run,const Physics
               
               kap1 = kap1+acont;
 
-              kap[y][x][z] = kap1;
-              abn[y][x][z] = abs1/kap1;
-              sig[y][x][z] = (kap1-abs1)/kap1; // True for full ODF
+              kap[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)] = kap1;
+              abn[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)] = abs1/kap1;
+              sig[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)] = (kap1-abs1)/kap1; // True for full ODF
 
               /* TR switch turn off kappa and B */
-              B[y][x][z] *= tr_switch[y][x][z];
-              sig[y][x][z] *= tr_switch[y][x][z];
-              abn[y][x][z] *= tr_switch[y][x][z];
-              kap[y][x][z] *= tr_switch[y][x][z];
+              B[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)] *= tr_switch[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)];
+              sig[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)] *= tr_switch[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)];
+              abn[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)] *= tr_switch[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)];
+              kap[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)] *= tr_switch[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)];
               
-              S[band_S][y][x][z]=B[y][x][z]*abn[y][x][z]+sig[y][x][z]*J_havg[band][z];
+              S[band_S][(y-yl)*nx*nz+(x-xl)*nz+(z-zl)]=B[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)]*abn[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)]+sig[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)]*J_havg[band][z];
               J_havg[band][z] = 0.0;
             }
           }
@@ -469,7 +466,7 @@ double RTS_SCATTER::wrapper(int rt_upd,GridData &Grid,RunData &Run,const Physics
         if(isgbeg[0]==1)
           for(int y=0;y<ny;++y)
             for(int x=0;x<nx;++x)
-              z_rbuf[band][YDIR][XDIR][UP][l][x*ny+y]=B[yl+y][xl+x][zl];
+              z_rbuf[band][YDIR][XDIR][UP][l][x*ny+y]=B[y*nx*nz+x*nz];
 
         if(isgend[0]==1)
           for(int y=0;y<ny;++y)
@@ -495,8 +492,10 @@ double RTS_SCATTER::wrapper(int rt_upd,GridData &Grid,RunData &Run,const Physics
   if(isgend[0]==1){
     for(int y=yl;y<=yh-yo;++y)
       for(int x=xl;x<=xh-xo;++x)
-        gFr_mean[band]+=Fz[y][x][zh]+Fz[y+yo][x][zh]+
-          Fz[y][x+xo][zh]+Fz[y+yo][x+xo][zh];
+        gFr_mean[band]+=Fz[y*nx*nz+x*nz+nz-1] +
+                        Fz[(y+yo)*nx*nz+x*nz+nz-1] +
+                        Fz[y*nx*nz+(x+xo)*nz+nz-1] +
+                        Fz[(y+yo)*nx*nz+(x+xo)*nz+nz-1];
     gFr_mean[band]*=0.25;
   }
 
@@ -505,7 +504,7 @@ double RTS_SCATTER::wrapper(int rt_upd,GridData &Grid,RunData &Run,const Physics
   if (((cont_bin==1)&&(band==0))||((cont_bin==0)&&(band==1)))
     for(int y=yl;y<=yh;++y)
       for(int x=xl;x<=xh;++x)
-        I_o[y][x] = 0.0;
+        I_o[(y-yl)*nx+(x-xl)] = 0.0;
 
   }// end loop over bands
 
@@ -527,12 +526,10 @@ double RTS_SCATTER::wrapper(int rt_upd,GridData &Grid,RunData &Run,const Physics
     if ((cont_bin==1)&&(need_I==1))
       for (int y=yl;y<=yh;y++)
         for (int x=xl;x<=xh;x++)
-          I_o[y][x] +=I_band[y][x];
+          I_o[(y-yl)*nx+(x-xl)] +=I_band[(y-yl)*nx+(x-xl)];
   }
   
   calc_Qtot_and_Tau(Grid, Run, Physics);
-
-  del_d2dim(I_band,yl,yh,xl,xh);
 
   if (myrank==0)
     fprintf(stdout,"NLTE_scattering Iter %i bands failed to converge, total iterations over all bands %i \n",fail_count,total_iter);
@@ -550,8 +547,6 @@ void RTS_SCATTER::driver(double DZ, double DX, double DY, int band) {
   int stepvec[3][4][3] = { {{1,0,0},{1,0,1},{1,1,0},{1,1,1}},
                {{0,1,0},{1,1,0},{0,1,1},{1,1,1}},
                {{0,0,1},{0,1,1},{1,0,1},{1,1,1}} };
-
-  double ** coeff= d2dim(0,1,0,nx*ny*nz-1);
 
   int nlte_iter = 0;
   int max_nlte_iter = 100000;
@@ -574,7 +569,7 @@ void RTS_SCATTER::driver(double DZ, double DX, double DY, int band) {
   int band_S = band*(1-fullodf);
   // While source error is greater than tolerance and iterations are less than maxiterations then continue
   // Do a couple of iterations on the first iter.
-  memset(I_n[yl][xl]+zl,0,nx*ny*nz*sizeof(double)); // is there a better way?
+  memset(I_n,0,nx*ny*nz*sizeof(double)); // is there a better way?
   
             
   while((S_all_err > S_tol)&&(nlte_iter<=max_nlte_iter)){ 
@@ -585,10 +580,10 @@ void RTS_SCATTER::driver(double DZ, double DX, double DY, int band) {
     min_lambda_star = 1.0;
     max_lambda_star = 0.0;
 
-    memset(Fz[yl][xl]+zl,0,nx*ny*nz*sizeof(double));
-    memset(Fx[yl][xl]+zl,0,nx*ny*nz*sizeof(double));
-    memset(J_band[yl][xl]+zl,0,nx*ny*nz*sizeof(double));
-    memset(Fy[yl][xl]+zl,0,nx*ny*nz*sizeof(double));
+    memset(Fz,0,nx*ny*nz*sizeof(double));
+    memset(Fx,0,nx*ny*nz*sizeof(double));
+    memset(J_band,0,nx*ny*nz*sizeof(double));
+    memset(Fy,0,nx*ny*nz*sizeof(double));
 
     if (nlte_iter == max_nlte_iter){
       fail_count+=1;
@@ -635,7 +630,7 @@ void RTS_SCATTER::driver(double DZ, double DX, double DY, int band) {
               stime=MPI_Wtime();  
               int off[4];
               int i_nu=0;
-              double *ii=I_n[yl][xl];
+              double *ii=I_n;
               if(NDIM==3){
                 for(int i=0;i<4;i++) 
                   off[i]=iystep[i]*stride[0]+ixstep[i]*stride[1]+izstep[i];
@@ -643,9 +638,9 @@ void RTS_SCATTER::driver(double DZ, double DX, double DY, int band) {
                   for(int xi=xi_i;xi!=xi_f+xstep;xi=xi+xstep){
                     int xyoff=(yi-yl)*stride[0]+(xi-xl)*stride[1];
                     for(int zi=zi_i;zi!=zi_f+zstep;zi=zi+zstep){
-                      int ind=xyoff+zi;
+                      int ind=xyoff+zi-zl;
                       double I_upw=c[0]*ii[ind-off[0]]+c[1]*ii[ind-off[1]]+c[2]*ii[ind-off[2]]+c[3]*ii[ind-off[3]];
-                      ii[ind]=I_upw*coeff[0][i_nu]+coeff[1][i_nu];
+                      ii[ind]=I_upw*coeff[i_nu][0]+coeff[i_nu][1];
                       i_nu+=1;
                     }
                   }
@@ -659,7 +654,7 @@ void RTS_SCATTER::driver(double DZ, double DX, double DY, int band) {
                   for(int zi=zi_i;zi!=zi_f+zstep;zi=zi+zstep){
                     int ind=xoff+zi;
                     double I_upw=c[0]*ii[ind-off[0]]+c[1]*ii[ind-off[1]]+c[2]*ii[ind-off[2]]+c[3]*ii[ind-off[3]];
-                    ii[ind]=I_upw*coeff[0][i_nu]+coeff[1][i_nu];
+                    ii[ind]=I_upw*coeff[i_nu][0]+coeff[i_nu][1];
                     i_nu+=1;
                   }
                 }
@@ -669,7 +664,7 @@ void RTS_SCATTER::driver(double DZ, double DX, double DY, int band) {
                 for(int i=0;i<4;i++) off[i]=izstep[i];
                 for(int zi=zi_i;zi!=zi_f+zstep;zi=zi+zstep){
                   double I_upw=c[0]*ii[zi-off[0]]+c[1]*ii[zi-off[1]]+c[2]*ii[zi-off[2]]+c[3]*ii[zi-off[3]];
-                  ii[zi]=I_upw*coeff[0][i_nu]+coeff[1][i_nu];
+                  ii[zi]=I_upw*coeff[i_nu][0]+coeff[i_nu][1];
                   i_nu+=1;
                 }
               }
@@ -729,17 +724,17 @@ void RTS_SCATTER::driver(double DZ, double DX, double DY, int band) {
       for(int x=xl;x<=xh;x++){
         for(int z=zl;z<=zh;++z){
           double ls = max(min(lambda_star[y][x][z],0.99999),0.0);
-          double S_old = S[band_S][y][x][z];
-          double tr = tr_switch[y][x][z];
+          double S_old = S[band_S][(y-yl)*nx*nz+(x-xl)*nz+(z-zl)];
+          double tr = tr_switch[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)];
           min_lambda_star = min(ls,min_lambda_star);
           max_lambda_star = max(ls,max_lambda_star);
 
-          double dS_n = tr*(sig[y][x][z]*J_band[y][x][z] + abn[y][x][z]*B[y][x][z] - S_old)/(1.0-sig[y][x][z]*ls);
+          double dS_n = tr*(sig[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)]*J_band[(y-yl)*nx*nz + (x-xl)*nz + (z-zl)] + abn[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)]*B[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)] - S_old)/(1.0-sig[(y-yl)*nx*nz+(x-xl)*nz+(z-zl)]*ls);
 
-          J_havg[band][z]+=J_band[y][x][z]/(nx*ny);
+          J_havg[band][z]+=J_band[(y-yl)*nx*nz + (x-xl)*nz + (z-zl)]/(nx*ny);
 
-          S[band_S][y][x][z] = S_old+dS_n; //Add correction
-          mean_S += S[band_S][y][x][z];
+          S[band_S][(y-yl)*nx*nz+(x-xl)*nz+(z-zl)] = S_old+dS_n; //Add correction
+          mean_S += S[band_S][(y-yl)*nx*nz+(x-xl)*nz+(z-zl)];
 
           dS_n = abs(dS_n)/max(S_old,S_min);
           S_err = max(dS_n,S_err);  // For convergence we will want delta_S to be under some small number
@@ -804,7 +799,6 @@ void RTS_SCATTER::driver(double DZ, double DX, double DY, int band) {
   tau_time+=MPI_Wtime()-stime;
 
   call_count+=1;
-  del_d2dim(coeff,0,1,0,nx*ny*nz-1);
 }
 
 void RTS_SCATTER::get_lambdastar(){
@@ -840,18 +834,20 @@ void RTS_SCATTER::get_lambdastar(){
             for(int yi=yi_i;yi!=yi_f+ystep;yi=yi+ystep){
               for(int xi=xi_i;xi!=xi_f+xstep;xi=xi+xstep){
                 for(int zi=zmin;zi<=zmax;++zi){
-                  r_upw[zi]=c[0]*rho[yi-iystep[0]][xi-ixstep[0]][zi-izstep[0]]+
-                    c[1]*rho[yi-iystep[1]][xi-ixstep[1]][zi-izstep[1]]+  
-                    c[2]*rho[yi-iystep[2]][xi-ixstep[2]][zi-izstep[2]]+ 
-                    c[3]*rho[yi-iystep[3]][xi-ixstep[3]][zi-izstep[3]];
+                  r_upw[zi]=
+                    c[0]*rho[(yi-iystep[0]-yl)*nx*nz+(xi-ixstep[0]-xl)*nz+(zi-izstep[0]-zl)]+
+                    c[1]*rho[(yi-iystep[1]-yl)*nx*nz+(xi-ixstep[1]-xl)*nz+(zi-izstep[1]-zl)]+
+                    c[2]*rho[(yi-iystep[2]-yl)*nx*nz+(xi-ixstep[2]-xl)*nz+(zi-izstep[2]-zl)]+
+                    c[3]*rho[(yi-iystep[3]-yl)*nx*nz+(xi-ixstep[3]-xl)*nz+(zi-izstep[3]-zl)];
 
-                  k_upw[zi]=c[0]*kap[yi-iystep[0]][xi-ixstep[0]][zi-izstep[0]]+
-                    c[1]*kap[yi-iystep[1]][xi-ixstep[1]][zi-izstep[1]]+
-                    c[2]*kap[yi-iystep[2]][xi-ixstep[2]][zi-izstep[2]]+
-                    c[3]*kap[yi-iystep[3]][xi-ixstep[3]][zi-izstep[3]];
+                    k_upw[zi]=
+                    c[0]*kap[(yi-iystep[0]-yl)*nx*nz+(xi-ixstep[0]-xl)*nz+(zi-izstep[0]-zl)]+
+                    c[1]*kap[(yi-iystep[1]-yl)*nx*nz+(xi-ixstep[1]-xl)*nz+(zi-izstep[1]-zl)]+
+                    c[2]*kap[(yi-iystep[2]-yl)*nx*nz+(xi-ixstep[2]-xl)*nz+(zi-izstep[2]-zl)]+
+                    c[3]*kap[(yi-iystep[3]-yl)*nx*nz+(xi-ixstep[3]-xl)*nz+(zi-izstep[3]-zl)];
 
-                  r0[zi]=rho[yi][xi][zi];
-                  k0[zi]=kap[yi][xi][zi];
+                  r0[zi]=rho[(yi-yl)*nx*nz+(xi-xl)*nz+(zi-zl)];
+                  k0[zi]=kap[(yi-yl)*nx*nz+(xi-xl)*nz+(zi-zl)];
                 }
                 for(int zi=zmin;zi<=zmax;++zi){
                   dt[zi]=ds3*(k_upw[zi]*r_upw[zi]+k0[zi]*r0[zi])+ds6*(k0[zi]*r_upw[zi]+k_upw[zi]*r0[zi]);
@@ -869,18 +865,20 @@ void RTS_SCATTER::get_lambdastar(){
 
           if(NDIM==1){
              for(int zi=zmin;zi<=zmax;++zi){
-              r_upw[zi]=c[0]*rho[0][0][zi-izstep[0]]+
-                c[1]*rho[0][0][zi-izstep[1]]+
-                c[2]*rho[0][0][zi-izstep[2]]+
-                c[3]*rho[0][0][zi-izstep[3]];
+               r_upw[zi]=
+                 c[0]*rho[(zi-izstep[0]-zl)]+
+                 c[1]*rho[(zi-izstep[1]-zl)]+
+                 c[2]*rho[(zi-izstep[2]-zl)]+
+                 c[3]*rho[(zi-izstep[3]-zl)];
 
-              k_upw[zi]=c[0]*kap[0][0][zi-izstep[0]]+
-                c[1]*kap[0][0][zi-izstep[1]]+
-                c[2]*kap[0][0][zi-izstep[2]]+
-                c[3]*kap[0][0][zi-izstep[3]];
+              k_upw[zi]=
+              c[0]*kap[(zi-izstep[0]-zl)]+
+              c[1]*kap[(zi-izstep[1]-zl)]+
+              c[2]*kap[(zi-izstep[2]-zl)]+
+              c[3]*kap[(zi-izstep[3]-zl)];
 
-              r0[zi]=rho[0][0][zi];
-              k0[zi]=kap[0][0][zi];
+              r0[zi]=rho[zi-zl];
+              k0[zi]=kap[zi-zl];
             }
 
             for(int zi=zmin;zi<=zmax;++zi){
@@ -898,18 +896,20 @@ void RTS_SCATTER::get_lambdastar(){
           if(NDIM==2){
             for(int xi=xi_i;xi!=xi_f+xstep;xi=xi+xstep){
               for(int zi=zmin;zi<=zmax;++zi){
-                r_upw[zi]=c[0]*rho[0][xi-ixstep[0]][zi-izstep[0]]+
-                  c[1]*rho[0][xi-ixstep[1]][zi-izstep[1]]+
-                  c[2]*rho[0][xi-ixstep[2]][zi-izstep[2]]+
-                  c[3]*rho[0][xi-ixstep[3]][zi-izstep[3]];
+                r_upw[zi]=
+                  c[0]*rho[(xi-ixstep[0]-xl)*nz+(zi-izstep[0]-zl)]+
+                  c[1]*rho[(xi-ixstep[1]-xl)*nz+(zi-izstep[1]-zl)]+
+                  c[2]*rho[(xi-ixstep[2]-xl)*nz+(zi-izstep[2]-zl)]+
+                  c[3]*rho[(xi-ixstep[3]-xl)*nz+(zi-izstep[3]-zl)];
 
-                k_upw[zi]=c[0]*kap[0][xi-ixstep[0]][zi-izstep[0]]+
-                  c[1]*kap[0][xi-ixstep[1]][zi-izstep[1]]+
-                  c[2]*kap[0][xi-ixstep[2]][zi-izstep[2]]+
-                  c[3]*kap[0][xi-ixstep[3]][zi-izstep[3]];
+                k_upw[zi]=
+                c[0]*kap[(xi-ixstep[0]-xl)*nz+(zi-izstep[0]-zl)]+
+                c[1]*kap[(xi-ixstep[1]-xl)*nz+(zi-izstep[1]-zl)]+
+                c[2]*kap[(xi-ixstep[2]-xl)*nz+(zi-izstep[2]-zl)]+
+                c[3]*kap[(xi-ixstep[3]-xl)*nz+(zi-izstep[3]-zl)];
 
-                r0[zi]=rho[0][xi][zi];
-                k0[zi]=kap[0][xi][zi];
+                r0[zi]=rho[(xi-xl)*nz+(zi-zl)];
+                k0[zi]=kap[(xi-xl)*nz+(zi-zl)];
               }
               for(int zi=zmin;zi<=zmax;++zi){
                 dt[zi]=ds3*(k_upw[zi]*r_upw[zi]+k0[zi]*r0[zi])+ds6*(k0[zi]*r_upw[zi]+k_upw[zi]*r0[zi]);

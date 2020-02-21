@@ -7,7 +7,7 @@
 #include "precision.h"
 #include "eos.H"
 #include "run.H"
-#include "muramacc.H"
+#include "ACCH.h"
 
 double eos_gamma = 1.65;
 double eos_mu = 0.62;

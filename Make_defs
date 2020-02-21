@@ -1,14 +1,14 @@
-MURaM_HOME_DIR = /home/efwright/MURaM_main
-FFTW3_HOME = /home/efwright/fftw
+MURaM_HOME_DIR = /usa/efwright/MURaM_main
+FFTW3_HOME = /usa/efwright/fftw
 
 # output name
 PROGRAM = mhd3d.x
 
 # Optimization option
-OPT = -fast 
+OPT = -O0 -ta=tesla:cc70 -Minfo=accel -DCACHE_SIZE=128
 
 # Debugging option (for development) use -pg -g3
-DBG = -g
+DBG = -g 
 
 # FILEPATH option (default: ./) - This is useful
 # to write files to special directories on some machines

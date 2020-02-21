@@ -9,7 +9,7 @@
 #include "limit_va.H"
 #include "exchange.H"
 #include <stdio.h>
-#include "muramacc.H"
+#include "ACCH.h"
 
 #define XZ_LOOP(G,i,k) \
   for((k)=(G).lbeg[2];(k)<=(G).lend[2];(k)++) \

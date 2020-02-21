@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include "eos.H"
 #include "limit_va.H"
-#include "muramacc.H"
+#include "ACCH.h"
 
 /*
    - Special Corona version. Allows to set numerical pm in Corona. 

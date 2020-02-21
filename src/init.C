@@ -10,6 +10,7 @@
 #include "io.H"
 #include "comm_split.H"
 #include "rt/rt.h"
+#include "ACCH.h"
 
 extern void ELTE_init();
 
@@ -24,6 +25,8 @@ int Initialize(RunData& Run,GridData& Grid,
   if( sizeof(real)==sizeof(float) ) strcpy(rtype,"float");
 
   MPI_Comm_rank(MPI_COMM_WORLD,&rank);
+
+  ACCH::SetGPU(rank%ACCH::GetNumGPU());
 
   if( rank==0 ) {
     int flag = 0;

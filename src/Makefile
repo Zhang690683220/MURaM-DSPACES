@@ -7,7 +7,8 @@ SHELL         = /bin/sh
 SUBDIRS	      = rt
 LIBS	     += rt/librt.a
 
-OBJS = io_xysl.o \
+OBJS = ACCH.o \
+       io_xysl.o \
        slice_write.o \
        slice_write_rebin.o \
        Iout.o \
