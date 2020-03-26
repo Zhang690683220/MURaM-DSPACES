@@ -471,6 +471,25 @@ void Free6D(
   Free(ptr, D1*sizeof(T*****));
 }
 
+template <typename T>
+void UpdateGPU6D(
+  T ****** ptr, std::size_t D1, std::size_t D2, std::size_t D3,
+  std::size_t D4, std::size_t D5, std::size_t D6
+)
+{
+  UpdateGPU(ptr[0][0][0][0][0], D1*D2*D3*D4*D5*D6*sizeof(T));
+}
+
+template <typename T>
+void UpdateCPU6D(
+  T ****** ptr, std::size_t D1, std::size_t D2, std::size_t D3,
+  std::size_t D4, std::size_t D5, std::size_t D6
+)
+{
+  UpdateCPU(ptr[0][0][0][0][0], D1*D2*D3*D4*D5*D6*sizeof(T));
+}
+
+
 } // end namespace ACCH
 
 #if defined(DEBUG) && defined(PGICOMPARE) && defined(__PGI)
