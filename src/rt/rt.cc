@@ -465,8 +465,8 @@ RTS::RTS(GridData&Grid,RunData &Run,PhysicsData &Physics){
     save_col=1;
     col_bnd[0] =max(gxh-sl_r[0],xl+xo);
     col_bnd[1] =min(gxh-sl_r[1],xh);
-    col_bnd[2] =max(gyh-sl_r[2],xl+xo);
-    col_bnd[3] =min(gyh-sl_r[3],xh);
+    col_bnd[2] =max(gyh-sl_r[2],yl+yo);
+    col_bnd[3] =min(gyh-sl_r[3],yh);
   }
 
   I_band = (double*) ACCH::Malloc(nx*ny*sizeof(double));
@@ -819,8 +819,9 @@ double RTS::wrapper(int rt_upd,GridData &Grid,RunData &Run,const PhysicsData &Ph
       if(isgbeg[0]==1)
         for(int l=0;l<NMU;++l) {
           for(int y=0;y<ny;++y)
-            for(int x=0;x<nx;++x)
+            for(int x=0;x<nx;++x){
               z_rbuf[band][YDIR][XDIR][UP][l][x*ny+y]=B[y*nx*nz+x*nz];
+              }
         } // end l
 // *****************************************************************
 // *    no incoming radiation on the top                           *
@@ -1565,6 +1566,8 @@ void RTS::exchange(int band,int l,int ZDIR,int XDIR,int YDIR)
   int x0=0,y0=0,z0=0;
   int dest_rk;
   int source_rk;
+  real tempxsb[nz];
+  real tempzsb[nx];
 
   real * ysb = y_sbuf[band][YDIR][XDIR][ZDIR][l];
   real * yrb = y_rbuf[band][YDIR][XDIR][ZDIR][l];
@@ -1586,16 +1589,22 @@ void RTS::exchange(int band,int l,int ZDIR,int XDIR,int YDIR)
     ACCH::UpdateGPU(zsb, nx*ny*sizeof(real));
     ACCH::UpdateGPU(yrb, nx*nz*sizeof(real));
 #pragma acc parallel loop present(zsb[:nx*ny], yrb[:nx*nz])
-    for(int x=0;x<nx;++x)
-      zsb[x*ny+y0]=yrb[z0*nx+x];
+    for(int x=0;x<nx;++x){
+      tempzsb[x]=yrb[z0*nx+x];
+      zsb[x*ny+y0] = tempzsb[x];
+      //zsb[x*ny+y0]=yrb[z0*nx+x];
+      }
     ACCH::UpdateCPU(zsb, nx*ny*sizeof(real));
   
     x0=(XDIR==RIGHT)?nx-1:0;
     y0=(YDIR==FWD)?0:ny-1;
     ACCH::UpdateGPU(xsb, ny*nz*sizeof(real));
 #pragma acc parallel loop present(xsb[:ny*nz], yrb[:nx*nz])
-    for(int z=0;z<nz;++z)
-      xsb[z*ny+y0]=yrb[z*nx+x0];
+    for(int z=0;z<nz;++z){
+      tempxsb[z] = yrb[z*nx+x0];
+      xsb[z*ny+y0]=tempxsb[z];
+      //xsb[z*ny+y0]=yrb[z*nx+x0];
+      }
     ACCH::UpdateCPU(xsb, ny*nz*sizeof(real));
   }
 
@@ -2154,12 +2163,18 @@ void RTS::tauscale_qrad(int band, double DX,double DY,double DZ, double * Ss){
      int col_bnd3 = col_bnd[3];
      int col_bnd0 = col_bnd[0];
      int col_bnd1 = col_bnd[1];
+     //cout << "y col_bnd[2]: " << col_bnd[2] << endl;
+     //cout << "y col_bnd[3]: " << col_bnd[3] << endl;
+     //cout << "x col_bnd[0]: " << col_bnd[0] << endl;
+     //cout << "x col_bnd[1]: " << col_bnd[1] << endl;
 #pragma acc parallel loop gang collapse(2) \
  present(this[:1], Col_out[:Nbands][:col_nz][:col_nvar], \
          J_band[:nx*ny*nz], Ss[:nx*ny*nz], kap[:nx*ny*nz], abn[:nx*ny*nz], \
          sig[:nx*ny*nz], B[:nx*ny*nz], Tau[:nx*ny*nz], Qtemp[:ny][:nx][:nz][:2])
-     for (int y=col_bnd2;y<=col_bnd3;++y){
-       for (int x=col_bnd0;x<=col_bnd1;++x){
+     //for (int y=col_bnd3;y<=col_bnd2;++y){
+     //  for (int x=col_bnd1;x<=col_bnd0;++x){
+     for (int y=yl;y<=yh;++y){
+       for (int x=xl;x<=xh;++x){
 #pragma acc loop vector
          for (int z=zl+zo;z<=zh;++z){
            int ind = (y-yl)*nx*nz + (x-xl)*nz + (z-zl);
@@ -2170,8 +2185,8 @@ void RTS::tauscale_qrad(int band, double DX,double DY,double DZ, double * Ss){
            Col_out[band][z-2*zo][4] += sig[ind]*avg_col;
            Col_out[band][z-2*zo][5] += B[ind]*avg_col;
            Col_out[band][z-2*zo][6] += Tau[ind]*avg_col;
-           Col_out[band][z-2*zo][7] += Qtemp[y][x][z][0]*avg_col;
-           Col_out[band][z-2*zo][8] += Qtemp[y][x][z][1]*avg_col;
+           Col_out[band][z-2*zo][7] += Qtemp[y-yl][x-xl][z-zl][0]*avg_col;
+           Col_out[band][z-2*zo][8] += Qtemp[y-yl][x-xl][z-zl][1]*avg_col;
          }
        }
      }
