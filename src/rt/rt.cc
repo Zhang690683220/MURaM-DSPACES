@@ -10,6 +10,57 @@
 #include "comm_split.H"
 #include "ACCH.h"
 
+namespace
+{
+  int bound1, bound2, bound3;
+  int b1_i, b2_i, b3_i;
+  int step1, step2, step3;
+  int str1, str2, str3;
+  int inustr1, inustr2, inustr3; // coeff stride
+}
+
+void RTS::IntegrateSetup(
+  int yi_i, int xi_i, int zi_i, int ystep, int xstep, int zstep
+)
+{
+  bool ix, iy, iz;
+  ix = (ixstep[0] == 1 && ixstep[1] == 1    &&
+        ixstep[2] == 1 && ixstep[3] == 1)   ||
+       (ixstep[0] == -1 && ixstep[1] == -1  &&
+        ixstep[2] == -1 && ixstep[3] == -1);
+  iy = (iystep[0] == 1 && iystep[1] == 1    &&
+        iystep[2] == 1 && iystep[3] == 1)   ||
+       (iystep[0] == -1 && iystep[1] == -1  &&
+        iystep[2] == -1 && iystep[3] == -1);
+ iz = (izstep[0] == 1 && izstep[1] == 1    &&
+       izstep[2] == 1 && izstep[3] == 1)   ||
+      (izstep[0] == -1 && izstep[1] == -1  &&
+       izstep[2] == -1 && izstep[3] == -1);
+
+          if(ix) {
+            bound1=nx-1; bound2=ny-1; bound3=nz-1;
+            b1_i=xi_i; b2_i=yi_i; b3_i=zi_i;
+            step1=xstep; step2=ystep; step3=zstep;
+            str1=nz; str2=nx*nz; str3=1;
+            inustr1=(nz-1); inustr2=(nx-1)*(nz-1); inustr3=1;
+          } else if(iy) {
+            bound1=ny-1; bound2=nx-1; bound3=nz-1;
+            b1_i=yi_i; b2_i=xi_i; b3_i=zi_i;
+            step1=ystep; step2=xstep; step3=zstep;
+            str1=nx*nz; str2=nz; str3=1;
+            inustr1=(nx-1)*(nz-1); inustr2=(nz-1); inustr3=1;
+          } else if(iz) {
+            bound1=nz-1; bound2=ny-1; bound3=nx-1;
+            b1_i=zi_i; b2_i=yi_i; b3_i=xi_i;
+            step1=zstep; step2=ystep; step3=xstep;
+            str1=1; str2=nx*nz; str3=nz;
+            inustr1=1; inustr2=(nx-1)*(nz-1); inustr3=(nz-1);
+          } else {
+            cout << "Error in RTS::Driver: No valid dependency.\n";
+            MPI_Abort(MPI_COMM_WORLD, 1);
+          }
+}
+
 RTS *rt_new(GridData &Grid,RunData &Run,PhysicsData &Physics)
 {
   int rttype;
@@ -69,7 +120,7 @@ RTS::~RTS(void)
   ACCH::Free(Fy, nx*ny*nz*sizeof(double));
   ACCH::Free(Fz, nx*ny*nz*sizeof(double));
 
-  ACCH::Free2D<double>(coeff, nx*ny*nz, 2);
+  ACCH::Free(coeff, nx*ny*nz*2*sizeof(double));
 
   ACCH::Free3D<double>(Col_out, Nbands, col_nz, col_nvar);
    
@@ -115,21 +166,22 @@ RTS::~RTS(void)
 }
  
 double RTS::tau(int z,int x,int y){
-  double Tau_local =
-    Tau[y*nx*nz+x*nz+z] +
-    Tau[(y-yo)*nx*nz+x*nz+z] +
-    Tau[y*nx*nz+(x-xo)*nz+z] +
-    Tau[y*nx*nz+x*nz+(z-zo)] +
-    Tau[(y-yo)*nx*nz+(x-xo)*nz+z] +
-    Tau[(y-yo)*nx*nz+x*nz+(z-zo)] +
-    Tau[y*nx*nz+(x-xo)*nz+(z-zo)] +
-    Tau[(y-yo)*nx*nz+(x-xo)*nz+(z-zo)];
-
-  Tau_local *= 0.125;
-
-  return Tau_local;
+  int ind = y*nx*nz + x*nz + z;
+  int y_o = yo*nx*nz;
+  int x_o = xo*nz;
+  int z_o = zo;
+  double Tau_local = Tau[ind] +
+                     Tau[ind - y_o] +
+                     Tau[ind - x_o] +
+                     Tau[ind - z_o] +
+                     Tau[ind - y_o - x_o] +
+                     Tau[ind - y_o - z_o] +
+                     Tau[ind - x_o - z_o] +
+                     Tau[ind - y_o - x_o - z_o];
+  return Tau_local * 0.125;
 }
 
+// Unused
 double RTS::Qtot(int z,int x,int y)
 {  
   return Qt[y-yl-yo][x-xl-xo][z-zl-zo];
@@ -137,17 +189,19 @@ double RTS::Qtot(int z,int x,int y)
 
 
 double RTS::Jtot(int z,int x,int y){
-  double J_local = Jt[y*nx*nz+x*nz+z] +
-                   Jt[(y-yo)*nx*nz+x*nz+z] +
-                   Jt[y*nx*nz+(x-xo)*nz+z] +
-                   Jt[y*nx*nz+x*nz+(z-zo)] +
-                   Jt[(y-yo)*nx*nz+(x-xo)*nz+z] +
-                   Jt[(y-yo)*nx*nz+x*nz+(z-zo)] +
-                   Jt[y*nx*nz+(x-xo)*nz+(z-zo)] +
-                   Jt[(y-yo)*nx*nz+(x-xo)*nz+(z-zo)];
-  J_local *= 0.125;
-
-  return J_local;
+  int ind = y*nx*nz + x*nz + z;
+  int y_o = yo*nx*nz;
+  int x_o = xo*nz;
+  int z_o = zo;
+  double J_local = Jt[ind] +
+                   Jt[ind - y_o] +
+                   Jt[ind - x_o] +
+                   Jt[ind - z_o] +
+                   Jt[ind - y_o - x_o] +
+                   Jt[ind - y_o - z_o] +
+                   Jt[ind - x_o - z_o] +
+                   Jt[ind - y_o - x_o - z_o];
+  return J_local * 0.125;
 }
 
 double RTS::Stot(int z,int x,int y){
@@ -164,6 +218,10 @@ double RTS::Stot(int z,int x,int y){
   return S_local;
 }
 
+void RTS::UpdateIout()
+{
+  ACCH::UpdateCPU(I_o, nx*ny*sizeof(double));
+}
 
 double RTS::Iout(int x,int y)
 {
@@ -296,7 +354,7 @@ RTS::RTS(GridData&Grid,RunData &Run,PhysicsData &Physics){
   Fy = (double*) ACCH::Malloc(nx*ny*nz*sizeof(double));
   Fz = (double*) ACCH::Malloc(nx*ny*nz*sizeof(double));
 
-  coeff = ACCH::Malloc2D<double>(nx*ny*nz, 2);
+  coeff = (double*) ACCH::Malloc(nx*ny*nz*2*sizeof(double));
  
   /* Column outputs
    * 0: J_col - Angle averaged intensity
@@ -325,26 +383,16 @@ RTS::RTS(GridData&Grid,RunData &Run,PhysicsData &Physics){
     y_sbuf = ACCH::Malloc6D<real>(Nbands, 2, 2, 2, NMU, nx*nz);
     y_rbuf = ACCH::Malloc6D<real>(Nbands, 2, 2, 2, NMU, nx*nz);
     y_oldbuf = ACCH::Malloc6D<real>(Nbands, 2, 2, 2, NMU, nx*nz);
-    //y_sbuf=r6dim(0,Nbands-1,FWD,BWD,RIGHT,LEFT,UP,DOWN,0,NMU-1,0,nz*nx-1);
-    //y_rbuf=r6dim(0,Nbands-1,FWD,BWD,RIGHT,LEFT,UP,DOWN,0,NMU-1,0,nz*nx-1);
-    //y_oldbuf=r6dim(0,Nbands-1,FWD,BWD,RIGHT,LEFT,UP,DOWN,0,NMU-1,0,nz*nx-1);
   }
 
   if (NDIM>1){
     x_sbuf = ACCH::Malloc6D<real>(Nbands, 2, 2, 2, NMU, ny*nz);
     x_rbuf = ACCH::Malloc6D<real>(Nbands, 2, 2, 2, NMU, ny*nz);
     x_oldbuf = ACCH::Malloc6D<real>(Nbands, 2, 2, 2, NMU, ny*nz);
-    //x_sbuf=r6dim(0,Nbands-1,FWD,BWD,RIGHT,LEFT,UP,DOWN,0,NMU-1,0,nz*ny-1);
-    //x_rbuf=r6dim(0,Nbands-1,FWD,BWD,RIGHT,LEFT,UP,DOWN,0,NMU-1,0,nz*ny-1);
-    //x_oldbuf=r6dim(0,Nbands-1,FWD,BWD,RIGHT,LEFT,UP,DOWN,0,NMU-1,0,nz*ny-1);
   }
   z_sbuf = ACCH::Malloc6D<real>(Nbands, 2, 2, 2, NMU, ny*nx);
   z_rbuf = ACCH::Malloc6D<real>(Nbands, 2, 2, 2, NMU, ny*nx);
   z_oldbuf = ACCH::Malloc6D<real>(Nbands, 2, 2, 2, NMU, ny*nx);
-  //z_sbuf=r6dim(0,Nbands-1,FWD,BWD,RIGHT,LEFT,UP,DOWN,0,NMU-1,0,nx*ny-1);
-  //z_rbuf=r6dim(0,Nbands-1,FWD,BWD,RIGHT,LEFT,UP,DOWN,0,NMU-1,0,nx*ny-1);
-  //z_oldbuf=r6dim(0,Nbands-1,FWD,BWD,RIGHT,LEFT,UP,DOWN,0,NMU-1,0,nx*ny-1);
-  //
  
   double DX=Grid.dx[1];
   double DY=Grid.dx[2];
@@ -389,12 +437,6 @@ RTS::RTS(GridData&Grid,RunData &Run,PhysicsData &Physics){
                 x_rbuf[band][y][x][z][l][i] = 0.0;
                 x_oldbuf[band][y][x][z][l][i] = 0.0;
               }
-//    memset(x_sbuf[0][UP][RIGHT][FWD][0],0,Nbands*2*2*2*NMU*nz*ny*sizeof(real));
-//    memset(x_rbuf[0][UP][RIGHT][FWD][0],0,Nbands*2*2*2*NMU*nz*ny*sizeof(real));
-//    memset(x_oldbuf[0][UP][RIGHT][FWD][0],0,Nbands*2*2*2*NMU*nz*ny*sizeof(real));
-//    ACCH::UpdateCPU6D<real>(x_sbuf, Nbands, 2, 2, 2, NMU, ny*nz);
-//    ACCH::UpdateCPU6D<real>(x_rbuf, Nbands, 2, 2, 2, NMU, ny*nz);
-//    ACCH::UpdateCPU6D<real>(x_oldbuf, Nbands, 2, 2, 2, NMU, ny*nz);
   }
 
   if (NDIM==3){
@@ -411,12 +453,6 @@ RTS::RTS(GridData&Grid,RunData &Run,PhysicsData &Physics){
                 y_rbuf[band][y][x][z][l][i] = 0.0;
                 y_oldbuf[band][y][x][z][l][i] = 0.0;
               }
-//    memset(y_sbuf[0][UP][RIGHT][FWD][0],0,Nbands*2*2*2*NMU*nz*nx*sizeof(real));
-//    memset(y_rbuf[0][UP][RIGHT][FWD][0],0,Nbands*2*2*2*NMU*nz*nx*sizeof(real));
-//    memset(y_oldbuf[0][UP][RIGHT][FWD][0],0,Nbands*2*2*2*NMU*nz*nx*sizeof(real));
-//    ACCH::UpdateCPU6D<real>(y_sbuf, Nbands, 2, 2, 2, NMU, nx*nz);
-//    ACCH::UpdateCPU6D<real>(y_rbuf, Nbands, 2, 2, 2, NMU, nx*nz);
-//    ACCH::UpdateCPU6D<real>(y_oldbuf, Nbands, 2, 2, 2, NMU, nx*nz);
   }
 
   {
@@ -433,12 +469,6 @@ RTS::RTS(GridData&Grid,RunData &Run,PhysicsData &Physics){
                 z_rbuf[band][y][x][z][l][i] = 0.0;
                 z_oldbuf[band][y][x][z][l][i] = 0.0;
               }
-//    memset(z_sbuf[0][UP][RIGHT][FWD][0],0,Nbands*2*2*2*NMU*nx*ny*sizeof(real));
-//    memset(z_rbuf[0][UP][RIGHT][FWD][0],0,Nbands*2*2*2*NMU*nx*ny*sizeof(real));
-//    memset(z_oldbuf[0][UP][RIGHT][FWD][0],0,Nbands*2*2*2*NMU*nx*ny*sizeof(real));
-//    ACCH::UpdateCPU6D<real>(z_sbuf, Nbands, 2, 2, 2, NMU, nx*ny);
-//    ACCH::UpdateCPU6D<real>(z_rbuf, Nbands, 2, 2, 2, NMU, nx*ny);
-//    ACCH::UpdateCPU6D<real>(z_oldbuf, Nbands, 2, 2, 2, NMU, nx*ny);
   }
 
   memset(numits[0][UP][RIGHT][FWD],0,2*2*2*Nbands*NMU*sizeof(int));
@@ -646,17 +676,27 @@ void RTS::load_bins(char* kap_name){
     cout << "rt_init: kappa file not found: " << kap_name << endl;
     MPI_Abort(MPI_COMM_WORLD,1);
   }
- 
+
+  ACCH::UpdateGPU(tab_T, NT*sizeof(double));
+  ACCH::UpdateGPU(tab_p, Np*sizeof(double));
+  ACCH::UpdateGPU(invT_tab, NT*sizeof(double));
+  ACCH::UpdateGPU(invP_tab, Np*sizeof(double));
+  ACCH::UpdateGPU2D<float>(B_tab, Nbands, NT);
+  ACCH::UpdateGPU3D<float>(kap_tab, Nbands, NT, Np);
+  if(N5000) {
+    ACCH::UpdateGPU(B_5000_tab, NT*sizeof(float));
+    ACCH::UpdateGPU2D<float>(kap_5000_tab, NT, Np);
+  }
 }
 
 double RTS::wrapper(int rt_upd,GridData &Grid,RunData &Run,const PhysicsData &Physics){
-  //  return 1;
-  
-  //double * I_band;
-  //I_band = (double*) ACCH::Malloc(nx*ny*sizeof(double));        // RT grid
 
-  memset(I_band,0,nx*ny*sizeof(double));
-  memset(I_o,0,nx*ny*sizeof(double));
+#pragma acc parallel loop \
+ present(this[:1], I_band[:nx*ny], I_o[:nx*ny])
+  for(int i = 0; i < nx*ny; i++) {
+    I_band[i] = 0.0;
+    I_o[i] = 0.0;
+  }
 
   double DX=Grid.dx[1],DZ=Grid.dx[0],DY=Grid.dx[2];
   int cont_bin = Physics.rt[i_rt_iout];
@@ -674,27 +714,21 @@ double RTS::wrapper(int rt_upd,GridData &Grid,RunData &Run,const PhysicsData &Ph
     if (cont_bin == 2){
     for (int band=Nbands-1;band>=0;--band){
       get_Tau_and_Iout(Grid, Run, Physics,DZ,B_tab[band],kap_tab[band],I_band,need_I);
-      ACCH::UpdateGPU(I_o, nx*ny*sizeof(double));
-      ACCH::UpdateGPU(I_band, nx*ny*sizeof(double));
 #pragma acc parallel loop collapse(2) \
  present(this[:1], I_o[:nx*ny], I_band[:nx*ny])
       for (int y=0;y<ny;y++)
         for (int x=0;x<nx;x++)
           I_o[y*nx+x] +=I_band[y*nx+x];
       }
-      ACCH::UpdateCPU(I_o, nx*ny*sizeof(double));
     }
     // If cont_bin = 0 and need_I = 1 we want the output intensity to be the 0th continuum bin
     if (cont_bin==0){
       get_Tau_and_Iout(Grid, Run, Physics,DZ,B_tab[0],kap_tab[0],I_band,need_I);
-      ACCH::UpdateGPU(I_o, nx*ny*sizeof(double));
-      ACCH::UpdateGPU(I_band, nx*ny*sizeof(double));
 #pragma acc parallel loop collapse(2) \
  present(this[:1], I_o[:nx*ny], I_band[:nx*ny])
       for (int y=0;y<ny;y++)
         for (int x=0;x<nx;x++)
           I_o[y*nx+x] +=I_band[y*nx+x];
-      ACCH::UpdateCPU(I_o, nx*ny*sizeof(double));
     }
     // if we have the band, we want a tau5000 reference wavelength. If cont_bin=1 and need_I we want
     // output intensity to be 5000A.
@@ -707,14 +741,11 @@ double RTS::wrapper(int rt_upd,GridData &Grid,RunData &Run,const PhysicsData &Ph
       get_Tau_and_Iout(Grid, Run, Physics,DZ,B_5000_tab,kap_5000_tab,I_band,I5000_out);
      
       if ((cont_bin==1)&&(need_I==1)) {
-        ACCH::UpdateGPU(I_o, nx*ny*sizeof(double));
-        ACCH::UpdateGPU(I_band, nx*ny*sizeof(double));
 #pragma acc parallel loop collapse(2) \
  present(this[:1], I_o[:nx*ny], I_band[:nx*ny])
         for (int y=0;y<ny;y++)
           for (int x=0;x<nx;x++)
             I_o[y*nx+x] += I_band[y*nx+x];
-        ACCH::UpdateCPU(I_o, nx*ny*sizeof(double));
       }
     }
 
@@ -734,14 +765,6 @@ double RTS::wrapper(int rt_upd,GridData &Grid,RunData &Run,const PhysicsData &Ph
   ACCH::UpdateGPU(Grid.temp, Grid.bufsize*sizeof(double));
   ACCH::UpdateGPU(Grid.pres, Grid.bufsize*sizeof(double));
   ACCH::UpdateGPU(U, Grid.bufsize*sizeof(cState));
-  ACCH::UpdateGPU(tr_switch, nx*ny*nz*sizeof(int));
-  ACCH::UpdateGPU(lgTe, nx*ny*nz*sizeof(double));
-  ACCH::UpdateGPU(lgPe, nx*ny*nz*sizeof(double));
-  ACCH::UpdateGPU(rho, nx*ny*nz*sizeof(double));
-  ACCH::UpdateGPU(tab_T, NT*sizeof(double));
-  ACCH::UpdateGPU(tab_p, Np*sizeof(double));
-  ACCH::UpdateGPU(T_ind, nx*ny*nz*sizeof(int));
-  ACCH::UpdateGPU(P_ind, nx*ny*nz*sizeof(int));
 #pragma acc parallel loop gang collapse(2) \
  present(this[:1], Grid[:1], Grid.temp[:Grid.bufsize], \
          Grid.pres[:Grid.bufsize], U[:Grid.bufsize], \
@@ -822,17 +845,21 @@ double RTS::wrapper(int rt_upd,GridData &Grid,RunData &Run,const PhysicsData &Ph
       }
     }
   }
-  ACCH::UpdateCPU(T_ind, nx*ny*nz*sizeof(int));
-  ACCH::UpdateCPU(P_ind, nx*ny*nz*sizeof(int));
-  ACCH::UpdateCPU(lgTe, nx*ny*nz*sizeof(double));
-  ACCH::UpdateCPU(lgPe, nx*ny*nz*sizeof(double));
-  ACCH::UpdateCPU(rho, nx*ny*nz*sizeof(double));
-  ACCH::UpdateCPU(tr_switch, nx*ny*nz*sizeof(int));
   
   // Begin RT loop, work band by band,
-  memset(St,0,nx*ny*nz*sizeof(double));
-  memset(Jt,0,nx*ny*nz*sizeof(double));
-  memset(Qt[0][0],0,(nx-xo)*(ny-yo)*(nz-zo)*sizeof(double)); // MHD grid
+#pragma acc parallel loop \
+ present(this[:1], St[:nx*ny*nz], Jt[:nx*ny*nz])
+  for(int i = 0; i < nx*ny*nz; i++) {
+    St[i] = 0.0;
+    Jt[i] = 0.0;
+  }
+#pragma acc parallel loop collapse(3) \
+ present(this[:1], Qt[:(ny-yo)*(nx-xo)*(nz-zo)])
+  for(int y = 0; y < ny-yo; y++)
+    for(int x = 0; x < nx-xo; x++)
+      for(int z = 0; z < nz-zo; z++) {
+        Qt[y][x][z] = 0.0;
+      }
  
   for(int band=Nbands-1;band>=0;--band){
 
@@ -847,19 +874,6 @@ double RTS::wrapper(int rt_upd,GridData &Grid,RunData &Run,const PhysicsData &Ph
         fprintf(stdout,"nu band = %i, %e and bin %i \n", nu_ind, nu_tab[nu_ind],bin_ind);
     }
 
-    ACCH::UpdateGPU(lgTe, nx*ny*nz*sizeof(double));
-    ACCH::UpdateGPU(lgPe, nx*ny*nz*sizeof(double));
-    ACCH::UpdateGPU(T_ind, nx*ny*nz*sizeof(int));
-    ACCH::UpdateGPU(P_ind, nx*ny*nz*sizeof(int));
-    ACCH::UpdateGPU(B, nx*ny*nz*sizeof(double));
-    ACCH::UpdateGPU(tab_T, NT*sizeof(double));
-    ACCH::UpdateGPU(tab_p, Np*sizeof(double));
-    ACCH::UpdateGPU(invT_tab, NT*sizeof(double));
-    ACCH::UpdateGPU(invP_tab, Np*sizeof(double));
-    ACCH::UpdateGPU2D<float>(B_tab, Nbands, NT);
-    ACCH::UpdateGPU(kap, nx*ny*nz*sizeof(double));
-    ACCH::UpdateGPU3D<float>(kap_tab, Nbands, NT, Np);
-    ACCH::UpdateGPU(tr_switch, nx*ny*nz*sizeof(int));
 #pragma acc parallel loop gang collapse(2) \
  present(this[:1], lgTe[:nx*ny*nz], lgPe[:nx*ny*nz], \
          T_ind[:nx*ny*nz], P_ind[:nx*ny*nz], \
@@ -892,15 +906,11 @@ double RTS::wrapper(int rt_upd,GridData &Grid,RunData &Run,const PhysicsData &Ph
         }
       }
     }
-    ACCH::UpdateCPU(B, nx*ny*nz*sizeof(double));
-    ACCH::UpdateCPU(kap, nx*ny*nz*sizeof(double));
 
 // *****************************************************************
 // *    update diffusion-approx. boundary condition at bottom      *
 // *****************************************************************
   if(isgbeg[0]==1) {
-    //ACCH::UpdateGPU6D<real>(z_rbuf, Nbands, 2, 2, 2, NMU, nx*ny);
-    ACCH::UpdateGPU(B, nx*ny*nz*sizeof(double));
 #pragma acc parallel loop collapse(5) \
  present(this[:1], z_rbuf[:Nbands][:2][:2][:2][:NMU][:nx*ny], B[:nx*ny*nz])
     for(int YDIR=FWD;YDIR<=BWD;++YDIR) {
@@ -914,7 +924,6 @@ double RTS::wrapper(int rt_upd,GridData &Grid,RunData &Run,const PhysicsData &Ph
 	}
       }
     }
-    //ACCH::UpdateCPU6D<real>(z_rbuf, Nbands, 2, 2, 2, NMU, nx*ny);
   }
 
 
@@ -922,7 +931,6 @@ double RTS::wrapper(int rt_upd,GridData &Grid,RunData &Run,const PhysicsData &Ph
 // *    no incoming radiation on the top                           *
 // *****************************************************************
   if(isgend[0]==1) {
-    //ACCH::UpdateGPU6D<real>(z_rbuf, Nbands, 2, 2, 2, NMU, nx*ny);
 #pragma acc parallel loop collapse(3) \
  present(this[:1], z_rbuf[:Nbands][:2][:2][:2][:NMU][:nx*ny])
     for(int YDIR=FWD;YDIR<=BWD;++YDIR) {
@@ -932,7 +940,6 @@ double RTS::wrapper(int rt_upd,GridData &Grid,RunData &Run,const PhysicsData &Ph
 	}
       }
     }
-    //ACCH::UpdateCPU6D<real>(z_rbuf, Nbands, 2, 2, 2, NMU, nx*ny);
   }
 
 
@@ -949,7 +956,6 @@ double RTS::wrapper(int rt_upd,GridData &Grid,RunData &Run,const PhysicsData &Ph
   gFr_mean[band] = 0.0;
 
   if(isgend[0]==1){
-    //ACCH::UpdateGPU(Fz, nx*ny*nz*sizeof(double));
     double gFr_mean_reduc = 0.0;
 #pragma acc parallel loop collapse(2) \
  present(this[:1], Fz[:nx*ny*nz]) \
@@ -969,14 +975,11 @@ double RTS::wrapper(int rt_upd,GridData &Grid,RunData &Run,const PhysicsData &Ph
   // If I am saving 5000A intensity then wipe after last bin. if I am saving the continuum bin then wipe the second last bin.
 
   if (((cont_bin==1)&&(band==0))||((cont_bin==0)&&(band==1))) {
-    ACCH::UpdateGPU(I_o, nx*ny*sizeof(double));
-    ACCH::UpdateGPU(I_band, nx*ny*sizeof(double));
 #pragma acc parallel loop collapse(2) \
  present(this[:1], I_o[:nx*ny], I_band[:nx*ny])
     for(int y=0;y<ny;++y)
       for(int x=0;x<nx;++x)
         I_o[y*nx+x] = 0.0;
-    ACCH::UpdateCPU(I_o, nx*ny*sizeof(double));
   }
 
   }// end loop over bands
@@ -1001,21 +1004,15 @@ double RTS::wrapper(int rt_upd,GridData &Grid,RunData &Run,const PhysicsData &Ph
     get_Tau_and_Iout(Grid, Run, Physics,DZ,B_5000_tab,kap_5000_tab,I_band,I5000_out);
    
     if ((cont_bin==1)&&(need_I==1)) {
-      ACCH::UpdateGPU(I_o, nx*ny*sizeof(double));
-      ACCH::UpdateGPU(I_band, nx*ny*sizeof(double));
 #pragma acc parallel loop collapse(2) \
  present(this[:1], I_o[:nx*ny], I_band[:nx*ny])
       for (int y=0;y<ny;y++)
         for (int x=0;x<nx;x++)
           I_o[y*nx+x] +=I_band[y*nx+x];
-      ACCH::UpdateCPU(I_o, nx*ny*sizeof(double));
-      PGI_COMPARE(I_o, double, ny*nx, "I_o", "rt.cc", "RTS::wrapper", 14)
     }
   }
 
   calc_Qtot_and_Tau(Grid, Run, Physics);
-
-  //ACCH::Free(I_band, nx*ny*sizeof(double));
   
   if (Run.NeedsSlice() && Run.RT_HAVG)
     save_1D_avg(Run.path_2D,Run.globiter,Run.time); 
@@ -1042,14 +1039,9 @@ void RTS::calc_Qtot_and_Tau(GridData &Grid, const RunData &Run, const PhysicsDat
   double qsum=0.0;
 
   ACCH::UpdateGPU(Grid.Tau, Grid.bufsize*sizeof(double));
-  ACCH::UpdateGPU(Tau, nx*ny*nz*sizeof(double));
   ACCH::UpdateGPU(Grid.Jtot, Grid.bufsize*sizeof(double));
-  ACCH::UpdateGPU(Jt, nx*ny*nz*sizeof(double));
   ACCH::UpdateGPU(Grid.Stot, Grid.bufsize*sizeof(double));
-  ACCH::UpdateGPU(St, nx*ny*nz*sizeof(double));
-  ACCH::UpdateGPU(tr_switch, nx*ny*nz*sizeof(int));
   ACCH::UpdateGPU(U, Grid.bufsize*sizeof(cState));
-  ACCH::UpdateGPU3D<double>(Qt, ny-yo, nx-xo, nz-zo);
   ACCH::UpdateGPU(Grid.Qtot, Grid.bufsize*sizeof(double));
 #pragma acc parallel loop gang collapse(2) \
   present(this[:1], Grid[:1], Grid.Tau[:Grid.bufsize], Tau[:nx*ny*nz], \
@@ -1084,8 +1076,6 @@ void RTS::calc_Qtot_and_Tau(GridData &Grid, const RunData &Run, const PhysicsDat
 
   exchange_single(Grid,Grid.Tau);
 
-  PGI_COMPARE(Grid.Tau, double, Grid.bufsize, "Tau", "rt.cc", "RTS::calc_Qtot_and_Tau", 21)
-
   double Fqrad;
 
   MPI_Allreduce(&qsum,&Fqrad,1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
@@ -1100,90 +1090,55 @@ void RTS::calc_Qtot_and_Tau(GridData &Grid, const RunData &Run, const PhysicsDat
 }
 
 void RTS::integrate(
-  double ** coeff, const double c[4], const int stride[2], int ystep, int xstep, int zstep, int yi_i, int yi_f, int xi_i, int xi_f, int zi_i, int zi_f
+  double * coeff, const double c[4], const int stride[2], int ystep, int xstep, int zstep, int yi_i, int yi_f, int xi_i, int xi_f, int zi_i, int zi_f
 )
 {
   int off[4];
   int i_nu=0;
- double *ii=I_n;
+  double *ii=I_n;
   if(NDIM==3){
-    ACCH::UpdateCPU(I_n, nx*ny*nz*sizeof(double));
- 
     for(int i=0;i<4;i++) off[i]=iystep[i]*stride[0]+ixstep[i]*stride[1]+izstep[i];
 
-    bool ix = (ixstep[0] == 1 && ixstep[1] == 1    && 
-               ixstep[2] == 1 && ixstep[3] == 1)   ||
-              (ixstep[0] == -1 && ixstep[1] == -1  && 
-               ixstep[2] == -1 && ixstep[3] == -1);
-    bool iy = (iystep[0] == 1 && iystep[1] == 1    && 
-               iystep[2] == 1 && iystep[3] == 1)   ||
-              (iystep[0] == -1 && iystep[1] == -1  && 
-               iystep[2] == -1 && iystep[3] == -1);
-    bool iz = (izstep[0] == 1 && izstep[1] == 1    && 
-               izstep[2] == 1 && izstep[3] == 1)   ||
-              (izstep[0] == -1 && izstep[1] == -1  && 
-               izstep[2] == -1 && izstep[3] == -1);
-//    ACCH::UpdateGPU(ii, nx*ny*nz*sizeof(double));
 
-    const int str_inu[] = {(nx-1)*(nz-1), nz-1, 1};
-//#pragma acc data copyin(stride[:2], str_inu[:2], off[:4], c[:4])
-{
-    if(iy) {
-      for(int y = 0; y < ny-1; y++) {
-        int yi = (yi_i-yl) + y*ystep;
-//#pragma acc parallel loop gang async \
-// present(this[:1], ii[:nx*ny*nz], coeff[:nx*ny*nz][:2], stride[:2], str_inu[:2], off[:4], c[:4])
-        for(int x = 0; x < nx-1; x++) {
-          int xi = (xi_i-xl) + x*xstep;
-//#pragma acc loop vector
-          for(int z = 0; z < nz-1; z++) {
-            int zi = (zi_i-zl) + z*zstep;
-            int ind = yi*stride[0] + xi*stride[1] + zi;
-            int _i_nu = y*str_inu[0] + x*str_inu[1] + z;
-            double I_upw=c[0]*ii[ind-off[0]]+c[1]*ii[ind-off[1]]+c[2]*ii[ind-off[2]]+c[3]*ii[ind-off[3]];
-            ii[ind]=I_upw*coeff[_i_nu][0]+coeff[_i_nu][1];
-          }
-        }
-      }
-    } else if(ix) {
-      for(int x = 0; x < nx-1; x++) {
-        int xi = (xi_i-xl) + x*xstep;
-//#pragma acc parallel loop gang async \
-// present(this[:1], ii[:nx*ny*nz], coeff[:nx*ny*nz][:2], stride[:2], str_inu[:2], off[:4], c[:4])
-        for(int y = 0; y < ny-1; y++) {
-          int yi = (yi_i-yl) + y*ystep;
-//#pragma acc loop vector
-	  for(int z = 0; z < nz-1; z++) {
-            int zi = (zi_i-zl) + z*zstep;
-            int ind = yi*stride[0] + xi*stride[1] + zi;
-            int _i_nu = y*str_inu[0] + x*str_inu[1] + z;
-            double I_upw=c[0]*ii[ind-off[0]]+c[1]*ii[ind-off[1]]+c[2]*ii[ind-off[2]]+c[3]*ii[ind-off[3]];
-            ii[ind]=I_upw*coeff[_i_nu][0]+coeff[_i_nu][1];
-          }
-        }
-      }
-    } else if(iz) {
-      for(int z = 0; z < nz-1; z++) {
-        int zi = (zi_i-zl) + z*zstep;
-//#pragma acc parallel loop gang async \
-// present(this[:1], ii[:nx*ny*nz], coeff[:nx*ny*nz][:2], stride[:2], str_inu[:2], off[:4], c[:4])
-        for(int x = 0; x < nx-1; x++) {
-          int xi = (xi_i-xl) + x*xstep;
-//#pragma acc loop vector
-	  for(int y = 0; y < ny-1; y++) {
-            int yi = (yi_i-yl) + y*ystep;
-            int ind = yi*stride[0] + xi*stride[1] + zi;
-            int _i_nu = y*str_inu[0] + x*str_inu[1] + z;
-            double I_upw=c[0]*ii[ind-off[0]]+c[1]*ii[ind-off[1]]+c[2]*ii[ind-off[2]]+c[3]*ii[ind-off[3]];
-            ii[ind]=I_upw*coeff[_i_nu][0]+coeff[_i_nu][1];
-          }
-        }
-      }
-    }
-//#pragma acc wait
-} // end data
-    ACCH::UpdateGPU(ii, nx*ny*nz*sizeof(double));
-  }
+  const int off0 = off[0];
+  const int off1 = off[1];
+  const int off2 = off[2];
+  const int off3 = off[3];
+  const double c0 = c[0];
+  const double c1 = c[1];
+  const double c2 = c[2];
+  const double c3 = c[3];
+  const int size = nx*ny*nz;
+
+  double * dI_n = (double*) ACCH::GetDevicePtr(I_n);
+  double * dcoeff = (double*) ACCH::GetDevicePtr(coeff);
+
+#pragma acc loop seq
+	    for(int b1 = 0; b1 < bound1; b1++) {
+              int b1i = b1_i + b1*step1;
+              int b1off = b1i*str1;
+              int b1_i_nu = b1*inustr1;
+#pragma acc parallel loop gang async \
+ deviceptr(dI_n, dcoeff)
+              for(int b2 = 0; b2 < bound2; b2++) {
+                int b2i = b2_i + b2*step2;
+                int b2off = b1off + b2i*str2;
+                int b2_i_nu = b1_i_nu + b2*inustr2;
+#pragma acc loop vector
+                for(int b3 = 0; b3 < bound3; b3++) {
+                  int b3i = b3_i + b3*step3;
+                  int ind = b2off + b3i*str3;
+                  int i_nu_acc = b2_i_nu + b3*inustr3;
+                  double I_upw = c0*dI_n[ind-off0] +
+                                 c1*dI_n[ind-off1] +
+                                 c2*dI_n[ind-off2] +
+                                 c3*dI_n[ind-off3];
+                  dI_n[ind]=I_upw*dcoeff[i_nu_acc]+dcoeff[size+i_nu_acc];
+                }
+              }
+            }
+  } // end DIM 3
+#pragma acc wait
 
   if(NDIM==2){
     for(int i=0;i<4;i++) off[i]=ixstep[i]*stride[1]+izstep[i];
@@ -1192,7 +1147,7 @@ void RTS::integrate(
       for(int zi=zi_i;zi!=zi_f+zstep;zi=zi+zstep) {
         int ind=xoff+zi;
         double I_upw=c[0]*ii[ind-off[0]]+c[1]*ii[ind-off[1]]+c[2]*ii[ind-off[2]]+c[3]*ii[ind-off[3]];
-        ii[ind]=I_upw*coeff[i_nu][0]+coeff[i_nu][1];
+        ii[ind]=I_upw*coeff[i_nu]+coeff[nx*ny*nz+i_nu];
         i_nu+=1;
       }
     }
@@ -1202,7 +1157,7 @@ void RTS::integrate(
     for(int i=0;i<4;i++) off[i]=izstep[i];
     for(int zi=zi_i;zi!=zi_f+zstep;zi=zi+zstep) {
       double I_upw=c[0]*ii[zi-off[0]]+c[1]*ii[zi-off[1]]+c[2]*ii[zi-off[2]]+c[3]*ii[zi-off[3]];
-      ii[zi]=I_upw*coeff[i_nu][0]+coeff[i_nu][1];
+      ii[zi]=I_upw*coeff[i_nu]+coeff[nx*ny*nz+i_nu];
       i_nu+=1;
     }
   }
@@ -1217,12 +1172,6 @@ void RTS::driver(double DZ, double DX, double DY, int band){
                {{0,1,0},{1,1,0},{0,1,1},{1,1,1}},
                {{0,0,1},{0,1,1},{1,0,1},{1,1,1}} };
   
-  //memset(I_n,0,nx*ny*nz*sizeof(double));
-  //memset(Fz,0,nx*ny*nz*sizeof(double));
-  //memset(Fx,0,nx*ny*nz*sizeof(double));
-  //memset(Fy,0,nx*ny*nz*sizeof(double));
-  //memset(J_band,0,nx*ny*nz*sizeof(double));
-
 #pragma acc parallel loop \
  present(this[:1], I_n[:nx*ny*nz], Fz[:nx*ny*nz], Fx[:nx*ny*nz], \
          Fy[:nx*ny*nz], J_band[:nx*ny*nz])
@@ -1233,12 +1182,6 @@ void RTS::driver(double DZ, double DX, double DY, int band){
     Fy[i] = 0.0;
     J_band[i] = 0.0;
   }
-  //ACCH::UpdateCPU(Fx, nx*ny*nz*sizeof(double));
-  //ACCH::UpdateCPU(Fy, nx*ny*nz*sizeof(double));
-  //ACCH::UpdateCPU(Fz, nx*ny*nz*sizeof(double));
-  ACCH::UpdateCPU(J_band, nx*ny*nz*sizeof(double));
-  //ACCH::UpdateCPU(I_n, nx*ny*nz*sizeof(double));
-
 
   double maxerr_up=0.0,maxerr_down=0.0;
 // loop over octants & determination of loop direction
@@ -1259,7 +1202,10 @@ void RTS::driver(double DZ, double DX, double DY, int band){
           ixstep[m]=stepvec[ibase[l]][m][0]*xstep;
           iystep[m]=stepvec[ibase[l]][m][1]*ystep;
           izstep[m]=stepvec[ibase[l]][m][2]*zstep;
-        } 
+        }
+
+        IntegrateSetup(yi_i-yl, xi_i-xl, zi_i-zl, ystep, xstep, zstep);
+
         double stime=MPI_Wtime();
         interpol(zi_i,zi_f,zstep,xi_i,xi_f,xstep,yi_i,yi_f,ystep,l,coeff,B);
         cmp_time1+=MPI_Wtime()-stime;
@@ -1346,7 +1292,7 @@ void RTS::driver(double DZ, double DX, double DY, int band){
 }
 
 void RTS::interpol(int zi_i,int zi_f,int zstep,int xi_i,int xi_f,int xstep,
-           int yi_i,int yi_f,int ystep,int l,double** coeff, double * Ss)
+           int yi_i,int yi_f,int ystep,int l,double* coeff, double * Ss)
 {
 
   double ds3=ds_upw[l]*inv3,ds6=ds_upw[l]*inv6;
@@ -1368,13 +1314,12 @@ void RTS::interpol(int zi_i,int zi_f,int zstep,int xi_i,int xi_f,int xstep,
     iystep[3]*stride[0]+ixstep[3]*stride[1]+izstep[3]
   };
 
+  const int size = nx*ny*nz;
+
   if(NDIM==3){
-    ACCH::UpdateGPU(rho, nx*ny*nz*sizeof(double));
-    ACCH::UpdateGPU(kap, nx*ny*nz*sizeof(double));
-    ACCH::UpdateGPU(Ss, nx*ny*nz*sizeof(double));
 #pragma acc parallel loop gang collapse(2) \
  private(_r_upw, _k_upw, _S_upw, _r0, _k0, _S0) \
- present(this[:1], rho[:nx*ny*nz], kap[:nx*ny*nz], Ss[:nx*ny*nz], coeff[:nx*ny*nz][:2])
+ present(this[:1], rho[:nx*ny*nz], kap[:nx*ny*nz], Ss[:nx*ny*nz], coeff[:nx*ny*nz*2])
     for(int y = 0; y < ny-1; y++) {
       for(int x = 0; x < nx-1; x++) {
         int yi = (yi_i-yl) + y*ystep;
@@ -1420,18 +1365,15 @@ void RTS::interpol(int zi_i,int zi_f,int zstep,int xi_i,int xi_f,int xstep,
           double source=_S0*(w0-w1/dt)+_S_upw*(w1/dt);
 
           if (dt > dtau_min2){
-            coeff[i_nu_][0] = expo;
-            coeff[i_nu_][1] = source;
+            coeff[i_nu_] = expo;
+            coeff[i_nu_+size] = source;
           }else{
-            coeff[i_nu_][0] = 1.0; 
-            coeff[i_nu_][1] = 0.0;
+            coeff[i_nu_] = 1.0; 
+            coeff[i_nu_+size] = 0.0;
           }
         }
       }
     }
-    ACCH::UpdateCPU2D<double>(coeff, nx*ny*nz, 2);
-    //PGI_COMPARE(&coeff[0][0], double, (nx-1)*(ny-1)*(nz-1)*2, "coeff", "rt.cc", "RTS::interpol", 23)
-
   }
 
   if(NDIM==1){
@@ -1473,11 +1415,11 @@ void RTS::interpol(int zi_i,int zi_f,int zstep,int xi_i,int xi_f,int xstep,
       double source=S0[zi]*(w0-w1/dt)+S_upw[zi]*(w1/dt);
 
       if (dt > dtau_min2){
-        coeff[i_nu][0] = expo;
-        coeff[i_nu][1] = source;
+        coeff[i_nu] = expo;
+        coeff[i_nu+size] = source;
       }else{
-        coeff[i_nu][0] = 1.0; 
-        coeff[i_nu][1] = 0.0;
+        coeff[i_nu] = 1.0; 
+        coeff[i_nu+size] = 0.0;
       }
     i_nu+=1;
     }
@@ -1522,11 +1464,11 @@ void RTS::interpol(int zi_i,int zi_f,int zstep,int xi_i,int xi_f,int xstep,
         double source=S0[zi]*(w0-w1/dt)+S_upw[zi]*(w1/dt);
 
         if (dt > dtau_min2){
-          coeff[i_nu][0] = expo;
-          coeff[i_nu][1] = source;
+          coeff[i_nu] = expo;
+          coeff[i_nu+size] = source;
         }else{
-          coeff[i_nu][0] = 1.0; 
-          coeff[i_nu][1] = 0.0;
+          coeff[i_nu] = 1.0; 
+          coeff[i_nu+size] = 0.0;
         }
       i_nu+=1;
       }
@@ -1542,8 +1484,6 @@ double RTS::error(int band,int l,int ZDIR,int XDIR,int YDIR,double I_min)
 //
   if (NDIM==3){
     real *ysb=y_sbuf[band][YDIR][XDIR][ZDIR][l],*yob=y_oldbuf[band][YDIR][XDIR][ZDIR][l];
-    //ACCH::UpdateGPU(ysb, nx*nz*sizeof(real));
-    //ACCH::UpdateGPU(yob, nx*nz*sizeof(real));
 #pragma acc parallel loop collapse(2) reduction(max:err_max) \
  present(this[:1], ysb[:nx*nz], yob[:nx*nz])
     for(int z=z0;z<nz-z1;++z)
@@ -1555,8 +1495,6 @@ double RTS::error(int band,int l,int ZDIR,int XDIR,int YDIR,double I_min)
 //
   if (NDIM>1){
     real *xsb=x_sbuf[band][YDIR][XDIR][ZDIR][l],*xob=x_oldbuf[band][YDIR][XDIR][ZDIR][l];
-    //ACCH::UpdateGPU(xsb, ny*nz*sizeof(real));
-    //ACCH::UpdateGPU(xob, ny*nz*sizeof(real));
 #pragma acc parallel loop collapse(2) reduction(max:err_max) \
  present(this[:1], xsb[:ny*nz], xob[:ny*nz])
     for(int z=z0;z<nz-z1;++z)
@@ -1567,8 +1505,6 @@ double RTS::error(int band,int l,int ZDIR,int XDIR,int YDIR,double I_min)
   }
 //
   real *zsb=z_sbuf[band][YDIR][XDIR][ZDIR][l],*zob=z_oldbuf[band][YDIR][XDIR][ZDIR][l];
-  //ACCH::UpdateGPU(zsb, ny*nx*sizeof(real));
-  //ACCH::UpdateGPU(zob, ny*nx*sizeof(real));
 #pragma acc parallel loop reduction(max:err_max) \
  present(this[:1], zsb[:ny*nx], zob[:ny*nx])
   for(int ind=0;ind<nx*ny;++ind){
@@ -1581,16 +1517,12 @@ double RTS::error(int band,int l,int ZDIR,int XDIR,int YDIR,double I_min)
 
 void RTS::readbuf(int band,int l,int ZDIR,int XDIR,int YDIR)
 {//RHC
-  //ACCH::UpdateGPU(I_n, nx*ny*nz*sizeof(double));  
   if(NDIM==3){
     int y0=(YDIR==FWD)?0:ny-1;
     int y = y0*nx*nz;
     real * ysb = y_sbuf[band][YDIR][XDIR][ZDIR][l];
     real * yrb = y_rbuf[band][YDIR][XDIR][ZDIR][l];
     real * yob = y_oldbuf[band][YDIR][XDIR][ZDIR][l];
-    //ACCH::UpdateGPU(ysb, nx*nz*sizeof(real));
-    //ACCH::UpdateGPU(yrb, nx*nz*sizeof(real));
-    //ACCH::UpdateGPU(yob, nx*nz*sizeof(real));
 #pragma acc parallel loop collapse(2) \
  present(this[:1], I_n[:nx*ny*nz], yrb[:nx*nz])
     for(int x=0;x<nx;++x)
@@ -1600,7 +1532,6 @@ void RTS::readbuf(int band,int l,int ZDIR,int XDIR,int YDIR)
  present(this[:1], yob[:nx*nz], ysb[:nx*nz])
     for(int i = 0; i < nx*nz; i++)
       yob[i] = ysb[i];
-    //ACCH::UpdateCPU(yob, nx*nz*sizeof(real));
   }
 
   if(NDIM>1){
@@ -1609,9 +1540,6 @@ void RTS::readbuf(int band,int l,int ZDIR,int XDIR,int YDIR)
     real * xsb = x_sbuf[band][YDIR][XDIR][ZDIR][l];
     real * xrb = x_rbuf[band][YDIR][XDIR][ZDIR][l];
     real * xob = x_oldbuf[band][YDIR][XDIR][ZDIR][l];
-    //ACCH::UpdateGPU(xsb, ny*nz*sizeof(real));
-    //ACCH::UpdateGPU(xrb, ny*nz*sizeof(real));
-    //ACCH::UpdateGPU(xob, ny*nz*sizeof(real));
 #pragma acc parallel loop collapse(2) \
  present(this[:1], I_n[:nx*ny*nz], xrb[:ny*nz])
     for(int y=0;y<ny;++y)
@@ -1621,16 +1549,12 @@ void RTS::readbuf(int band,int l,int ZDIR,int XDIR,int YDIR)
  present(this[:1], xob[:ny*nz], xsb[:ny*nz])
     for(int i = 0; i < ny*nz; i++)
       xob[i] = xsb[i];
-    //ACCH::UpdateCPU(xob, ny*nz*sizeof(real));
   }
   
   int z0=(ZDIR==UP)?0:nz-1;
   real * zsb = z_sbuf[band][YDIR][XDIR][ZDIR][l];
   real * zrb = z_rbuf[band][YDIR][XDIR][ZDIR][l];
   real * zob = z_oldbuf[band][YDIR][XDIR][ZDIR][l];
-  //ACCH::UpdateGPU(zsb, ny*nx*sizeof(real));
-  //ACCH::UpdateGPU(zrb, ny*nx*sizeof(real));
-  //ACCH::UpdateGPU(zob, ny*nx*sizeof(real));
 #pragma acc parallel loop collapse(2) \
  present(this[:1], I_n[:nx*ny*nz], zrb[:ny*nx])
   for(int y=0;y<ny;++y)
@@ -1640,47 +1564,38 @@ void RTS::readbuf(int band,int l,int ZDIR,int XDIR,int YDIR)
  present(this[:1], zob[:ny*nx], zsb[:ny*nx])
   for(int i = 0; i < nx*ny; i++)
     zob[i] = zsb[i];
-  //ACCH::UpdateCPU(zob, ny*nx*sizeof(real));
-  //ACCH::UpdateCPU(I_n, nx*ny*nz*sizeof(double)); 
 }
 
 void RTS::writebuf(int band, int l,int ZDIR,int XDIR,int YDIR){
-  //ACCH::UpdateGPU(I_n, nx*ny*nz*sizeof(double));
   if (NDIM==3){
     int y0=(YDIR==FWD)?ny-1:0;
     int y = y0*nx*nz;
     real * ysb = y_sbuf[band][YDIR][XDIR][ZDIR][l];
-    //ACCH::UpdateGPU(ysb, nx*nz*sizeof(real));
 #pragma acc parallel loop collapse(2) \
  present(this[:1], I_n[:nx*ny*nz], ysb[:nx*nz])
     for(int x=0;x<nx;++x)
       for(int z=0;z<nz;++z)
         ysb[z*nx+x]=(real) I_n[y+x*nz+z];
-    //ACCH::UpdateCPU(ysb, nx*nz*sizeof(real));
   }
 
   if (NDIM>1){
     int x0=(XDIR==RIGHT)?nx-1:0;
     int x = x0*nz;
     real * xsb = x_sbuf[band][YDIR][XDIR][ZDIR][l];
-    //ACCH::UpdateGPU(xsb, ny*nz*sizeof(real));
 #pragma acc parallel loop collapse(2) \
  present(this[:1], I_n[:nx*ny*nz], xsb[:ny*nz])
     for(int y=0;y<ny;++y)
       for(int z=0;z<nz;++z)
         xsb[z*ny+y]=(real) I_n[y*nx*nz+x+z];
-    //ACCH::UpdateCPU(xsb, ny*nz*sizeof(real));
   }
 
   int z0=(ZDIR==UP)?nz-1:0;
   real * zsb = z_sbuf[band][YDIR][XDIR][ZDIR][l];
-  //ACCH::UpdateGPU(zsb, nx*ny*sizeof(real));
 #pragma acc parallel loop collapse(2) \
  present(this[:1], I_n[:nx*ny*nz], zsb[:ny*nx])
   for(int y=0;y<ny;++y)
     for(int x=0;x<nx;++x)
       zsb[x*ny+y]=(real) I_n[y*nx*nz+x*nz+z0];
-  //ACCH::UpdateCPU(zsb, nx*ny*sizeof(real));
 
 }
 
@@ -1712,20 +1627,15 @@ void RTS::exchange(int band,int l,int ZDIR,int XDIR,int YDIR)
   
     z0=(ZDIR==UP)?nz-1:0;
     y0=(YDIR==FWD)?0:ny-1;
-    //ACCH::UpdateGPU(zsb, nx*ny*sizeof(real));
-    //ACCH::UpdateGPU(yrb, nx*nz*sizeof(real));
 #pragma acc parallel loop deviceptr(yrb, zsb)
     for(int x=0;x<nx;++x)
       zsb[x*ny+y0]=yrb[z0*nx+x];
-    //ACCH::UpdateCPU(zsb, nx*ny*sizeof(real));
   
     x0=(XDIR==RIGHT)?nx-1:0;
     y0=(YDIR==FWD)?0:ny-1;
-    //ACCH::UpdateGPU(xsb, ny*nz*sizeof(real));
 #pragma acc parallel loop deviceptr(xsb, yrb)
     for(int z=0;z<nz;++z)
       xsb[z*ny+y0]=yrb[z*nx+x0];
-    //ACCH::UpdateCPU(xsb, ny*nz*sizeof(real));
   }
 
   if (NDIM >1){
@@ -1739,12 +1649,9 @@ void RTS::exchange(int band,int l,int ZDIR,int XDIR,int YDIR)
  
     x0=(XDIR==RIGHT)?0:nx-1;
     z0=(ZDIR==UP)?nz-1:0;
-    //ACCH::UpdateGPU(zsb, nx*ny*sizeof(real));
-    //ACCH::UpdateGPU(xrb, ny*nz*sizeof(real));
 #pragma acc parallel loop deviceptr(xrb, zsb)
     for(int y=0;y<ny;++y)
       zsb[x0*ny+y]=xrb[z0*ny+y];
-    //ACCH::UpdateCPU(zsb, ny*nx*sizeof(real));
   }
   
 // z-direction
@@ -1763,11 +1670,6 @@ void RTS::flux(int l,int ZDIR,int XDIR,int YDIR)
   double c_z = 0.5*PI*zsign*wmu[l]*xmu[2][l];
   double c_x = 0.5*PI*xsign*wmu[l]*xmu[0][l];
   double c_y = 0.5*PI*ysign*wmu[l]*xmu[1][l];
-  //ACCH::UpdateGPU(I_n, nx*ny*nz*sizeof(double));
-  ACCH::UpdateGPU(J_band, nx*ny*nz*sizeof(double));
-  //ACCH::UpdateGPU(Fz, nx*ny*nz*sizeof(double));
-  //ACCH::UpdateGPU(Fx, nx*ny*nz*sizeof(double));
-  //ACCH::UpdateGPU(Fy, nx*ny*nz*sizeof(double));
 #pragma acc parallel loop collapse(2) gang \
  present(this[:1], I_n[:nx*ny*nz], J_band[:nx*ny*nz], \
          Fz[:nx*ny*nz], Fy[:nx*ny*nz], Fx[:nx*ny*nz])
@@ -1785,10 +1687,6 @@ void RTS::flux(int l,int ZDIR,int XDIR,int YDIR)
       }
     }
   }
-  ACCH::UpdateCPU(J_band, nx*ny*nz*sizeof(double));
-  //ACCH::UpdateCPU(Fz, nx*ny*nz*sizeof(double));
-  //ACCH::UpdateCPU(Fx, nx*ny*nz*sizeof(double));
-  //ACCH::UpdateCPU(Fy, nx*ny*nz*sizeof(double));
 }
 
 void RTS::get_Tau_and_Iout(GridData &Grid, const RunData &Run, const PhysicsData &Physics, double DZ, float * B_Iout_tab, float ** kap_Iout_tab, double * I_band, int calc_int){
@@ -1805,17 +1703,6 @@ void RTS::get_Tau_and_Iout(GridData &Grid, const RunData &Run, const PhysicsData
   ACCH::UpdateGPU(Grid.pres, Grid.bufsize*sizeof(double));
   ACCH::UpdateGPU(Grid.temp, Grid.bufsize*sizeof(double));
   ACCH::UpdateGPU(Grid.U, Grid.bufsize*sizeof(cState));
-  ACCH::UpdateGPU(rho, nx*ny*nz*sizeof(double));
-  ACCH::UpdateGPU(tab_T, NT*sizeof(double));
-  ACCH::UpdateGPU(tab_p, Np*sizeof(double));
-  ACCH::UpdateGPU(B, nx*ny*nz*sizeof(double));
-  ACCH::UpdateGPU(kap, nx*ny*nz*sizeof(double));
-  ACCH::UpdateGPU(Tau, nx*ny*nz*sizeof(double));
-  ACCH::UpdateGPU(B_Iout_tab, NT*sizeof(float));
-  ACCH::UpdateGPU2D<float>(kap_Iout_tab, NT, Np);
-  ACCH::UpdateGPU(I_band, ny*nx*sizeof(double));
-  ACCH::UpdateGPU(invT_tab, NT*sizeof(double));
-  ACCH::UpdateGPU(invP_tab, Np*sizeof(double));
 
 #pragma acc parallel loop gang collapse(2) \
  present(this[:1], Grid[:1], Grid.pres[:Grid.bufsize], Grid.temp[:Grid.bufsize], Grid.U[:Grid.bufsize], \
@@ -1909,9 +1796,6 @@ void RTS::get_Tau_and_Iout(GridData &Grid, const RunData &Run, const PhysicsData
       }
     }
 
-  ACCH::UpdateCPU(rho, nx*ny*nz*sizeof(double));
-  ACCH::UpdateCPU(B, nx*ny*nz*sizeof(double));
-  ACCH::UpdateCPU(kap, nx*ny*nz*sizeof(double));
 
 #pragma acc parallel loop collapse(2) \
  present(this[:1], sbuf[:ny][:nx], rbuf[:ny][:nx], Tau[:nx*ny*nz])
@@ -1936,8 +1820,6 @@ void RTS::get_Tau_and_Iout(GridData &Grid, const RunData &Run, const PhysicsData
       }
     }
   }
-
-  ACCH::UpdateCPU(Tau, nx*ny*nz*sizeof(double));
 
   if (calc_int){
   //  Outgoing Intensity at top (Long Characteristics)
@@ -1969,7 +1851,6 @@ void RTS::get_Tau_and_Iout(GridData &Grid, const RunData &Run, const PhysicsData
   MPI_Allreduce(sbuf[0],rbuf[0],nx*ny,MPI_DOUBLE,MPI_SUM,comm_col[lrank[2]][lrank[1]]);
   ACCH::UpdateGPU2D<double>(rbuf, ny, nx);
   atime+=MPI_Wtime()-ctime;
-  ACCH::UpdateGPU(I_band, nx*ny*sizeof(double));
 #pragma acc parallel loop collapse(2) \
  present(this[:1], I_band[:ny*nx], rbuf[:ny][:nx])
   for(int y=0;y<ny;++y){
@@ -1977,7 +1858,6 @@ void RTS::get_Tau_and_Iout(GridData &Grid, const RunData &Run, const PhysicsData
       I_band[y*nx+x]+=rbuf[y][x];
     }
   }
-  ACCH::UpdateCPU(I_band, nx*ny*sizeof(double));
   }
 
 
@@ -2005,8 +1885,6 @@ void RTS::tauscale_qrad(int band, double DX,double DY,double DZ, double * Ss){
   double ** rbuf = ACCH::Malloc2D<double>(ny, nx);
   double **** Qtemp = ACCH::Malloc4D<double>(ny, nx, nz, 2);
 
-  ACCH::UpdateGPU(rho, nx*ny*nz*sizeof(double));
-  ACCH::UpdateGPU(kap, nx*ny*nz*sizeof(double));
 #pragma acc parallel loop collapse(2) \
  present(this[:1], Tau[:nx*ny*nz], kap[:nx*ny*nz], rho[:nx*ny*nz])  
   for(int y=0;y<ny;++y){ // loop over RT grid
@@ -2047,10 +1925,8 @@ void RTS::tauscale_qrad(int band, double DX,double DY,double DZ, double * Ss){
       }
     }
   }
-  ACCH::UpdateCPU(Tau, nx*ny*nz*sizeof(double));
 
   if (need_I){
-    ACCH::UpdateGPU(Ss, nx*ny*nz*sizeof(double));
     //  Outgoing Intensity at top (Long Characteristics)
 #pragma acc parallel loop gang collapse(2) \
  present(this[:1], Tau[:nx*ny*nz], Ss[:nx*ny*nz], \
@@ -2087,17 +1963,9 @@ void RTS::tauscale_qrad(int band, double DX,double DY,double DZ, double * Ss){
         I_o[y*nx+x]+=rbuf[y][x];
       }
     }
-    ACCH::UpdateCPU(I_o, nx*ny*sizeof(double));
 
   }
 //  radiative energy imbalance
-  //ACCH::UpdateGPU(I_n, nx*ny*nz*sizeof(double));
-  ACCH::UpdateGPU(kap, nx*ny*nz*sizeof(double));
-  ACCH::UpdateGPU(rho, nx*ny*nz*sizeof(double));
-  ACCH::UpdateGPU(J_band, nx*ny*nz*sizeof(double));
-  ACCH::UpdateGPU(St, nx*ny*nz*sizeof(double));
-  ACCH::UpdateGPU(Jt, nx*ny*nz*sizeof(double));
-  ACCH::UpdateGPU(Ss, nx*ny*nz*sizeof(double));
 #pragma acc parallel loop gang collapse(2) \
  present(this[:1], I_n[:nx*ny*nz], kap[:nx*ny*nz], rho[:nx*ny*nz], \
          J_band[:nx*ny*nz], St[:nx*ny*nz], Jt[:nx*ny*nz], Ss[:nx*ny*nz])
@@ -2111,16 +1979,9 @@ void RTS::tauscale_qrad(int band, double DX,double DY,double DZ, double * Ss){
       }
     }
   }
-  //ACCH::UpdateCPU(I_n, nx*ny*nz*sizeof(double));
-  ACCH::UpdateCPU(St, nx*ny*nz*sizeof(double));
-  ACCH::UpdateCPU(Jt, nx*ny*nz*sizeof(double));
 
 // 
   double inv_tau_0=1.0e1;
-  //ACCH::UpdateGPU(Fx, nx*ny*nz*sizeof(double));
-  //ACCH::UpdateGPU(Fy, nx*ny*nz*sizeof(double));
-  //ACCH::UpdateGPU(Fz, nx*ny*nz*sizeof(double));
-  ACCH::UpdateGPU3D<double>(Qt, ny-yo, nx-xo, nz-zo);
 
 #pragma acc parallel loop gang collapse(2) \
  present(this[:1], Fx[:nx*ny*nz], Fy[:nx*ny*nz], Fz[:nx*ny*nz], \
@@ -2262,18 +2123,10 @@ void RTS::tauscale_qrad(int band, double DX,double DY,double DZ, double * Ss){
     }
   }
 */
-  ACCH::UpdateCPU3D<double>(Qt, ny-yo, nx-xo, nz-zo);
   ACCH::UpdateCPU4D<double>(Qtemp, ny, nx, nz, 2);
 
    if (save_col){
      ACCH::UpdateGPU3D<double>(Col_out, Nbands, col_nz, col_nvar);
-     ACCH::UpdateGPU(J_band, nx*ny*nz*sizeof(double));
-     ACCH::UpdateGPU(Ss, nx*ny*nz*sizeof(double));
-     ACCH::UpdateGPU(kap, nx*ny*nz*sizeof(double));
-     ACCH::UpdateGPU(abn, nx*ny*nz*sizeof(double));
-     ACCH::UpdateGPU(sig, nx*ny*nz*sizeof(double));
-     ACCH::UpdateGPU(B, nx*ny*nz*sizeof(double));
-     ACCH::UpdateGPU(Tau, nx*ny*nz*sizeof(double));
      ACCH::UpdateGPU4D<double>(Qtemp, ny, nx, nz, 2);
      int col_bnd2 = col_bnd[2];
      int col_bnd3 = col_bnd[3];

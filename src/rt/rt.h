@@ -108,7 +108,7 @@ protected:
   double *Tau;
   double  xmu[3][NMU],wmu[NMU];
   double  ds_upw[NMU];//, ds_dnw[NMU] ,dz_upw, dz_dnw;
-  double **coeff;
+  double *coeff;
 // wrapper
   double F_o,dt_rad;
   double * Fr_mean, * gFr_mean;
@@ -178,8 +178,9 @@ protected:
 
   int *tr_switch;
   void driver(double DZ, double DX, double DY, int band); 
-  void interpol(int,int,int,int,int,int,int,int,int,int,double**,double*);
-  void integrate(double ** coeff, const double c[4], const int stride[2], int ystep, int xstep, int zstep, int yi_i, int yi_f, int xi_i, int xi_f, int zi_i, int zi_f);
+  void interpol(int,int,int,int,int,int,int,int,int,int,double*,double*);
+  void IntegrateSetup(int yi_i, int xi_i, int zi_i, int ystep, int xstep, int zstep);
+  void integrate(double * coeff, const double c[4], const int stride[2], int ystep, int xstep, int zstep, int yi_i, int yi_f, int xi_i, int xi_f, int zi_i, int zi_f);
   double error(int,int,int,int,int,double);
   void readbuf(int band,int l,int  DIR,int XDIR,int YDIR);
   void writebuf(int band, int l,int DIR,int XDIR,int YDIR);
@@ -202,6 +203,7 @@ public:
   double Jtot(int,int,int);
   double Iout(int,int); 
   double Fout(void){ return F_o; }
+  void UpdateIout();
   int grey_rt(void){ return 1; } //Nbands == 1? 1:0;
 };
 

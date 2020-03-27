@@ -257,7 +257,7 @@ int ACCH::GetNumGPU()
 #ifdef _OPENACC
   return acc_get_num_devices(acc_device_default);
 #else
-  return 0;
+  return 1;
 #endif
 }
 
