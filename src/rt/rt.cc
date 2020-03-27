@@ -1806,9 +1806,9 @@ void RTS::get_Tau_and_Iout(GridData &Grid, const RunData &Run, const PhysicsData
     }
   }
   double ctime=MPI_Wtime();
-  ACCH::UpdateCPU2D<double>(sbuf, ny, nx);
-  MPI_Scan(sbuf[0],rbuf[0],nx*ny,MPI_DOUBLE,MPI_SUM,comm_col[lrank[2]][lrank[1]]);
-  ACCH::UpdateGPU2D<double>(rbuf, ny, nx);
+  MPI_Scan(
+    ACCH::GetDevicePtr(sbuf[0]), ACCH::GetDevicePtr(rbuf[0]),
+    nx*ny, MPI_DOUBLE, MPI_SUM, comm_col[lrank[2]][lrank[1]]);
   stime+=MPI_Wtime()-ctime;
 #pragma acc parallel loop gang collapse(2) \
  present(this[:1], rbuf[:ny][:nx], Tau[:nx*ny*nz])
@@ -1847,9 +1847,9 @@ void RTS::get_Tau_and_Iout(GridData &Grid, const RunData &Run, const PhysicsData
     }
   }
   ctime=MPI_Wtime();
-  ACCH::UpdateCPU2D<double>(sbuf, ny, nx);
-  MPI_Allreduce(sbuf[0],rbuf[0],nx*ny,MPI_DOUBLE,MPI_SUM,comm_col[lrank[2]][lrank[1]]);
-  ACCH::UpdateGPU2D<double>(rbuf, ny, nx);
+  MPI_Allreduce(
+    ACCH::GetDevicePtr(sbuf[0]), ACCH::GetDevicePtr(rbuf[0]),
+    nx*ny, MPI_DOUBLE, MPI_SUM, comm_col[lrank[2]][lrank[1]]);
   atime+=MPI_Wtime()-ctime;
 #pragma acc parallel loop collapse(2) \
  present(this[:1], I_band[:ny*nx], rbuf[:ny][:nx])
@@ -1909,10 +1909,9 @@ void RTS::tauscale_qrad(int band, double DX,double DY,double DZ, double * Ss){
   }
 
   double ctime=MPI_Wtime(); 
-  ACCH::UpdateCPU2D<double>(sbuf, ny, nx);
-  ACCH::UpdateCPU2D<double>(rbuf, ny, nx);
-  MPI_Scan(sbuf[0],rbuf[0],nx*ny,MPI_DOUBLE,MPI_SUM,comm_col[lrank[2]][lrank[1]]);
-  ACCH::UpdateGPU2D<double>(rbuf, ny, nx);
+  MPI_Scan(
+    ACCH::GetDevicePtr(sbuf[0]), ACCH::GetDevicePtr(rbuf[0]),
+    nx*ny, MPI_DOUBLE, MPI_SUM, comm_col[lrank[2]][lrank[1]]);
   stime+=MPI_Wtime()-ctime;
 #pragma acc parallel loop gang collapse(2) \
  present(this[:1], Tau[:nx*ny*nz], rbuf[:ny][:nx])
@@ -1951,10 +1950,9 @@ void RTS::tauscale_qrad(int band, double DX,double DY,double DZ, double * Ss){
       }
     }
     ctime=MPI_Wtime(); 
-    ACCH::UpdateCPU2D<double>(sbuf, ny, nx);
-    ACCH::UpdateCPU2D<double>(rbuf, ny, nx);
-    MPI_Allreduce(sbuf[0],rbuf[0],nx*ny,MPI_DOUBLE,MPI_SUM,comm_col[lrank[2]][lrank[1]]);
-    ACCH::UpdateGPU2D<double>(rbuf, ny, nx);
+    MPI_Allreduce(
+      ACCH::GetDevicePtr(sbuf[0]), ACCH::GetDevicePtr(rbuf[0]),
+      nx*ny, MPI_DOUBLE, MPI_SUM, comm_col[lrank[2]][lrank[1]]);
     ctime+=MPI_Wtime()-ctime;
 #pragma acc parallel loop collapse(2) \
  present(this[:1], I_o[:nx*ny], rbuf[:ny][:nx])
@@ -2052,86 +2050,14 @@ void RTS::tauscale_qrad(int band, double DX,double DY,double DZ, double * Ss){
     }
   }
 
-/*
-//#pragma acc parallel loop gang collapse(2) \
- present(this[:1], Fx[:nx*ny*nz], Fy[:nx*ny*nz], Fz[:nx*ny*nz], \
-        I_n[:nx*ny*nz], Qt[:ny-yo][:nx-xo][:nz-zo], Qtemp[:ny][:nx][:nz][:2])
-  for(int y=0;y<ny-yo;++y){
-    for(int x=0;x<nx-xo;++x){
-//#pragma acc loop vector
-      for(int z=0;z<nz-zo;++z){
-        double qf1=
-          (
-            (
-              Fz[y*nx*nz + x*nz + z+zo]+
-              Fz[y*nx*nz + (x+xo)*nz + (z+zo)]+
-              Fz[(y+yo)*nx*nz + x*nz + (z+zo)]+
-              Fz[(y+yo)*nx*nz + (x+xo)*nz + (z+zo)]
-            )-(
-              Fz[y*nx*nz + x*nz + z]+
-              Fz[y*nx*nz + (x+xo)*nz + z]+
-              Fz[(y+yo)*nx*nz + x*nz + z]+
-              Fz[(y+yo)*nx*nz + (x+xo)*nz + z]
-            )
-          )*idz
-          +
-          (
-            (
-              Fx[y*nx*nz + (x+xo)*nz + z]+
-              Fx[y*nx*nz + (x+xo)*nz + (z+zo)]+
-              Fx[(y+yo)*nx*nz + (x+xo)*nz + z]+
-              Fx[(y+yo)*nx*nz + (x+xo)*nz + (z+zo)]
-            )-(
-              Fx[y*nx*nz + x*nz + z]+
-              Fx[y*nx*nz + x*nz + (z+zo)]+
-              Fx[(y+yo)*nx*nz + x*nz + z]+
-              Fx[(y+yo)*nx*nz + x*nz + (z+zo)]
-            )
-          )*idx
-          +
-          (
-            (
-              Fy[(y+yo)*nx*nz + x*nz + z]+
-              Fy[(y+yo)*nx*nz + x*nz + (z+zo)]+
-              Fy[(y+yo)*nx*nz + (x+xo)*nz + z]+
-              Fy[(y+yo)*nx*nz + (x+xo)*nz + (z+zo)]
-            )-(
-              Fy[y*nx*nz + x*nz + z]+
-              Fy[y*nx*nz + x*nz + (z+zo)]+
-              Fy[y*nx*nz + (x+xo)*nz + z]+
-              Fy[y*nx*nz + (x+xo)*nz + (z+zo)]
-            )
-          )*idy;
-        qf1*=-0.25e0; 
-        double qj1 = I_n[y*nx*nz+x*nz+z] +
-                     I_n[y*nx*nz+x*nz+(z+zo)] +
-                     I_n[y*nx*nz+(x+xo)*nz+z] +
-                     I_n[y*nx*nz+(x+xo)*nz+(z+zo)] +
-                     I_n[(y+yo)*nx*nz+x*nz+z] +
-                     I_n[(y+yo)*nx*nz+x*nz+(z+zo)] +
-                     I_n[(y+yo)*nx*nz+(x+xo)*nz+z] +
-                     I_n[(y+yo)*nx*nz+(x+xo)*nz+(z+zo)];
-        qj1*=0.5*PI; 
-
-        double tau_local=tau(z+zo,x+xo,y+yo);
-        double weight=exp(-tau_local*inv_tau_0);
-        Qtemp[y][x][z+zo][0]=qf1;
-        Qtemp[y][x][z+zo][1]=qj1;
-
-        Qt[y][x][z-zo+1]+=weight*qj1+(1.0-weight)*qf1;
-      }
-    }
-  }
-*/
-  ACCH::UpdateCPU4D<double>(Qtemp, ny, nx, nz, 2);
-
    if (save_col){
      ACCH::UpdateGPU3D<double>(Col_out, Nbands, col_nz, col_nvar);
-     ACCH::UpdateGPU4D<double>(Qtemp, ny, nx, nz, 2);
      int col_bnd2 = col_bnd[2];
      int col_bnd3 = col_bnd[3];
      int col_bnd0 = col_bnd[0];
      int col_bnd1 = col_bnd[1];
+     cout << col_bnd2 << " " << col_bnd3 << endl;
+     cout << col_bnd0 << " " << col_bnd1 << endl;
 #pragma acc parallel loop gang collapse(2) \
  present(this[:1], Col_out[:Nbands][:col_nz][:col_nvar], \
          J_band[:nx*ny*nz], Ss[:nx*ny*nz], kap[:nx*ny*nz], abn[:nx*ny*nz], \
