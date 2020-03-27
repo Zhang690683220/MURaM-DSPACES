@@ -180,7 +180,8 @@ protected:
   void driver(double DZ, double DX, double DY, int band); 
   void interpol(int,int,int,int,int,int,int,int,int,int,double*,double*);
   void IntegrateSetup(int yi_i, int xi_i, int zi_i, int ystep, int xstep, int zstep);
-  void integrate(double * coeff, const double c[4], const int stride[2], int ystep, int xstep, int zstep, int yi_i, int yi_f, int xi_i, int xi_f, int zi_i, int zi_f);
+  void integrate(const double c[4]);
+  void interpol_and_integrate(const double c[4], double * Ss, int l);
   double error(int,int,int,int,int,double);
   void readbuf(int band,int l,int  DIR,int XDIR,int YDIR);
   void writebuf(int band, int l,int DIR,int XDIR,int YDIR);

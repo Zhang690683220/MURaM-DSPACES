@@ -526,11 +526,11 @@ RTS::RTS(GridData&Grid,RunData &Run,PhysicsData &Physics){
   avg_col = 1.0/((double) num_col);
 
   if ((x_range)&&(y_range)){
-    save_col=1;
-    col_bnd[0] =max(gxh-sl_r[0],xl+xo);
-    col_bnd[1] =min(gxh-sl_r[1],xh);
-    col_bnd[2] =max(gyh-sl_r[2],xl+xo);
-    col_bnd[3] =min(gyh-sl_r[3],xh);
+    //save_col=1;
+    col_bnd[0] =min(gxh-sl_r[0],xl+xo);
+    col_bnd[1] =max(gxh-sl_r[1],xh);
+    col_bnd[2] =min(gyh-sl_r[2],yl+yo);
+    col_bnd[3] =max(gyh-sl_r[3],yh);
   }
 
   I_band = (double*) ACCH::Malloc(nx*ny*sizeof(double));
@@ -1090,58 +1090,58 @@ void RTS::calc_Qtot_and_Tau(GridData &Grid, const RunData &Run, const PhysicsDat
 }
 
 void RTS::integrate(
-  double * coeff, const double c[4], const int stride[2], int ystep, int xstep, int zstep, int yi_i, int yi_f, int xi_i, int xi_f, int zi_i, int zi_f
+  const double c[4]
 )
 {
   int off[4];
   int i_nu=0;
   double *ii=I_n;
-  if(NDIM==3){
-    for(int i=0;i<4;i++) off[i]=iystep[i]*stride[0]+ixstep[i]*stride[1]+izstep[i];
 
 
-  const int off0 = off[0];
-  const int off1 = off[1];
-  const int off2 = off[2];
-  const int off3 = off[3];
-  const double c0 = c[0];
-  const double c1 = c[1];
-  const double c2 = c[2];
-  const double c3 = c[3];
-  const int size = nx*ny*nz;
+  if(NDIM == 3) {
+    const int off0 = iystep[0]*nx*nz+ixstep[0]*nz+izstep[0];
+    const int off1 = iystep[1]*nx*nz+ixstep[1]*nz+izstep[1];
+    const int off2 = iystep[2]*nx*nz+ixstep[2]*nz+izstep[2];
+    const int off3 = iystep[3]*nx*nz+ixstep[3]*nz+izstep[3];
 
-  double * dI_n = (double*) ACCH::GetDevicePtr(I_n);
-  double * dcoeff = (double*) ACCH::GetDevicePtr(coeff);
+    const double c0 = c[0];
+    const double c1 = c[1];
+    const double c2 = c[2];
+    const double c3 = c[3];
+    const int size = nx*ny*nz;
+
+    double * dI_n = (double*) ACCH::GetDevicePtr(I_n);
+    double * dcoeff = (double*) ACCH::GetDevicePtr(coeff);
 
 #pragma acc loop seq
-	    for(int b1 = 0; b1 < bound1; b1++) {
-              int b1i = b1_i + b1*step1;
-              int b1off = b1i*str1;
-              int b1_i_nu = b1*inustr1;
+    for(int b1 = 0; b1 < bound1; b1++) {
+      int b1i = b1_i + b1*step1;
+      int b1off = b1i*str1;
+      int b1_i_nu = b1*inustr1;
 #pragma acc parallel loop gang async \
  deviceptr(dI_n, dcoeff)
-              for(int b2 = 0; b2 < bound2; b2++) {
-                int b2i = b2_i + b2*step2;
-                int b2off = b1off + b2i*str2;
-                int b2_i_nu = b1_i_nu + b2*inustr2;
+      for(int b2 = 0; b2 < bound2; b2++) {
+        int b2i = b2_i + b2*step2;
+        int b2off = b1off + b2i*str2;
+        int b2_i_nu = b1_i_nu + b2*inustr2;
 #pragma acc loop vector
-                for(int b3 = 0; b3 < bound3; b3++) {
-                  int b3i = b3_i + b3*step3;
-                  int ind = b2off + b3i*str3;
-                  int i_nu_acc = b2_i_nu + b3*inustr3;
-                  double I_upw = c0*dI_n[ind-off0] +
-                                 c1*dI_n[ind-off1] +
-                                 c2*dI_n[ind-off2] +
-                                 c3*dI_n[ind-off3];
-                  dI_n[ind]=I_upw*dcoeff[i_nu_acc]+dcoeff[size+i_nu_acc];
-                }
-              }
-            }
-  } // end DIM 3
+        for(int b3 = 0; b3 < bound3; b3++) {
+          int b3i = b3_i + b3*step3;
+          int ind = b2off + b3i*str3;
+          int i_nu_acc = b2_i_nu + b3*inustr3;
+          double I_upw = c0*dI_n[ind-off0] +
+                         c1*dI_n[ind-off1] +
+                         c2*dI_n[ind-off2] +
+                         c3*dI_n[ind-off3];
+          dI_n[ind]=I_upw*dcoeff[i_nu_acc]+dcoeff[size+i_nu_acc];
+        }
+      }
+    }
 #pragma acc wait
-
+  } // end DIM 3
+/*
   if(NDIM==2){
-    for(int i=0;i<4;i++) off[i]=ixstep[i]*stride[1]+izstep[i];
+    for(int i=0;i<4;i++) off[i]=ixstep[i]*nz+izstep[i];
     for(int xi=xi_i;xi!=xi_f+xstep;xi=xi+xstep) {
       int xoff=(xi-xl)*stride[1];
       for(int zi=zi_i;zi!=zi_f+zstep;zi=zi+zstep) {
@@ -1161,6 +1161,7 @@ void RTS::integrate(
       i_nu+=1;
     }
   }
+  */
 }
 
 void RTS::driver(double DZ, double DX, double DY, int band){
@@ -1223,8 +1224,8 @@ void RTS::driver(double DZ, double DX, double DY, int band){
           buf_time += MPI_Wtime()-stime;
 // loop over the grid points
           stime=MPI_Wtime();
-          integrate(coeff, c, stride, ystep, xstep, zstep, yi_i, yi_f, xi_i, xi_f, zi_i, zi_f);
-          cmp_time2 += MPI_Wtime()-stime;
+          integrate(c);
+	  cmp_time2 += MPI_Wtime()-stime;
           // write new BC, store old BC in oldbuf
           stime = MPI_Wtime();
           writebuf(band,l,ZDIR,XDIR,YDIR); 
@@ -1289,6 +1290,79 @@ void RTS::driver(double DZ, double DX, double DY, int band){
    
 
   call_count+=1;
+}
+
+void RTS::interpol_and_integrate(
+  const double c[4], double * Ss, int l
+)
+{
+  double ds3=ds_upw[l]*inv3,ds6=ds_upw[l]*inv6;
+
+  const int off0 = iystep[0]*nx*nz+ixstep[0]*nz+izstep[0];
+  const int off1 = iystep[1]*nx*nz+ixstep[1]*nz+izstep[1];
+  const int off2 = iystep[2]*nx*nz+ixstep[2]*nz+izstep[2];
+  const int off3 = iystep[3]*nx*nz+ixstep[3]*nz+izstep[3];
+
+  double * dI_n = (double*) ACCH::GetDevicePtr(I_n);
+  double * drho = (double*) ACCH::GetDevicePtr(rho);
+  double * dkap = (double*) ACCH::GetDevicePtr(kap);
+  double * dSs  = (double*) ACCH::GetDevicePtr(Ss);
+
+  const double c0 = c[0];
+  const double c1 = c[1];
+  const double c2 = c[2];
+  const double c3 = c[3];
+ 
+#pragma acc loop seq
+  for(int b1 = 0; b1 < bound1; b1++) {
+    int b1i = b1_i + b1*step1;
+    int b1off = b1i*str1;
+#pragma acc parallel loop gang async \
+ deviceptr(dI_n, drho, dkap, dSs)
+    for(int b2 = 0; b2 < bound2; b2++) {
+      int b2i = b2_i + b2*step2;
+      int b2off = b1off + b2i*str2;
+#pragma acc loop vector
+      for(int b3 = 0; b3 < bound3; b3++) {
+        int b3i = b3_i + b3*step3;
+        int ind = b2off + b3i*str3;
+        double r_upw = c0*drho[ind-off0] + c1*drho[ind-off1] +
+                       c2*drho[ind-off2] + c3*drho[ind-off3];
+        double k_upw = c0*dkap[ind-off0] + c1*dkap[ind-off1]+
+                       c2*dkap[ind-off2] + c3*dkap[ind-off3];
+        double S_upw = c0*dSs[ind-off0]  + c1*dSs[ind-off1]+
+                       c2*dSs[ind-off2]  + c3*dSs[ind-off3];
+
+        double r0 = drho[ind];
+        double k0 = dkap[ind];
+        double S0 = dSs[ind];
+
+	double I_upw = c0*dI_n[ind-off0] +
+                       c1*dI_n[ind-off1] +
+                       c2*dI_n[ind-off2] +
+                       c3*dI_n[ind-off3];
+ 
+        double expo, source, dt, w0, w1;
+        dt = ds3*(k_upw*r_upw + k0*r0) + ds6*(k0*r_upw+k_upw*r0);
+        if(dt > dtau_min2) {
+          expo = exp(-dt);
+          if (dt > dtau_min){
+            w0 = 1.0-expo;
+            w1 = w0-dt*expo;
+          }else{
+            w0 = dt-dt*dt/2.0+dt*dt*dt/6.0;
+            w1 = dt*dt/2.0-dt*dt*dt/3.0;
+          }
+          source=S0*(w0-w1/dt)+S_upw*(w1/dt);
+	} else {
+          expo = 1.0;
+	  source = 0.0;
+	}
+        dI_n[ind]=I_upw*expo+source;
+      }
+    }
+  }
+#pragma acc wait
 }
 
 void RTS::interpol(int zi_i,int zi_f,int zstep,int xi_i,int xi_f,int xstep,
