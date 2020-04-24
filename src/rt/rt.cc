@@ -1069,14 +1069,14 @@ void RTS::calc_Qtot_and_Tau(GridData &Grid, const RunData &Run, const PhysicsDat
       }
     }
   dt_rad = _dt_rad;
-  ACCH::UpdateCPU(Grid.Tau, Grid.bufsize*sizeof(double));
+  //ACCH::UpdateCPU(Grid.Tau, Grid.bufsize*sizeof(double));
   //ACCH::UpdateCPU(Grid.Jtot, Grid.bufsize*sizeof(double));
   //ACCH::UpdateCPU(Grid.Stot, Grid.bufsize*sizeof(double));
   //ACCH::UpdateCPU(Grid.Qtot, Grid.bufsize*sizeof(double));
 
-  exchange_single(Grid,Grid.Tau);
+  exchange_single_acc(Grid,Grid.Tau);
 
-  ACCH::UpdateGPU(Grid.Tau, Grid.bufsize*sizeof(double));
+  //ACCH::UpdateGPU(Grid.Tau, Grid.bufsize*sizeof(double));
 
   double Fqrad;
 
