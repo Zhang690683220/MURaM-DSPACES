@@ -5,7 +5,7 @@
 #include "grid.H"
 #include "run.H"
 #include "comm_split.H"
-#include "ACCH.h"
+#include "muramacc.H"
 
 using namespace std;
 
@@ -25,8 +25,6 @@ double lfac(double va2) {
 void Adjust_Valf_Max(const RunData& Run,const GridData& Grid,
 		     const PhysicsData& Physics) {
   
-  NVPROF_PUSH_RANGE("get_damping", 7)
-
   static int ini_flag = 1;
 
   const double max_fill  = Physics.params[i_param_max_fill];
@@ -40,28 +38,53 @@ void Adjust_Valf_Max(const RunData& Run,const GridData& Grid,
 
   static double va_max_old;
   
-  l_max[0] = 0.0;
-  l_max[1] = 0.0;
-  l_max[2] = 0.0;
-  l_sum[0] = 0.0;
-  l_sum[1] = 0.0;
-  LOCAL_LOOP(Grid,i,j,k) {
+  const int ibeg = Grid.lbeg[0];
+  const int iend = Grid.lend[0];
+  const int jbeg = Grid.lbeg[1];
+  const int jend = Grid.lend[1];
+  const int kbeg = Grid.lbeg[2];
+  const int kend = Grid.lend[2];
+  const int bufsize = Grid.bufsize;
+
+  double l_max0 = 0.0;
+  double l_max1 = 0.0;
+  double l_max2 = 0.0;
+  double l_sum0 = 0.0;
+  double l_sum1 = 0.0;
+
+//#pragma acc update device(Grid.U[:bufsize])
+//#pragma acc update device(Grid.pres[:bufsize])
+
+#pragma acc parallel loop collapse(3)                              \
+ private(node, vv, ee)                                             \
+ reduction(max:l_max0) reduction(max:l_max1) reduction(max:l_max2) \
+ reduction(+:l_sum0) reduction(+:l_sum1)                           \
+ present(Grid[:1], Grid.U[:bufsize], Grid.pres[:bufsize])
+  for(k=kbeg; k<=kend; k++)
+  for(j=jbeg; j<=jend; j++)
+  for(i=ibeg; i<=iend; i++) {
     node = Grid.node(i,j,k);
     vv   = Grid.U[node].M.abs();
     ee   = Grid.U[node].e/Grid.U[node].d;
     
-    l_max[0] = max(l_max[0],vv);
-    l_max[1] = max(l_max[1],5/3.*Grid.pres[node]/Grid.U[node].d);
-    l_max[2] = max(l_max[2],ee);
+    l_max0 = max(l_max0,vv);
+    l_max1 = max(l_max1,5/3.*Grid.pres[node]/Grid.U[node].d);
+    l_max2 = max(l_max2,ee);
     
     if(vv >= v_lim*0.95){
-      l_sum[0] += 1.0;
+      l_sum0 += 1.0;
     }
 
      if(ee >= e_lim*0.95){
-      l_sum[1] += 1.0;
+      l_sum1 += 1.0;
     }
   }
+
+  l_max[0] = l_max0;
+  l_max[1] = l_max1;
+  l_max[2] = l_max2;
+  l_sum[0] = l_sum0;
+  l_sum[1] = l_sum1;
 
   PGI_COMPARE(l_max, double, 3, "l_max", "Adjust_Valf_Max.C", "Adjust_Valf_Max", 1)
   PGI_COMPARE(l_sum, double, 2, "l_sum", "Adjust_Valf_Max.C", "Adjust_Valf_Max", 2)
@@ -124,6 +147,4 @@ void Adjust_Valf_Max(const RunData& Run,const GridData& Grid,
     cout << "Adjust_va_max [" << Run.globiter<<"]   " << g_max[0] << "   " << g_max[1] << "   " << va_max << "   |   "
 	 << v_lim << " (" << g_sum[0]<< ")   " << e_lim << " (" << g_sum[1] << ") " << endl;
   
-  NVPROF_POP_RANGE
-
 }

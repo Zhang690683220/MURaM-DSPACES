@@ -225,20 +225,48 @@ void Get_Radloss(const RunData&  Run, GridData& Grid,const PhysicsData& Physics)
     }
    
     radloss_ini_flag = 0;
+
+#pragma acc enter data copyin(T_tab[:ntab])
+#pragma acc enter data copyin(Q_tab[:ntab])
   }
 
-  YZ_LOOP(Grid,j,k) {
-    off = j*next[1]+k*next[2];
-    for(i=i_beg-1;i<=i_end+1;i++)
-      Grid.Qthin[off+i]=0.0;
+  const int ibeg = Grid.lbeg[0];
+  const int iend = Grid.lend[0];
+  const int jbeg = Grid.lbeg[1];
+  const int jend = Grid.lend[1];
+  const int kbeg = Grid.lbeg[2];
+  const int kend = Grid.lend[2];
+  const int bufsize = Grid.bufsize;
+  double qthin[2][i_end+2];
 
-    node = off+i_beg-1;
-    t1 = log(Grid.temp[node]);
-    r1 = log(Grid.U[node].d*ne_par);
+#pragma acc parallel loop collapse(2) gang \
+ present(Grid[:1], Grid.Qthin[:bufsize], Grid.temp[:bufsize], \
+         Grid.pres[:bufsize], Grid.U[:bufsize], \
+         T_tab[:ntab], Q_tab[:ntab]) \
+ private(off, qthin[:2][:i_end+2])
+  for(k=kbeg; k<=kend; k++)
+  for(j=jbeg; j<=jend; j++) {
+    off = j*next[1]+k*next[2];
+
+#pragma acc loop vector
+    for(i=i_beg-1;i<=i_end+1;i++) {
+      qthin[0][i] = 0.0;
+      qthin[1][i] = 0.0;
+      //Grid.Qthin[off+i]=0.0;
+    }
+
+    //node = off+i_beg-1;
+    //t1 = log(Grid.temp[node]);
+    //r1 = log(Grid.U[node].d*ne_par);
     
+#pragma acc loop vector private(node, t1, t2, r1, r2, n1, n2, \
+ t_a, t_b, ff, ts, pr, pt, rr, qq, qloss)
     for(i=i_beg;i<=i_end+1;i++){
       node = off+i;
      
+      t1 = log(Grid.temp[node-1]);
+      r1 = log(Grid.U[node-1].d*ne_par);
+
       t2 = log(Grid.temp[node]);
       r2 = log(Grid.U[node].d*ne_par);
 
@@ -251,6 +279,7 @@ void Get_Radloss(const RunData&  Run, GridData& Grid,const PhysicsData& Physics)
       n1 = imax(0,n1);
       n2 = imin(ntab-2,n2);
       
+#pragma acc loop seq
       for(n=n1;n<=n2;n++){
 	
 	t_a=max(tmin,T_tab[n]);
@@ -277,18 +306,24 @@ void Get_Radloss(const RunData&  Run, GridData& Grid,const PhysicsData& Physics)
 	
 	qloss = -rr*rr*qq*ff;
 
-	Grid.Qthin[node-1] += qloss*pr;
-	Grid.Qthin[node]   += qloss*(1.0-pr);
-	  
+	//Grid.Qthin[node-1] += qloss*pr;
+	//Grid.Qthin[node]   += qloss*(1.0-pr);
+	qthin[0][i-1] += qloss*pr;
+        qthin[1][i] += qloss*(1.0-pr);
+      }
+      //t1 = t2;
+      //r1 = r2;
     }
-      t1 = t2;
-      r1 = r2;
-    }
+
+#pragma acc loop vector
+    for(i=i_beg-1; i<=i_end+1; i++)
+      Grid.Qthin[off+i] = qthin[0][i] + qthin[1][i];
 
     // remove radiative loss in high pressure regions 
     for(i=i_beg;i<=i_end;i++)
       Grid.Qthin[off+i] *= max(0.0,1.-pow(Grid.pres[off+i]*inv_pmax,2));
   }
+
 }
 
 void ELTE_decon(){

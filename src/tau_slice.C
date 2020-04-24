@@ -72,8 +72,6 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
   iobuf = (float*) malloc(nslvar*localsize*sizeof(float));
   iosum = (float*) malloc(nslvar*localsize*sizeof(float));
 
-  rts->UpdateIout();
-
   for (nsl = 0; nsl<nslice; nsl++){
  
     for(v=0;v<nslvar*localsize;v++){
