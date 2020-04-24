@@ -23,12 +23,16 @@ class GridData;
 class RunData;
 
 extern double T_interp(double ee, double dd);
+#pragma acc routine seq
 extern double p_interp(double ee, double dd);
+#pragma acc routine seq
 extern double s_interp(double ee, double dd);
 extern double ne_interp(double ee, double dd);
 extern double rhoi_interp(double ee, double dd);
 extern double amb_interp(double ee, double dd);
+#pragma acc routine seq
 extern double d3_interp(double pp, double ss);
+#pragma acc routine seq
 extern double eps3_interp(double pp, double ss);
 
 extern void eos_init(GridData&, RunData& , const PhysicsData&);

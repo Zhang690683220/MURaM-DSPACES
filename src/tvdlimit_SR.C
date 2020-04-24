@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include "eos.H"
 #include "limit_va.H"
-#include "ACCH.h"
+#include "muramacc.H"
 
 /*
    - Special Corona version. Allows to set numerical pm in Corona. 
@@ -26,8 +26,6 @@ double * qft;
 /********************************************************************/
 void TVDlimit(const RunData&  Run, GridData& Grid, 
 	      const PhysicsData& Physics, const double dt_tvd){
-
-  NVPROF_PUSH_RANGE("TVDlimit", 1)
 
   //double time,s_time;
   //static double t_time = 0.0 ,c_time = 0.0 , r_time = 0.0;
@@ -64,7 +62,8 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
   const int nvar = Physics.NVAR;
   const int vsize = Grid.vsize;
   const int v_nvar = Grid.v_nvar;
- 
+  const int bufsize = Grid.bufsize;
+
   double h_bnd;
   if(Physics.tvd_h_bnd[0] < 1)
     h_bnd = Physics.tvd_h_bnd[0];
@@ -87,6 +86,8 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
 
   register int i,j,k,node,d,d1,d2,d3,ivar,offset,str,istart;
   int sz,gh;
+
+  int kbeg, kend, jbeg, jend;
 
   cState* U  = (cState*) Grid.U;
     
@@ -183,6 +184,10 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
       cout << "tvd: eta_slope_bnd  = " <<  eta_slope_bot << ' ' 
 	   << eta_slope_top << endl;     
     }
+
+#pragma acc enter data copyin(hfb[:vsize])
+#pragma acc enter data copyin(qft[:vsize])
+#pragma acc enter data copyin(hft[:vsize])
       
     tvd_ini_flag =0;
   }
@@ -219,11 +224,38 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
     gh = Grid.ghosts[d1];
 
     str=stride[d1];
-    OUTER_LOOP(bounds,j,k,d2,d3){
+
+    kbeg = bounds[d3][0];
+    kend = bounds[d3][1];
+    jbeg = bounds[d2][0];
+    jend = bounds[d2][1];
+
+#pragma acc parallel loop collapse(2) gang                          \
+  present(Grid, U[:bufsize], Grid.pres[:bufsize],                   \
+    Grid.Tau[:bufsize], Grid.v_amb[:bufsize],                       \
+    hfb[:vsize], hft[:vsize], qft[:vsize],                          \
+    Grid.tvar8[:bufsize], Grid.Qres[:bufsize],                      \
+    Grid.Qvis[:bufsize], Grid.tvar6[:bufsize],                      \
+    Grid.tvar7[:bufsize])                                           \
+  private(offset, var[:v_nvar][:vsize],                             \
+    slp[:v_nvar][:vsize],                                           \
+    pres[:vsize], CZ_fac[:vsize], vv_amb[:vsize],                   \
+    hfb1[:vsize], hft1[:vsize], qft1[:vsize],                       \
+    vsqr[:vsize], bsqr[:vsize], cm[:vsize],                         \
+    hyp_e[:vsize], hyp_v[:vsize], hyp_B[:vsize],                    \
+    BC2[:vsize], hyperdiff[:vsize], qrho[:vsize],                   \
+    flx[:v_nvar][:vsize], uif[:v_nvar][:vsize],                     \
+    tvd_fac[:vsize],                                                \
+    res[:v_nvar][:vsize], boris[:4][:vsize], qres[:vsize],          \
+    qvis[:vsize])                                                   \
+    firstprivate(istart)
+    for(k=kbeg; k<=kend; k++)
+    for(j=jbeg; j<=jend; j++) {
 
       offset = j*stride[d2]+k*stride[d3];
       //time = MPI_Wtime();
       #pragma ivdep
+#pragma acc loop vector private(node)
       for(i=0;i<sz;i++){
 	node = offset+i*str;
 	var[0][i] = max(rho_min,U[node].d);
@@ -243,6 +275,7 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
 
       if(ambipolar){
 	#pragma ivdep
+#pragma acc loop vector private(node)
 	for(i=0;i<sz;i++){
 	  node = offset+i*str;
 	  vv_amb[i] = sqrt(Grid.v_amb[node].x*Grid.v_amb[node].x+Grid.v_amb[node].y*Grid.v_amb[node].y+Grid.v_amb[node].z*Grid.v_amb[node].z);
@@ -250,18 +283,21 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
       }
 	
       if(d1 == 0){
+#pragma acc loop vector 
 	for(i=0;i<sz;i++){
 	  hfb1[i] = hfb[i];
 	  hft1[i] = hft[i];
 	  qft1[i] = qft[i];
 	}
       } else if (d2 == 0){
+#pragma acc loop vector 
 	for(i=0;i<sz;i++){
 	  hfb1[i] = hfb[j];
 	  hft1[i] = hft[j];
 	  qft1[i] = qft[j];
 	}
       } else if(d3 == 0){
+#pragma acc loop vector 
 	for(i=0;i<sz;i++){
 	  hfb1[i] = hfb[k];
 	  hft1[i] = hft[k];
@@ -271,6 +307,7 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
       //r_time += MPI_Wtime()-time;
 
       //time = MPI_Wtime();
+#pragma acc loop vector private(dn, vv, bb) 
       for(i=0;i<sz;i++){
 	dn        = 1.0/var[0][i];
         var[1][i] = var[1][i]*dn;
@@ -290,7 +327,9 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
 	vsqr[i]   = vv;
 	bsqr[i]   = bb;
       }
-       
+
+#pragma acc loop vector private(dn, vv, va2, x2, x4, s, lf, cs2, \
+ cfast, CME_mode, rf, hh, cf)
       for(i=0;i<sz;i++){
 	dn   = 1.0/var[0][i];
 	vv   = sqrt(vsqr[i]);
@@ -330,6 +369,7 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
       }
       
       if( (d1 == 0) && (vhyp > 0.0) ){
+#pragma acc loop vector 
 	for(i=0;i<sz;i++){
 	  hyperdiff[i] = vhyp*sqrt(vsqr[i]);	  
 	  hyperdiff[i] = 0.5*idx[d1]*max(0.0,min(hyperdiff[i],cmax-cm[i]));
@@ -337,18 +377,22 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
       }
 
       if(rho_log){
-	for(i=0;i<sz;i++){ 
+#pragma acc loop vector 
+	for(i=0;i<sz;i++){
 	  var[0][i] = log(var[0][i]);
 	  var[4][i] = log(var[4][i]);
 	}
+#pragma acc loop vector 
 	for(i=0;i<sz-1;i++)
 	  qrho[i] = fabs(var[0][i]-var[0][i+1]);
       } else {
+#pragma acc loop vector 
 	for(i=0;i<sz-1;i++)
 	  qrho[i] = fabs(log(var[0][i])-log(var[0][i+1])); 
       }
 	
       // reconstruction slopes
+#pragma acc loop vector collapse(2) private(sl, sr, slm, lower, upper)
       for(ivar=0;ivar<nvar;ivar++){
 	for(i=1;i<sz-1;i++){
 	  sl    = var[ivar][i]-var[ivar][i-1];
@@ -362,6 +406,7 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
 
       // more diffusivity at vertical boundaries
       if( (visc_slope_bot > 0.0) or ( visc_slope_top > 0.0) ){
+#pragma acc loop vector private(cf)
 	for(i=1;i<sz-1;i++){
 	  cf =(1.0-visc_slope_bot*hfb1[i])*(1.0-visc_slope_top*hft1[i]);
 	  slp[1][i] *= cf; slp[2][i] *= cf; slp[3][i] *= cf;	
@@ -369,6 +414,7 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
       }
 
       if( (eta_slope_bot > 0.0) or ( eta_slope_top > 0.0) ){
+#pragma acc loop vector private(cf) 
 	for(i=1;i<sz-1;i++){
 	  cf =(1.0-eta_slope_bot*hfb1[i])*(1.0-eta_slope_top*hft1[i]);
 	  slp[5][i] *= cf; slp[6][i] *= cf; slp[7][i] *= cf;	
@@ -376,6 +422,7 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
       }
 
       // more diffusivity around large density jumps
+#pragma acc loop vector 
       for(i=1;i<sz-1;i++){
 	if(qrho[i] > q_rho_max)
 	  slp[0][i] = 0.0;
@@ -383,6 +430,7 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
 
       // more diffusivity for very fast flows
       if(vmax_lim > 0.0){
+#pragma acc loop vector 
 	for(i=1;i<sz-1;i++){
 	  if(vsqr[i] > vsqr_diff){
 	    slp[1][i] = 0.0;
@@ -394,6 +442,7 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
 
       for(ivar=0;ivar<nvar;ivar++){
 	if( (ivar >=1) && (ivar <= 3) ){
+#pragma acc loop vector private(sl, sl_lim, dn, rf, cf) 
 	  for(i=1;i<sz-2;i++){
 	    sl     = var[ivar][i+1]-var[ivar][i];
 	    sl_lim = var[ivar][i+1]-var[ivar][i]-(slp[ivar][i]+slp[ivar][i+1]);
@@ -405,6 +454,7 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
 				var[ivar][i+1]-slp[ivar][i+1]);
 	  }
 	} else if( (ivar >=5) && (ivar <= 7) ){
+#pragma acc loop vector private(sl, sl_lim, dn, rf, cf) 
 	  for(i=1;i<sz-2;i++){
 	    sl     = var[ivar][i+1]-var[ivar][i];
 	    sl_lim = var[ivar][i+1]-var[ivar][i]-(slp[ivar][i]+slp[ivar][i+1]);
@@ -416,6 +466,7 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
 				var[ivar][i+1]-slp[ivar][i+1]);
 	  }
 	} else {
+#pragma acc loop vector private(sl, sl_lim, dn, rf, cf) 
 	  for(i=1;i<sz-2;i++){
 	    sl     = var[ivar][i+1]-var[ivar][i];
 	    sl_lim = var[ivar][i+1]-var[ivar][i]-(slp[ivar][i]+slp[ivar][i+1]);
@@ -430,18 +481,22 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
       }
 
       // diffusion coefficient
+#pragma acc loop vector 
       for(i=0;i<sz-1;i++)
 	tvd_fac[i] = 0.5*idx[d1]*min(cmax,max(cm[i],cm[i+1]));
-      
+
+ #pragma acc loop vector collapse(2)      
       for(ivar=0;ivar<nvar;ivar++)
 	for(i=1;i<sz-2;i++)
 	  flx[ivar][i] *= tvd_fac[i];
       
       // avoid terms that produce large divB error -> dBx/dx, dBy/dy, dBz/dz
+#pragma acc loop vector 
       for(i=1;i<sz-2;i++)
 	flx[5+d1][i] *= B_par_diff;
 
       if(need_tvd_coeff){
+#pragma acc loop vector private(cf) 
 	for(i=1;i<sz-2;i++){
 	  flx[0][i] *= tvd_coeff[0];
 	  
@@ -464,6 +519,7 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
       if( (d1 == 0) && (vhyp > 0.0) ){
 	istart = 1;
 	if(Grid.is_gbeg[0]) istart += gh;
+#pragma acc loop vector private(dn, ivar)
 	for(i=istart;i<sz-2;i++){
 	  dn = max(hyperdiff[i],hyperdiff[i+1]);
 	  ivar = 0;
@@ -479,6 +535,7 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
       }
       
       if(rho_log){
+#pragma acc loop vector 
 	for(i=1;i<sz-2;i++){   
 	  uif[0][i]  = exp(uif[0][i]);
 	  flx[0][i] *= uif[0][i];
@@ -488,6 +545,7 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
 	}
       }
 
+#pragma acc loop vector collapse(2) 
       for(ivar=1;ivar<=4;ivar++){
 	for(i=1;i<sz-2;i++){
 	  flx[ivar][i] *= uif[0][i];
@@ -495,6 +553,7 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
       }
 
       // correction of momentum and energy flux for mass diffusion
+#pragma acc loop vector collapse(2) 
       for(ivar=1;ivar<=4;ivar++){
 	for(i=1;i<sz-2;i++){
 	  flx[ivar][i] += uif[ivar][i]*flx[0][i]*min(CZ_fac[i],CZ_fac[i+1]);
@@ -502,6 +561,7 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
       } 
 	  
       // viscous energy flux
+#pragma acc loop vector 
       for(i=1;i<sz-2;i++)   
 	flx[4][i] += qft1[i]*(uif[1][i]*flx[1][i]+uif[2][i]*flx[2][i]+uif[3][i]*flx[3][i]);
 
@@ -510,7 +570,8 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
 	if( Grid.is_gend[0] ) flx[5][sz-gh-1] = 0.0;
 	if( Grid.is_gbeg[0] ) flx[5][gh-1] = 0.0;
       } 
-      
+
+ #pragma acc loop vector collapse(2) 
       for(ivar=0;ivar<nvar;ivar++){
 	for(i=gh;i<sz-gh;i++){
 	  res[ivar][i] = dt_tvd*(flx[ivar][i]-flx[ivar][i-1]);
@@ -518,11 +579,13 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
       }
 
       // Remove viscous heating at top boundary
+#pragma acc loop vector 
       for(i=gh;i<sz-gh;i++)
 	res[4][i] += (1.0-qft1[i])*(res[1][i]*var[1][i] + res[2][i]*var[2][i] + res[3][i]*var[3][i]);
 
       if(need_diagnostics){
         #pragma ivdep
+#pragma acc loop vector private(node) 
 	for(i=gh;i<sz-gh;i++){
 	  node = offset+i*str;
 	  Grid.tvar8[node] += res[4][i]*idt_full;
@@ -530,6 +593,7 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
       }
 
       // projection of fvisc for consistency with SR treatment
+#pragma acc loop vector private(dn) 
       for(i=gh;i<sz-gh;i++){
 	dn = (res[1][i]*var[5][i] + res[2][i]*var[6][i] + res[3][i]*var[7][i])/max(1e-100,bsqr[i]);
 
@@ -539,6 +603,7 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
 	boris[3][i] =  boris[0][i]*var[1][i]+boris[1][i]*var[2][i]+boris[2][i]*var[3][i];	
       }
 
+#pragma acc loop vector 
       for(i=gh;i<sz-gh;i++){
 	res[1][i] += boris[0][i];
 	res[2][i] += boris[1][i];
@@ -546,14 +611,16 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
 	res[4][i] += boris[3][i];
       }
       
-      // resistive heating 
+      // resistive heating
+#pragma acc loop vector 
       for(i=1;i<sz-2;i++){
 	qrho[i] = 
 	  (var[5][i+1]-var[5][i])*flx[5][i] +
 	  (var[6][i+1]-var[6][i])*flx[6][i] +
 	  (var[7][i+1]-var[7][i])*flx[7][i];
       }
-      
+
+#pragma acc loop vector      
       for(i=gh;i<sz-gh;i++){
 	qres[i] = 0.5*(qrho[i]+qrho[i-1])*qft1[i];
 	res[4][i] += dt_tvd*qres[i];
@@ -561,6 +628,7 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
       
       // viscous heating for diagnostics
       if(need_diagnostics){
+#pragma acc loop vector 
 	for(i=1;i<sz-2;i++){
 	  qrho[i] = 
 	    (var[1][i+1]-var[1][i])*flx[1][i] +
@@ -568,6 +636,7 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
 	    (var[3][i+1]-var[3][i])*flx[3][i];
 	}
 
+#pragma acc loop vector 
 	for(i=gh;i<sz-gh;i++){
 	  qvis[i] = 0.5*(qrho[i]+qrho[i-1])*qft1[i];
 	}
@@ -577,6 +646,7 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
 
       //time = MPI_Wtime();
       #pragma ivdep
+#pragma acc loop vector private(node) 
       for(i=gh;i<sz-gh;i++){
 	node = offset+i*str;
 	U[node].d   += res[0][i];
@@ -592,6 +662,7 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
 
       if (need_diagnostics){ 
         #pragma ivdep
+#pragma acc loop vector private(node) 
 	for(i=gh;i<sz-gh;i++){
 	  node = offset+i*str;
 	  Grid.Qres[node] += dt_fac*qres[i];
@@ -602,6 +673,7 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
       }
 
       #pragma ivdep
+#pragma acc loop vector private(node) 
       for(i=gh;i<sz-gh;i++){
 	node = offset+i*str;
 	bsqr[i] = U[node].e;
@@ -610,6 +682,7 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
 
       if (need_diagnostics){ 
         #pragma ivdep
+#pragma acc loop vector private(node) 
 	for(i=gh;i<sz-gh;i++){
 	  node = offset+i*str;     
 	  Grid.tvar7[node] += (U[node].e-bsqr[i])*idt_full;
@@ -630,8 +703,6 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
   // << c_time/call_count << ' ' 
   // << r_time/call_count << endl; 
 
-  NVPROF_POP_RANGE
-
   PGI_COMPARE(Grid.U, double, Grid.bufsize*8, "U", "tvdlimit_SR.C", "TVD", 1)
   if(ambipolar) {
     PGI_COMPARE(Grid.v_amb, double, Grid.bufsize*3, "v_amb", "tvdlimit_SR.C", "TVD", 2)
@@ -644,5 +715,5 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
     PGI_COMPARE(Grid.Qvis, double, Grid.bufsize, "Qvis", "tvdlimit_SR.C", "TVD", 7)
   }
 
-
 }
+

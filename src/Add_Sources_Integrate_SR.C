@@ -9,7 +9,7 @@
 #include "limit_va.H"
 #include "exchange.H"
 #include <stdio.h>
-#include "ACCH.h"
+#include "muramacc.H"
 
 #define XZ_LOOP(G,i,k) \
   for((k)=(G).lbeg[2];(k)<=(G).lend[2];(k)++) \
@@ -35,15 +35,18 @@ void get_damping(const RunData&, const GridData&, const PhysicsData&, double*);
 void Source_Integrate_Tcheck(const RunData& Run, GridData& Grid, 
 			     const PhysicsData& Physics, const int stage) {
   
-  NVPROF_PUSH_RANGE("Source_Integrate_Tcheck", 3)
-
   int i,j,k,node,off0,v;
 
   const double wdt = Run.dt/double(maxstage+1-stage);
 
   const int vsize = Grid.vsize;
+  const int bufsize = Grid.bufsize;
   const int i_beg = Grid.lbeg[0];
   const int i_end = Grid.lend[0];
+  const int kbeg  = Grid.lbeg[2];
+  const int kend  = Grid.lend[2];
+  const int jbeg  = Grid.lbeg[1];
+  const int jend  = Grid.lend[1];
   
   const int H_loss = imax(imin(Physics.rt_ext[i_ext_hlines],1),0);
   const int Mg_loss = imax(imin(Physics.rt_ext[i_ext_mglines],1),0);
@@ -80,63 +83,93 @@ void Source_Integrate_Tcheck(const RunData& Run, GridData& Grid,
   const double invdt  = 1.0/Run.dt; 
   const double invRdt = Physics.rt[i_rt_cfl]/Run.dt;
   
+  const double ambvel_max = Physics.params[i_param_ambvel_max];
+  const int need_diagnostics = Run.need_diagnostics;
+  const int ext_cor = Physics.rt_ext[i_ext_cor];
+
   double boris[4][vsize];
 
   int sz = Grid.lsize[0]+2*Grid.ghosts[0];
   static double* dmp =  (double*) malloc(sz*sizeof(double));
+#pragma acc enter data create(dmp[:sz])
 
-  if(stage == 1) get_damping(Run,Grid,Physics,dmp);
-   
-  YZ_LOOP(Grid,j,k){
+  if(stage == 1) {
+    get_damping(Run,Grid,Physics,dmp);
+#pragma acc update device(dmp[:sz])
+  }
+
+#pragma acc parallel loop collapse(2) gang                       \
+ present(Grid[:1], Grid.U[:bufsize], Grid.U0[:bufsize],          \
+  Grid.Res[:bufsize], Grid.Qtot[:bufsize],                       \
+  Grid.Qthin[:bufsize], Grid.QH[:bufsize],                       \
+  Grid.QMg[:bufsize], Grid.QCa[:bufsize],                        \
+  Grid.tvar4[:bufsize], Grid.tvar5[:bufsize],                    \
+  Grid.tvar6[:bufsize], Grid.tvar7[:bufsize],                    \
+  Grid.sflx[:bufsize], Grid.sflx0[:bufsize],                     \
+  Grid.Rflx[:bufsize], Grid.v_amb[:bufsize],                     \
+  Grid.v0_amb[:bufsize], Grid.R_amb[:bufsize],                   \
+  dmp[:sz])                                                      \
+ private(off0, ee_low[:vsize], ee_up[:vsize], vfac[:vsize],      \
+  rho[:vsize], Qrad[:vsize], efac[:vsize], ee[:vsize],           \
+  e_dmp[:vsize], boris[:4][:vsize])
+  for(k=kbeg; k<=kend; k++)
+  for(j=jbeg; j<=jend; j++) {
     off0 = j*next[1]+k*next[2];
 
-    if(Physics.rt_ext[i_ext_cor]==1){
+    if(ext_cor==1){
       #pragma ivdep
+#pragma acc loop vector private(node)
       for(i=i_beg;i<=i_end;i++){
-	node = off0+i;
-	Qrad[i] = Grid.Qtot[node]+Grid.Qthin[node];
+        node = off0+i;
+        Qrad[i] = Grid.Qtot[node]+Grid.Qthin[node];
       }
-    } else if(Physics.rt_ext[i_ext_cor]==2){
+    } else if(ext_cor==2){
       #pragma ivdep
+#pragma acc loop vector private(node) 
       for(i=i_beg;i<=i_end;i++){
-	node = off0+i;
-	Qrad[i] = Grid.Qtot[node]+Grid.Qthin[node]+Grid.QH[node]*H_loss
-	  +Grid.QMg[node]*Mg_loss + Grid.QCa[node]*Ca_loss;
+        node = off0+i;
+        Qrad[i] = Grid.Qtot[node]+Grid.Qthin[node]+Grid.QH[node]*H_loss
+          +Grid.QMg[node]*Mg_loss + Grid.QCa[node]*Ca_loss;
       }
     } else {
       #pragma ivdep
+#pragma acc loop vector private(node) 
       for(i=i_beg;i<=i_end;i++){
-	node = off0+i;
-	Qrad[i] = Grid.Qtot[node];
+        node = off0+i;
+        Qrad[i] = Grid.Qtot[node];
       }
     }
-    
+
     #pragma ivdep
+#pragma acc loop vector private(node, dn) 
     for(i=i_beg;i<=i_end;i++){
       node = off0+i;
- 
+
       dn      = invRdt*Grid.U[node].e;
       efac[i] = dn/max(dn,fabs(Qrad[i]));
-      
+
       // gravity + damping + RT
       dn       = g*Grid.U[node].d-dmp[i];
-      e_dmp[i] = dn*Grid.U[node].M.x; 
+      e_dmp[i] = dn*Grid.U[node].M.x;
       Grid.Res[node].M.x += dn;
       Grid.Res[node].e   += e_dmp[i] + Qrad[i]*efac[i];
     }
 
-    if(Run.need_diagnostics){
+    if(need_diagnostics){
       #pragma ivdep
+#pragma acc loop vector private(node) 
       for(i=i_beg;i<=i_end;i++){
-	node = off0+i;
-	// diagnostics
-	Grid.tvar4[node] = efac[i];
-	Grid.tvar5[node] = e_dmp[i];
-      }
+        node = off0+i;
+        // diagnostics
+        Grid.tvar4[node] = efac[i];
+        Grid.tvar5[node] = e_dmp[i];
+      } 
     }
 
     // Boris correction
     #pragma ivdep
+#pragma acc loop vector private(node, rh, rd, vx, vy, vz, \
+ bx, by, bz, fsr_x, fsr_y, fsr_z, bb, va2, x2, x4, bf, dn)
     for(i=i_beg;i<=i_end;i++){
       node = off0+i;
 
@@ -148,8 +181,8 @@ void Source_Integrate_Tcheck(const RunData& Run, GridData& Grid,
       bx = Grid.U[node].B.x;
       by = Grid.U[node].B.y;
       bz = Grid.U[node].B.z;
-      
-      fsr_x = Grid.Res[node].M.x; 
+
+      fsr_x = Grid.Res[node].M.x;
       fsr_y = Grid.Res[node].M.y;
       fsr_z = Grid.Res[node].M.z;
 
@@ -165,72 +198,87 @@ void Source_Integrate_Tcheck(const RunData& Run, GridData& Grid,
       fsr_x -= vx*rd;
       fsr_y -= vy*rd;
       fsr_z -= vz*rd;
-      
+
       dn = (fsr_x*bx+fsr_y*by+fsr_z*bz)/max(1e-100,bb);
-      
+
       boris[0][i] = -bf*(fsr_x-dn*bx);
       boris[1][i] = -bf*(fsr_y-dn*by);
       boris[2][i] = -bf*(fsr_z-dn*bz);
-      
+
       boris[3][i] = boris[0][i]*vx+boris[1][i]*vy+boris[2][i]*vz;
     }
-	  
+
     #pragma ivdep
+#pragma acc loop vector private(node) 
     for(i=i_beg;i<=i_end;i++){
-      node = off0+i;	
+      node = off0+i;
       Grid.Res[node].M.x += boris[0][i];
       Grid.Res[node].M.y += boris[1][i];
       Grid.Res[node].M.z += boris[2][i];
       Grid.Res[node].e   += boris[3][i];
     }
 
-    if(Run.need_diagnostics){
+    if(need_diagnostics){
       #pragma ivdep
+#pragma acc loop vector private(node) 
       for(i=i_beg;i<=i_end;i++){
-	node = off0+i;	
-	Grid.tvar6[node] =  boris[3][i];
+        node = off0+i;
+        Grid.tvar6[node] =  boris[3][i];
       }
     }
-    
+
     // time integration - MHD
     #pragma ivdep
+#pragma acc loop vector private(node) 
     for(i=i_beg;i<=i_end;i++){
-      node = off0+i;      
+      node = off0+i;
       Grid.U[node]   = Grid.U0[node] + wdt*Grid.Res[node];
+      Grid.Res[node].d = 0;
+      Grid.Res[node].M.x = 0;
+      Grid.Res[node].M.y = 0;
+      Grid.Res[node].M.z = 0;
+      Grid.Res[node].e = 0;
+      Grid.Res[node].B.x = 0;
+      Grid.Res[node].B.y = 0;
+      Grid.Res[node].B.z = 0;
     }
-    memset(&Grid.Res[off0+i_beg],0.0,(i_end-i_beg+1)*sizeof(cState));
 
     // time integration - hyperbolic conduction   
     if(spitzer){
       #pragma ivdep
+#pragma acc loop vector private(node)
       for(i=i_beg;i<=i_end;i++){
-	node = off0+i;
-	Grid.sflx[node] = Grid.sflx0[node]+wdt*Grid.Rflx[node];
+        node = off0+i;
+        Grid.sflx[node] = Grid.sflx0[node]+wdt*Grid.Rflx[node];
+        Grid.Rflx[node] = 0;
       }
-      memset(&Grid.Rflx[off0+i_beg],0.0,(i_end-i_beg+1)*sizeof(double));
     }
-       
+
     if(ambipolar){
       #pragma ivdep
+#pragma acc loop vector private(node) 
       for(i=i_beg;i<=i_end;i++){
-	node = off0+i;	
-	Grid.v_amb[node] = Grid.v0_amb[node]+wdt*Grid.R_amb[node];
+        node = off0+i;
+        Grid.v_amb[node] = Grid.v0_amb[node]+wdt*Grid.R_amb[node];
+        Grid.R_amb[node].x = 0;
+        Grid.R_amb[node].y = 0;
+        Grid.R_amb[node].z = 0;
       }
-      memset(&Grid.R_amb[off0+i_beg],0.0,(i_end-i_beg+1)*sizeof(Vector));
     }
 
     // Tcheck - catch extreme values before they cause problems
     #pragma ivdep
+#pragma acc loop vector private(node, dn, vv, s, ekin) 
     for(i=i_beg;i<=i_end;i++){
       node = off0+i;
-      
+
       dn = max(rho_min,Grid.U[node].d);
 
       vv = Grid.U[node].M.abs()/dn;
       s  = vmax/max(vmax,vv);
 
       ekin = 0.5*dn*vv*vv;
-      
+
       ee_low[i] = eps_min*dn+ekin;
       ee_up[i]  = eps_max*dn+ekin*s*s;
       vfac[i]   = s;
@@ -238,38 +286,39 @@ void Source_Integrate_Tcheck(const RunData& Run, GridData& Grid,
     }
 
     #pragma ivdep
-    for(i=i_beg;i<=i_end;i++){ 
+#pragma acc loop vector private(node) 
+    for(i=i_beg;i<=i_end;i++){
       node = off0+i;
 
       ee[i] = Grid.U[node].e;
-      
+
       Grid.U[node].d  = rho[i];
       Grid.U[node].M *= vfac[i];
       Grid.U[node].e  = min(max(ee[i],ee_low[i]),ee_up[i]);
     }
 
-    if(Run.need_diagnostics){
+    if(need_diagnostics){
       #pragma ivdep
+#pragma acc loop vector private(node) 
       for(i=i_beg;i<=i_end;i++){
-	node = off0+i;	   
-	Grid.tvar7[node] += (Grid.U[node].e-ee[i])*invdt;
+        node = off0+i;
+        Grid.tvar7[node] += (Grid.U[node].e-ee[i])*invdt;
       }
     }
 
     if(ambipolar){
       #pragma ivdep
+#pragma acc loop vector private(node, vv, s) 
       for(i=i_beg;i<=i_end;i++){
-	node = off0+i;
-      
-	vv = Grid.v_amb[node].abs();
-	s  = Physics.params[i_param_ambvel_max]/max(Physics.params[i_param_ambvel_max],vv);
-	Grid.v_amb[node] *= s;
+        node = off0+i;
+
+        vv = Grid.v_amb[node].abs();
+        s  = ambvel_max/max(ambvel_max,vv);
+        Grid.v_amb[node] *= s;
       }
     }
 
-  }
-
-  NVPROF_POP_RANGE
+  } // end loop
 
   PGI_COMPARE(Grid.U, double, Grid.bufsize*8, "U", "Add_Sources_Integrate_SR.C",
               "Source_Integrate_Tcheck", 1)
@@ -293,33 +342,65 @@ void Source_Integrate_Tcheck(const RunData& Run, GridData& Grid,
       PGI_COMPARE(Grid.tvar7, double, Grid.bufsize, "tvar7", "Add_Sources_Integrate_SR.C",
               "Source_Integrate_Tcheck", 8)
   }
-   
+ 
 }
 /*****************************************************************************/
 void SaveCons(GridData& Grid,const PhysicsData& Physics) {
 
-  NVPROF_PUSH_RANGE("SaveCons", 4)
-
   const int i_beg    = Grid.lbeg[0];
   const int i_end    = Grid.lend[0];
+  const int kbeg = Grid.lbeg[2];
+  const int kend = Grid.lend[2];
+  const int jbeg = Grid.lbeg[1];
+  const int jend = Grid.lend[1];
 
-  int off0,j,k;
+  int off0,i,j,k;
   int bufsz = i_end-i_beg+1;
+  const int bufsize = Grid.bufsize;
 
   int next[3];
   for(k=0;k<3;k++)
     next[k] = Grid.stride[k];
-  
-  YZ_LOOP(Grid,j,k){
+
+#pragma acc parallel loop collapse(2) gang              \
+ present(Grid[:1], Grid.U[:bufsize], Grid.U0[:bufsize]) \
+ private(off0)
+  for(k=kbeg; k<=kend; k++)
+  for(j=jbeg; j<=jend; j++) {
     off0 = j*next[1]+k*next[2];
-    memcpy(&Grid.U0[off0+i_beg],&Grid.U[off0+i_beg],bufsz*sizeof(cState));
-    if(Physics.params[i_param_spitzer] > 0.0)
-      memcpy(&Grid.sflx0[off0+i_beg],&Grid.sflx[off0+i_beg],bufsz*sizeof(double));
-    if(Physics.params[i_param_ambipolar] > 0.0)
-    memcpy(&Grid.v0_amb[off0+i_beg],&Grid.v_amb[off0+i_beg],bufsz*sizeof(Vector));
+#pragma acc loop vector
+    for(i=i_beg; i<=i_end; i++) {
+      Grid.U0[off0+i] = Grid.U[off0+i];
+    }
   }
 
-  NVPROF_POP_RANGE
+  if(Physics.params[i_param_spitzer] > 0.0) {
+#pragma acc parallel loop collapse(2) gang                    \
+ present(Grid[:1], Grid.sflx[:bufsize], Grid.sflx0[:bufsize]) \
+ private(off0)
+    for(k=kbeg; k<=kend; k++)
+    for(j=jbeg; j<=jend; j++) {
+      off0 = j*next[1]+k*next[2];
+#pragma acc loop vector
+      for(i=i_beg; i<=i_end; i++) {
+        Grid.sflx0[off0+i] = Grid.sflx[off0+i];
+      }
+    }
+  }
+
+  if(Physics.params[i_param_ambipolar] > 0.0) {
+#pragma acc parallel loop collapse(2) gang                      \
+ present(Grid[:1], Grid.v_amb[:bufsize], Grid.v0_amb[:bufsize]) \
+ private(off0)
+    for(k=kbeg; k<=kend; k++)
+    for(j=jbeg; j<=jend; j++) {
+      off0 = j*next[1]+k*next[2];
+#pragma acc loop vector
+      for(i=i_beg; i<=i_end; i++) {
+        Grid.v0_amb[off0+i] = Grid.v_amb[off0+i];
+      }
+    }
+  }
 
   PGI_COMPARE(Grid.U0, double, Grid.bufsize*8, "U0", "Add_Sources_Integrate_SR.C",
               "SaveCons", 9)
@@ -335,8 +416,6 @@ void SaveCons(GridData& Grid,const PhysicsData& Physics) {
 } 
 /*****************************************************************************/
 void TCheck(const RunData&  Run, GridData& Grid, const PhysicsData& Physics) {
-
-  NVPROF_PUSH_RANGE("TCheck", 5)
 
   static int ini_flag = 1;
 
@@ -354,6 +433,13 @@ void TCheck(const RunData&  Run, GridData& Grid, const PhysicsData& Physics) {
 
   const int i_beg = Grid.lbeg[0];
   const int i_end = Grid.lend[0];
+  const int kbeg = Grid.lbeg[2];
+  const int kend = Grid.lend[2];
+  const int jbeg = Grid.lbeg[1];
+  const int jend = Grid.lend[1];
+
+  const int need_diagnostics = Run.need_diagnostics;
+  const int bufsize = Grid.bufsize;
 
   double invdt;
   if(Run.dt > 0.0)
@@ -386,20 +472,26 @@ void TCheck(const RunData&  Run, GridData& Grid, const PhysicsData& Physics) {
     ini_flag = 0;
   }
 
-  YZ_LOOP(Grid,j,k){
+#pragma acc parallel loop collapse(2) gang             \
+ present(Grid, Grid.U[:bufsize], Grid.tvar7[:bufsize]) \
+ private(off0, ee_low[:vsize], ee_up[:vsize],          \
+  vfac[:vsize], rho[:vsize], ee[:vsize])
+  for(k=kbeg; k<=kend; k++)
+  for(j=jbeg; j<=jend; j++) {
     off0 = j*next[1]+k*next[2];
 
     #pragma ivdep
+#pragma acc loop vector private(node, dn, vv, s, ekin)
     for(i=i_beg;i<=i_end;i++){
       node = off0+i;
-      
+
       dn = max(rho_min,Grid.U[node].d);
 
       vv = Grid.U[node].M.abs()/dn;
       s  = vmax/max(vmax,vv);
 
       ekin = 0.5*dn*vv*vv;
-      
+
       ee_low[i] = eps_min*dn+ekin;
       ee_up[i]  = eps_max*dn+ekin*s*s;
       vfac[i]   = s;
@@ -407,27 +499,27 @@ void TCheck(const RunData&  Run, GridData& Grid, const PhysicsData& Physics) {
     }
 
     #pragma ivdep
+#pragma acc loop vector private(node) 
     for(i=i_beg;i<=i_end;i++){
       node = off0+i;
- 
+
       ee[i] = Grid.U[node].e;
-      
+
       Grid.U[node].d  = rho[i];
       Grid.U[node].M *= vfac[i];
       Grid.U[node].e  = min(max(ee[i],ee_low[i]),ee_up[i]);
     }
-    
-    if(Run.need_diagnostics){
+
+    if(need_diagnostics){
       #pragma ivdep
+#pragma acc loop vector private(node) 
       for(i=i_beg;i<=i_end;i++){
-	node = off0+i;	   
-	Grid.tvar7[node] += (Grid.U[node].e-ee[i])*invdt;
+        node = off0+i;
+        Grid.tvar7[node] += (Grid.U[node].e-ee[i])*invdt;
       }
     }
       
   }
-
-  NVPROF_POP_RANGE
 
   PGI_COMPARE(Grid.U, double, Grid.bufsize*8, "U", "Add_Sources_Integrate_SR.C", "TCheck", 12)
   if(Run.need_diagnostics) {
@@ -438,8 +530,6 @@ void TCheck(const RunData&  Run, GridData& Grid, const PhysicsData& Physics) {
 /*****************************************************************************/
 void get_damping(const RunData&  Run, const GridData& Grid,
 		 const PhysicsData& Physics, double* my_mean) {
-
-  NVPROF_PUSH_RANGE("get_damping", 6)
 
   static int ini_flag = 1;
 
@@ -520,8 +610,6 @@ void get_damping(const RunData&  Run, const GridData& Grid,
       cout << "damp: tau_phot = " << rbuf[3] << endl;
     }
   }
-
-  NVPROF_POP_RANGE
 
   PGI_COMPARE(&fmax, double, 1, "fmax", "Add_Sources_Integrate_SR.C", "get_damping", 14)
   PGI_COMPARE(&vmax, double, 1, "vmax", "Add_Sources_Integrate_SR.C", "get_damping", 15)
