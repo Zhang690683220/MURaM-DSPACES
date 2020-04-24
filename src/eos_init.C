@@ -12,24 +12,34 @@
 using namespace std;
 
 int N_eps,N_lr,N_lp3,N_s3;
+#pragma acc declare create(N_eps, N_lr, N_lp3, N_s3)
 double del_eps,del_lr,del_lp3,del_s3;
 double inv_del_eps,inv_del_lr,inv_del_lp3,inv_del_s3;
+#pragma acc declare create(inv_del_eps, inv_del_lr)
 double eps_off, ss_off;
+#pragma acc declare create(ss_off, eps_off, inv_del_lp3, inv_del_s3)
 
 double *xeps;
+#pragma acc declare create(xeps)
 double *xlr;
+#pragma acc declare create(xlr)
 eos_real **p_eostab;
+#pragma acc declare create(p_eostab)
 eos_real **T_eostab;
 eos_real **s_eostab;
+#pragma acc declare create(s_eostab)
 eos_real **ne_eostab; 
 eos_real **rhoi_eostab;
 eos_real **amb_eostab;
 
 double *xlp3;
+#pragma acc declare create(xlp3)
 double *xs3;
+#pragma acc declare create(xs3)
 eos_real **d3_eostab;
+#pragma acc declare create(d3_eostab)
 eos_real **eps3_eostab;
-
+#pragma acc declare create(eps3_eostab)
 
 eos_real** array_2d_contiguous(int nx,int ny){
   eos_real **array = new eos_real*[nx];
@@ -68,9 +78,13 @@ void eos_init(GridData& Grid, RunData& Run, const PhysicsData& Physics) {
   fread(header,sizeof(eostab_real),14,pFile);
 
   N_eps = (int) header[0];
+#pragma acc update device(N_eps)
   N_lr =  (int) header[1];
+#pragma acc update device(N_lr)
   N_lp3 = (int) header[2];
+#pragma acc update device(N_lp3)
   N_s3 =  (int) header[3];
+#pragma acc update device(N_s3)
 
   eps0 = (double) header[4];
   eps1 = (double) header[5];
@@ -81,8 +95,9 @@ void eos_init(GridData& Grid, RunData& Run, const PhysicsData& Physics) {
   s0 =   (double) header[10];
   s1 =   (double) header[11];
   eps_off = (double) header[12];
+#pragma acc update device(eps_off)
   ss_off =  (double) header[13];
-
+#pragma acc update device(ss_off)
   //Dynamically allocate EOS tables
   xeps = new double[N_eps];
   xlr  = new double[N_lr];
@@ -106,7 +121,9 @@ void eos_init(GridData& Grid, RunData& Run, const PhysicsData& Physics) {
   del_lr  = (lr1-lr0)/(double (N_lr-1));
 
   inv_del_eps = 1.0/del_eps;
+#pragma acc update device(inv_del_eps)
   inv_del_lr = 1.0/del_lr;
+#pragma acc update device(inv_del_lr)
 
   for (i=0; i<N_eps; i++) {
     xeps[i] = eps0 + del_eps * ((double) i);
@@ -120,14 +137,18 @@ void eos_init(GridData& Grid, RunData& Run, const PhysicsData& Physics) {
   del_s3  = (s1-s0)/(double (N_s3-1));
 
   inv_del_lp3 = 1.0/del_lp3;
+#pragma acc update device(inv_del_lp3)
   inv_del_s3  = 1.0/del_s3;
+#pragma acc update device(inv_del_s3)
 
   for (i=0; i<N_lp3; i++) {
     xlp3[i] = lp0+del_lp3 * ((double) i);
   }
+#pragma acc enter data copyin(xlp3[:N_lp3])
   for (i=0; i<N_s3;  i++) {
     xs3[i]  = s0+del_s3 * ((double) i);
   }
+#pragma acc enter data copyin(xs3[:N_s3])
 
   // Temporary buffer
   buffsize = 6*N_eps*N_lr;
@@ -173,12 +194,23 @@ void eos_init(GridData& Grid, RunData& Run, const PhysicsData& Physics) {
       d3_eostab[i][j]   = ((double) buff[ind2])/(del_lp3*del_s3);
     }
   }
-  
+#pragma acc enter data copyin(d3_eostab[:N_lp3][:N_s3])
+#pragma acc enter data copyin(eps3_eostab[:N_lp3][:N_s3]) 
   delete[] buff;
+
+#pragma acc enter data copyin(xeps[:N_eps])
+#pragma acc enter data copyin(xlr[:N_lr])
+#pragma acc enter data copyin(p_eostab[:N_eps][:N_lr])
+#pragma acc enter data copyin(T_eostab[:N_eps][:N_lr])
+#pragma acc enter data copyin(s_eostab[:N_eps][:N_lr])
+#pragma acc enter data copyin(ne_eostab[:N_eps][:N_lr])
+#pragma acc enter data copyin(rhoi_eostab[:N_eps][:N_lr])
+#pragma acc enter data copyin(amb_eostab[:N_eps][:N_lr])
 
 }
 
 /***********************************************************************/
+#pragma acc routine seq
 double d3_interp(double pp, double ss){
   int i,j;
   double logp, dd,ss1;
@@ -204,6 +236,7 @@ double d3_interp(double pp, double ss){
   return dd;  
 }
 
+#pragma acc routine seq
 double eps3_interp(double pp, double ss){
   int i,j;
   double logp, ee,ss1;
@@ -229,6 +262,7 @@ double eps3_interp(double pp, double ss){
   return ee-eps_off;
 }
 
+#pragma acc routine seq
 double s_interp(double ee, double dd) {
 
   int i,j;
@@ -279,6 +313,7 @@ double T_interp(double ee, double dd){
   return logT;
 }
 
+#pragma acc routine seq
 double p_interp(double ee, double dd) {
 
   int i,j;

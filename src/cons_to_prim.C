@@ -7,7 +7,7 @@
 #include "precision.h"
 #include "eos.H"
 #include "run.H"
-#include "ACCH.h"
+#include "muramacc.H"
 
 double eos_gamma = 1.65;
 double eos_mu = 0.62;
@@ -29,14 +29,15 @@ inline int invalid_eos(double a, double b){
 
 void ConsToPrim(GridData& Grid, const PhysicsData& Physics, const RunData& Run) {
 
-  NVPROF_PUSH_RANGE("ConsToPrim", 2)
-
   //double time,s_time;
   //static double t_time = 0.0 ,c_time = 0.0 , r_time = 0.0;
   //static int call_count = 0;
   //s_time = MPI_Wtime();
   
   int i,j,k,node,i_d,i_e;
+  int kbeg, kend, jbeg, jend, ibeg, iend;
+  const int bufsize = Grid.bufsize;
+
   double ep,lr,dn,vv,xx;
 
   const double eps_max=exp(xeps[N_eps-1])-eps_off;
@@ -55,9 +56,30 @@ void ConsToPrim(GridData& Grid, const PhysicsData& Physics, const RunData& Run) 
   netab[4][sz], rhoitab[4][sz],ambtab[4][sz],ttab[4][sz], lge[sz],eps[sz], 
   lgr[sz], pres[sz], temp[sz],nel[sz],amb[sz],rhoi[sz];
 
-  for(k=Grid.lbeg[2]-Grid.ghosts[2];k<=Grid.lend[2]+Grid.ghosts[2];k++){
-    for(j=Grid.lbeg[1]-Grid.ghosts[1];j<=Grid.lend[1]+Grid.ghosts[1];j++){
+  kbeg = Grid.lbeg[2]-Grid.ghosts[2];
+  kend = Grid.lend[2]+Grid.ghosts[2];
+  jbeg = Grid.lbeg[1]-Grid.ghosts[1];
+  jend = Grid.lend[1]+Grid.ghosts[1];
+  ibeg = Grid.lbeg[0]-Grid.ghosts[0];
+  iend = Grid.lend[0]+Grid.ghosts[0];
+
+#pragma acc parallel loop collapse(2) gang                     \
+ present(Grid[:1], U[:bufsize], Grid.pres[:bufsize],           \
+  Grid.temp[:bufsize], Grid.ne[:bufsize],                      \
+  Grid.rhoi[:bufsize], Grid.amb[:bufsize],                     \
+  xeps[:N_eps], xlr[:N_lr], p_eostab[:N_eps][:N_lr],           \
+  T_eostab[:N_eps][:N_lr], s_eostab[:N_eps][:N_lr],            \
+  ne_eostab[:N_eps][:N_lr], rhoi_eostab[:N_eps][:N_lr],        \
+  amb_eostab[:N_eps][:N_lr])                                   \
+ private(var[:8][:sz], coeff[:4][:sz], ptab[:4][:sz],          \
+  netab[:4][:sz], rhoitab[:4][:sz], ambtab[:4][:sz],           \
+  ttab[:4][:sz], lge[:sz], eps[:sz],                           \
+  lgr[:sz], pres[:sz], temp[:sz], nel[:sz],                    \
+  amb[:sz], rhoi[:sz])
+  for(k=kbeg; k<=kend; k++){
+    for(j=jbeg; j<=jend; j++){
       //time = MPI_Wtime();
+#pragma acc loop vector private(node)
       for(i=0;i<sz;i++){
         node = Grid.node(i,j,k);
         var[0][i] = U[node].d;
@@ -72,6 +94,7 @@ void ConsToPrim(GridData& Grid, const PhysicsData& Physics, const RunData& Run) 
       //r_time += MPI_Wtime()-time;
 
       //time = MPI_Wtime();
+#pragma acc loop vector private(dn, vv) 
       for(i=0;i<sz;i++){
         dn        = 1.0/var[0][i];
         var[1][i] = var[1][i]*dn;
@@ -89,6 +112,8 @@ void ConsToPrim(GridData& Grid, const PhysicsData& Physics, const RunData& Run) 
         lgr[i] = log(var[0][i]);
         lge[i] = log(eps[i]);
       }
+
+#pragma acc loop vector private(ep, lr, i_d, i_e)
       for(i=0;i<sz;i++){
 
         ep = lge[i];
@@ -134,6 +159,7 @@ void ConsToPrim(GridData& Grid, const PhysicsData& Physics, const RunData& Run) 
 
       }
   
+#pragma acc loop vector 
       for(i=0;i<sz;i++){
         double pp  = coeff[0][i] * ptab[0][i];
         pp += coeff[1][i] * ptab[1][i];
@@ -167,6 +193,7 @@ void ConsToPrim(GridData& Grid, const PhysicsData& Physics, const RunData& Run) 
         amb[i] = exp(aa);
       }
       
+#pragma acc loop vector 
       for(i=0;i<sz;i++){
     
       // Out of upper table bounds
@@ -196,10 +223,11 @@ void ConsToPrim(GridData& Grid, const PhysicsData& Physics, const RunData& Run) 
       // If electron number goes too small, or NaNs, or is still inf set to a minimum
       if ((nel[i] < 1.0) || (nel[i]!=nel[i]) || (nel[i] == std::numeric_limits<double>::infinity())) nel[i] = 1.0;
 
-      }
+      } // end loop
 
       //time = MPI_Wtime();
-      for(i=Grid.lbeg[0]-Grid.ghosts[0];i<=Grid.lend[0]+Grid.ghosts[0];i++){
+#pragma acc loop vector private(node) 
+      for(i=ibeg;i<=iend;i++){
         node = Grid.node(i,j,k);
         U[node].M.x=var[1][i];
         U[node].M.y=var[2][i];
@@ -218,8 +246,6 @@ void ConsToPrim(GridData& Grid, const PhysicsData& Physics, const RunData& Run) 
     }
   }
 
-  NVPROF_POP_RANGE
-
   PGI_COMPARE(Grid.U, double, Grid.bufsize*8, "U", "cons_to_prim.C", "ConsToPrim", 1)
   PGI_COMPARE(Grid.pres, double, Grid.bufsize, "pres", "cons_to_prim.C", "ConsToPrim", 2)
   PGI_COMPARE(Grid.temp, double, Grid.bufsize, "temp", "cons_to_prim.C", "ConsToPrim", 3)
@@ -228,3 +254,4 @@ void ConsToPrim(GridData& Grid, const PhysicsData& Physics, const RunData& Run) 
   PGI_COMPARE(Grid.amb, double, Grid.bufsize, "amb", "cons_to_prim.C", "ConsToPrim", 6)
 
 }
+

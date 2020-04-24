@@ -1,3 +1,4 @@
+#include "physics.H"
 #include <mpi.h>
 #include <fstream>
 #include <string.h>
@@ -18,6 +19,7 @@
 #include "eos.H"
 #include "icbc.H"
 #include "rt/rt.h"
+#include "ACCH.h"
 
 using namespace std;
 
@@ -49,9 +51,36 @@ void ComputeSolution(RunData& Run,GridData& Grid,const PhysicsData& Physics,RTS 
   eos_init(Grid,Run,Physics);
   if( Run.rank==0 ) cout << "eos_init done"<<endl;
 
+  ACCH::UpdateGPU(Grid.U, Grid.bufsize*sizeof(cState));
+  ACCH::UpdateGPU(Grid.U0, Grid.bufsize*sizeof(cState));
+  ACCH::UpdateGPU(Grid.Res, Grid.bufsize*sizeof(cState));
+  if(Physics.params[i_param_spitzer] > 0.0) {
+    ACCH::UpdateGPU(Grid.sflx, Grid.bufsize*sizeof(double));
+    ACCH::UpdateGPU(Grid.sflx0, Grid.bufsize*sizeof(double));
+    ACCH::UpdateGPU(Grid.Rflx, Grid.bufsize*sizeof(double));
+  }
+  if(Physics.params[i_param_ambipolar] > 0.0) {
+    ACCH::UpdateGPU(Grid.v_amb, Grid.bufsize*sizeof(Vector));
+    ACCH::UpdateGPU(Grid.v0_amb, Grid.bufsize*sizeof(Vector));
+  }
+  ACCH::UpdateGPU(Grid.divB, Grid.bufsize*sizeof(double));
+  ACCH::UpdateGPU(Grid.pres, Grid.bufsize*sizeof(double));
+  ACCH::UpdateGPU(Grid.Jtot, Grid.bufsize*sizeof(double));
+  ACCH::UpdateGPU(Grid.Qtot, Grid.bufsize*sizeof(double));
+  ACCH::UpdateGPU(Grid.Stot, Grid.bufsize*sizeof(double));
+  ACCH::UpdateGPU(Grid.Qthin, Grid.bufsize*sizeof(double));
+  ACCH::UpdateGPU(Grid.rhoi, Grid.bufsize*sizeof(double));
+  ACCH::UpdateGPU(Grid.Tau, Grid.bufsize*sizeof(double));
+  ACCH::UpdateGPU(Grid.R_amb, Grid.bufsize*sizeof(Vector));
+  if(Physics.rt_ext[i_ext_cor] == 2) {
+    ACCH::UpdateGPU(Grid.QH, Grid.bufsize*sizeof(double));
+    ACCH::UpdateGPU(Grid.QMg, Grid.bufsize*sizeof(double));
+  }
+
   //TCheck(Run,Grid,Physics);  
-  exchange_grid(Grid,Physics,1);
+  exchange_grid_acc(Grid,Physics,1);
   SetBoundaryConditions(Run,Grid,Physics,0,1,rts);
+  bnd_time+=MPI_Wtime()-clock;
   
   ini_time   = MPI_Wtime()-start_time;
   start_time = MPI_Wtime(); 
@@ -100,7 +129,9 @@ void ComputeSolution(RunData& Run,GridData& Grid,const PhysicsData& Physics,RTS 
 
       clock=MPI_Wtime();
       if( (stage == 1) or (stage == maxstage) ) {
-	if(Physics.rt_ext[i_ext_cor]==1) Get_Radloss(Run,Grid,Physics);
+	if(Physics.rt_ext[i_ext_cor]==1) {
+          Get_Radloss(Run,Grid,Physics);
+        }
 	if(Physics.rt_ext[i_ext_cor]==2) ELTE_Qx(Run,Grid,Physics);
       }
       int_time+=MPI_Wtime()-clock;
@@ -115,9 +146,36 @@ void ComputeSolution(RunData& Run,GridData& Grid,const PhysicsData& Physics,RTS 
       
         if(needoutput){
 	  clock=MPI_Wtime();
+          ACCH::UpdateCPU(Grid.Jtot, Grid.bufsize*sizeof(double));
+          ACCH::UpdateCPU(Grid.Qtot, Grid.bufsize*sizeof(double));
+          ACCH::UpdateCPU(Grid.Stot, Grid.bufsize*sizeof(double));
+          ACCH::UpdateCPU(Grid.ne, Grid.bufsize*sizeof(double));
+          ACCH::UpdateCPU(Grid.Qthin, Grid.bufsize*sizeof(double));
+          ACCH::UpdateCPU(Grid.rhoi, Grid.bufsize*sizeof(double));
+          ACCH::UpdateCPU(Grid.amb, Grid.bufsize*sizeof(double));
+          ACCH::UpdateCPU(Grid.Tau, Grid.bufsize*sizeof(double));
+	  ACCH::UpdateCPU(Grid.temp, Grid.bufsize*sizeof(double));
+	  if(Physics.rt_ext[i_ext_cor] == 2) {
+            ACCH::UpdateCPU(Grid.QH, Grid.bufsize*sizeof(double));
+            ACCH::UpdateCPU(Grid.QMg, Grid.bufsize*sizeof(double));
+            ACCH::UpdateCPU(Grid.QCa, Grid.bufsize*sizeof(double));
+	  }
 	  eos_output(Run,Grid,Physics,rts);
 
 	  if (Run.diagnostics){
+            ACCH::UpdateCPU(Grid.tvar1, Grid.bufsize*sizeof(double));
+            ACCH::UpdateCPU(Grid.tvar2, Grid.bufsize*sizeof(double));
+            ACCH::UpdateCPU(Grid.tvar3, Grid.bufsize*sizeof(double));
+            ACCH::UpdateCPU(Grid.tvar4, Grid.bufsize*sizeof(double));
+            ACCH::UpdateCPU(Grid.tvar5, Grid.bufsize*sizeof(double));
+            ACCH::UpdateCPU(Grid.tvar6, Grid.bufsize*sizeof(double));
+            ACCH::UpdateCPU(Grid.tvar7, Grid.bufsize*sizeof(double));
+            ACCH::UpdateCPU(Grid.tvar8, Grid.bufsize*sizeof(double));
+            ACCH::UpdateCPU(Grid.Qres, Grid.bufsize*sizeof(double));
+            ACCH::UpdateCPU(Grid.Qvis, Grid.bufsize*sizeof(double));
+            if(Physics.params[i_param_ambipolar] > 0.0) {
+              ACCH::UpdateCPU(Grid.Qamb, Grid.bufsize*sizeof(double));
+            }
             diag_output(Run,Grid,Physics,rts);
           }
           
@@ -133,20 +191,71 @@ void ComputeSolution(RunData& Run,GridData& Grid,const PhysicsData& Physics,RTS 
 	  clock=MPI_Wtime(); 
 	  if (Physics.slice[i_sl_ic] >0) Iout(Run,Grid,Physics,rts);
 	  if (Grid.NDIM > 1){
-	    if (Physics.slice[i_sl_tau]>0) tau_slice(Run,Grid,Physics,rts); 
-	    if (Physics.slice[i_sl_yz]>0)  yz_slice(Run,Grid,Physics,rts);
+	    if (Physics.slice[i_sl_tau]>0) {
+              ACCH::UpdateCPU(Grid.pres, Grid.bufsize*sizeof(double));
+              ACCH::UpdateCPU(Grid.temp, Grid.bufsize*sizeof(double));
+              ACCH::UpdateCPU(Grid.Tau, Grid.bufsize*sizeof(double));
+              ACCH::UpdateCPU(Grid.U, Grid.bufsize*sizeof(cState));
+              tau_slice(Run,Grid,Physics,rts);
+            } 
+	    if (Physics.slice[i_sl_yz]>0) {
+              ACCH::UpdateCPU(Grid.pres, Grid.bufsize*sizeof(double));
+              ACCH::UpdateCPU(Grid.temp, Grid.bufsize*sizeof(double));
+              ACCH::UpdateCPU(Grid.U, Grid.bufsize*sizeof(cState));
+              yz_slice(Run,Grid,Physics,rts);
+            }
 	  }
 	  if (Grid.NDIM == 3){
-	    if (Physics.slice[i_sl_xy]>0) xy_slice(Run,Grid,Physics);
-	    if (Physics.slice[i_sl_xz]>0) xz_slice(Run,Grid,Physics);
+	    if (Physics.slice[i_sl_xy]>0) {
+              ACCH::UpdateCPU(Grid.pres, Grid.bufsize*sizeof(double));
+              ACCH::UpdateCPU(Grid.temp, Grid.bufsize*sizeof(double));
+              ACCH::UpdateCPU(Grid.U, Grid.bufsize*sizeof(cState));
+              xy_slice(Run,Grid,Physics);
+            }
+	    if (Physics.slice[i_sl_xz]>0) {
+              ACCH::UpdateCPU(Grid.pres, Grid.bufsize*sizeof(double));
+              ACCH::UpdateCPU(Grid.temp, Grid.bufsize*sizeof(double));
+              ACCH::UpdateCPU(Grid.U, Grid.bufsize*sizeof(cState));
+              xz_slice(Run,Grid,Physics);
+            }
 	  }
 
-	  if (Run.DEM) 
+	  if (Run.DEM) {
+            ACCH::UpdateCPU(Grid.temp, Grid.bufsize*sizeof(double));
+            ACCH::UpdateCPU(Grid.U, Grid.bufsize*sizeof(cState));
 	    corona_emission_dem_xyz(Run,Grid,Physics);
+          }
 
 	  // Some quantities might not be yeat computed after restart
-	  if((Run.iteration > 0)&&(Run.HAVG))
+	  if((Run.iteration > 0)&&(Run.HAVG)) {
+            ACCH::UpdateCPU(Grid.tvar1, Grid.bufsize*sizeof(double));
+            ACCH::UpdateCPU(Grid.tvar2, Grid.bufsize*sizeof(double));
+            ACCH::UpdateCPU(Grid.tvar3, Grid.bufsize*sizeof(double));
+            ACCH::UpdateCPU(Grid.tvar4, Grid.bufsize*sizeof(double));
+            ACCH::UpdateCPU(Grid.tvar5, Grid.bufsize*sizeof(double));
+            ACCH::UpdateCPU(Grid.tvar6, Grid.bufsize*sizeof(double));
+            ACCH::UpdateCPU(Grid.tvar7, Grid.bufsize*sizeof(double));
+            ACCH::UpdateCPU(Grid.tvar8, Grid.bufsize*sizeof(double));
+            ACCH::UpdateCPU(Grid.divB, Grid.bufsize*sizeof(double));
+            ACCH::UpdateCPU(Grid.Qres, Grid.bufsize*sizeof(double));
+            ACCH::UpdateCPU(Grid.Qvis, Grid.bufsize*sizeof(double));
+            if(Physics.params[i_param_ambipolar] > 0.0) {
+              ACCH::UpdateCPU(Grid.Qamb, Grid.bufsize*sizeof(double));
+            }
+            ACCH::UpdateCPU(Grid.pres, Grid.bufsize*sizeof(double));
+            ACCH::UpdateCPU(Grid.temp, Grid.bufsize*sizeof(double));
+            ACCH::UpdateCPU(Grid.Qtot, Grid.bufsize*sizeof(double));
+            ACCH::UpdateCPU(Grid.Qthin, Grid.bufsize*sizeof(double));
+            ACCH::UpdateCPU(Grid.rhoi, Grid.bufsize*sizeof(double));
+            ACCH::UpdateCPU(Grid.Tau, Grid.bufsize*sizeof(double));
+            if(Physics.rt_ext[i_ext_cor] == 2) {
+              ACCH::UpdateCPU(Grid.QH, Grid.bufsize*sizeof(double));
+              ACCH::UpdateCPU(Grid.QMg, Grid.bufsize*sizeof(double));
+              ACCH::UpdateCPU(Grid.QCa, Grid.bufsize*sizeof(double));
+            }
+	    ACCH::UpdateCPU(Grid.U, Grid.bufsize*sizeof(cState));
 	    AnalyzeSolution_VP(Run,Grid,Physics,rts);
+	  }
          
 	  io_time += MPI_Wtime()-clock;    
 	  if (Run.rank == 0){
@@ -165,18 +274,33 @@ void ComputeSolution(RunData& Run,GridData& Grid,const PhysicsData& Physics,RTS 
       int buf = Grid.bufsize; 
 
       if(Run.need_diagnostics){
-        memset(&Grid.Qres[0],0,buf*sizeof(double));
-        memset(&Grid.Qvis[0],0,buf*sizeof(double));
-	if(Physics.params[i_param_ambipolar] > 0.0)
-	  memset(&Grid.Qamb[0],0,buf*sizeof(double));
-        memset(&Grid.tvar1[0],0,buf*sizeof(double));
-        memset(&Grid.tvar2[0],0,buf*sizeof(double));
-        memset(&Grid.tvar3[0],0,buf*sizeof(double));
-        memset(&Grid.tvar4[0],0,buf*sizeof(double));
-        memset(&Grid.tvar5[0],0,buf*sizeof(double));
-        memset(&Grid.tvar6[0],0,buf*sizeof(double));
-        memset(&Grid.tvar7[0],0,buf*sizeof(double));
-        memset(&Grid.tvar8[0],0,buf*sizeof(double));
+#pragma acc parallel loop \
+ present(Grid[:1], Grid.tvar1[:Grid.bufsize], \
+  Grid.tvar2[:Grid.bufsize], Grid.tvar3[:Grid.bufsize], \
+  Grid.tvar4[:Grid.bufsize], Grid.tvar5[:Grid.bufsize], \
+  Grid.tvar6[:Grid.bufsize], Grid.tvar7[:Grid.bufsize], \
+  Grid.tvar8[:Grid.bufsize], Grid.Qres[:Grid.bufsize], \
+  Grid.Qvis[:Grid.bufsize])
+	for(int i = 0; i < Grid.bufsize; i++) {
+          Grid.tvar1[i] = 0.0;
+	  Grid.tvar2[i] = 0.0;
+	  Grid.tvar3[i] = 0.0;
+	  Grid.tvar4[i] = 0.0;
+	  Grid.tvar5[i] = 0.0;
+	  Grid.tvar6[i] = 0.0;
+	  Grid.tvar7[i] = 0.0;
+	  Grid.tvar8[i] = 0.0;
+	  Grid.Qres[i] = 0.0;
+	  Grid.Qvis[i] = 0.0;
+	}
+
+	if(Physics.params[i_param_ambipolar] > 0.0) {
+#pragma acc parallel loop \
+ present(Grid[:1], Grid.Qamb[:Grid.bufsize])
+	  for(int i = 0; i < Grid.bufsize; i++) {
+            Grid.Qamb[i] = 0.0;
+	  }
+	}
       }
 
       clock=MPI_Wtime();
@@ -194,7 +318,7 @@ void ComputeSolution(RunData& Run,GridData& Grid,const PhysicsData& Physics,RTS 
       int_time+=MPI_Wtime()-clock;
 
       clock=MPI_Wtime();
-      exchange_grid(Grid,Physics,1);   
+      exchange_grid_acc(Grid,Physics,1);   
       dst_time+=MPI_Wtime()-clock;
 
       clock=MPI_Wtime();
@@ -212,7 +336,7 @@ void ComputeSolution(RunData& Run,GridData& Grid,const PhysicsData& Physics,RTS 
       TVDlimit(Run,Grid,Physics,0.5*Run.dt);
       tvd_time+=MPI_Wtime()-clock;
       clock=MPI_Wtime();
-      exchange_grid(Grid,Physics,0);
+      exchange_grid_acc(Grid,Physics,0);
       dst_time+=MPI_Wtime()-clock;
       clock=MPI_Wtime();
       TVDlimit(Run,Grid,Physics,0.5*Run.dt);
@@ -230,9 +354,9 @@ void ComputeSolution(RunData& Run,GridData& Grid,const PhysicsData& Physics,RTS 
     int_time+=MPI_Wtime()-clock;
     
     clock=MPI_Wtime();
-    exchange_grid(Grid,Physics,0); 
+    exchange_grid_acc(Grid,Physics,0); 
     dst_time+=MPI_Wtime()-clock;
-    
+
     clock=MPI_Wtime();
     pt_update=0;
     if ((int) Physics.bnd[i_bnd_pot] <= 2)
@@ -240,9 +364,9 @@ void ComputeSolution(RunData& Run,GridData& Grid,const PhysicsData& Physics,RTS 
     else 
       if ( !(Run.iteration%( ( (int) Physics.bnd[i_bnd_pot] ) - 1 ) ) )
 	pt_update=1;
+
     SetBoundaryConditions(Run,Grid,Physics,maxstage+1,pt_update,rts);
     bnd_time+=MPI_Wtime()-clock;
-
     Run.Advance();
 
     if (Run.rank == 0){
@@ -283,8 +407,17 @@ void ComputeSolution(RunData& Run,GridData& Grid,const PhysicsData& Physics,RTS 
 		       Run.NeedsBackup() || (wtime_backup == 1));
 
     if(needoutput){
-      clock=MPI_Wtime();  
+      clock=MPI_Wtime(); 
+      ACCH::UpdateCPU(Grid.U, Grid.bufsize*sizeof(cState));
+      ACCH::UpdateCPU(Grid.U0, Grid.bufsize*sizeof(cState));
+      if(Physics.params[i_param_spitzer] > 0.0) {
+        ACCH::UpdateCPU(Grid.sflx, Grid.bufsize*sizeof(double));
+        ACCH::UpdateCPU(Grid.sflx0, Grid.bufsize*sizeof(double));
+      }
+      ACCH::UpdateCPU(Grid.temp, Grid.bufsize*sizeof(double));
+      ACCH::UpdateCPU(Grid.pres, Grid.bufsize*sizeof(double));
       BackupSolution(Run,Grid,Physics);
+      ACCH::UpdateGPU(Grid.U0, Grid.bufsize*sizeof(cState));
       bc_time = MPI_Wtime()-clock;
       
       if ((Run.rank == 0)&&(Run.verbose >0))

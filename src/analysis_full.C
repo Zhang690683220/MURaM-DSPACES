@@ -73,10 +73,31 @@ void AnalyzeSolution(const RunData& Run,
   real rhominG,rhomin = 1.e10;
   real V2maxG,V2max = 0.;
 
+  const int ibeg = Grid.lbeg[0];
+  const int iend = Grid.lend[0];
+  const int jbeg = Grid.lbeg[1];
+  const int jend = Grid.lend[1];
+  const int kbeg = Grid.kbeg[2];
+  const int kend = Grid.kend[2];
+  const int bufsize = Grid.bufsize;
 
   if( Run.order==2 || Run.order==5 ) {
 
-    LOCAL_LOOP(Grid,i,j,k) {
+#pragma acc parallel loop collapse(3) \
+ private(node, KEG, MEG, dV[:3], dB[:3], aB[:3], p, V, B, \
+  divV, W, J, J2, VoB, d) \
+ reduction(+:IE) reduction(+:KE) reduction(max:B2max) \
+ reduction(+:PW) reduction(+:Wx) reduction(+:Wy) \
+ reduction(+:Wz) reduction(max:W2max) reduction(+:Jx) \
+ reduction(+:Jy) reduction(+:Jz) reduction(max:J2max) \
+ reduction(+:OH) reduction(+:VxB) reduction(+:JxB) \
+ reduction(+:LF) reduction(+:VH) reduction(+:divB) \
+ reduction(+:KH) reduction(+:KEF) reduction(+:MEF) \
+ reduction(+:IEF) reduction(+:ME) \
+ present(Grid[:1], U[:bufsize], U0[:bufsize])
+    for(k=kbeg; k<=kend; k++)
+    for(j=jbeg; j<=jend; j++)
+    for(i=ibeg; i<=iend; i++) {
       node = Grid.node(i,j,k);
 
       // Volumetric averages
@@ -228,7 +249,23 @@ void AnalyzeSolution(const RunData& Run,
   /* This part needs a lot of work */
   else if( Run.order==4 ) {
 
-    LOCAL_LOOP(Grid,i,j,k) {
+#pragma acc parallel loop collapse(3) \
+ private(node, KEG, MEG, dV[:3], dB[:3], aB[:3], p, V, B, \
+  divV, W, J, J2, VoB, d, rho, V2l) \
+ reduction(+:IE) reduction(+:KE) reduction(max:B2max) \
+ reduction(+:PW) reduction(+:Wx) reduction(+:Wy) \
+ reduction(+:Wz) reduction(max:W2max) reduction(+:Jx) \
+ reduction(+:Jy) reduction(+:Jz) reduction(max:J2max) \
+ reduction(+:OH) reduction(+:VxB) reduction(+:JxB) \
+ reduction(+:LF) reduction(+:VH) reduction(+:divB) \
+ reduction(+:KH) reduction(+:KEF) reduction(+:MEF) \
+ reduction(+:IEF) reduction(+:ME) reduction(max:V2max) \
+ reductino(+:Vsquare) reduction(max:pmax), reduction(min:rhomin) \
+ reduction(min:pmin) \
+ present(Grid[:1], U[:bufsize], U0[:bufsize])
+    for(k=kbeg; k<=kend; k++)
+    for(j=jbeg; j<=jend; j++)
+    for(i=ibeg; i<=iend; i++) {
       node = Grid.node(i,j,k);
 
       // Volumetric averages

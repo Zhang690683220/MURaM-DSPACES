@@ -5,7 +5,7 @@
 #include "grid.H"
 #include "run.H"
 #include "exchange.H"
-#include "ACCH.h"
+#include "muramacc.H"
 
 /*
   Add contributions from divB heating to Qres for diagnostic reasons.
@@ -26,8 +26,6 @@
   for((j)=(G).lbeg[1];(j)<=(G).lend[1];(j)++)
 
 void Clean_divB(const RunData&  Run, GridData& Grid, const PhysicsData&  Physics) {
-
-  NVPROF_PUSH_RANGE("Clean_divB", 0)
 
   double ttime, atime, etime, time;
   ttime=MPI_Wtime();
@@ -50,6 +48,10 @@ void Clean_divB(const RunData&  Run, GridData& Grid, const PhysicsData&  Physics
   const int nvar = Physics.NVAR;
   const int i_beg = Grid.lbeg[0];
   const int i_end = Grid.lend[0];
+  const int kbeg = Grid.lbeg[2];
+  const int kend = Grid.lend[2];
+  const int jbeg = Grid.lbeg[1];
+  const int jend = Grid.lend[1];
 
   int blcksz;
 
@@ -93,6 +95,8 @@ void Clean_divB(const RunData&  Run, GridData& Grid, const PhysicsData&  Physics
   double* divB = Grid.divB;
   double* phi  = Grid.phi;
   double* U    = (double*) Grid.U;
+  const int bufsize = Grid.bufsize;
+  const int NDIM = Grid.NDIM;
 
   if (divB_ini_flag == 1){    
     if (Run.rank == 0) { 
@@ -109,17 +113,26 @@ void Clean_divB(const RunData&  Run, GridData& Grid, const PhysicsData&  Physics
   /********************************************************************/
   
   time=MPI_Wtime();
-  exchange_B(Grid);    
+  exchange_B_acc(Grid);    
   etime+=MPI_Wtime()-time;
 
   err_loc[0] = 0.0;
-  YZ_LOOP(Grid,j,k){
+  err = 0.0;
+
+#pragma acc parallel loop gang collapse(2) \
+ private(off0, offBv, offp1, offp2, offn1, offn2) \
+ present(U[:bufsize*8], divB[:bufsize]) \
+ reduction(max:err)
+  for(k=kbeg; k<=kend; k++)
+  for(j=jbeg; j<=jend; j++) {
     off0 = j*next[1]+k*next[2];
     
+#pragma acc loop vector
     for(i=i_beg;i<=i_end;i++)
       divB[off0+i]  = 0.0;
     
-    for(v=0;v<Grid.NDIM;v++){
+#pragma acc loop seq
+    for(v=0;v<NDIM;v++){
       offBv = off0*nvar+5+v;
       
       offp1 = offBv + nvar*next[v];
@@ -128,8 +141,8 @@ void Clean_divB(const RunData&  Run, GridData& Grid, const PhysicsData&  Physics
       offn2 = offBv - nvar*2*next[v];
       
       #pragma ivdep
+#pragma acc loop vector
       for(i=i_beg;i<=i_end;i++){
-	
 	divB[off0+i] +=
 	  (w1[v]*(U[offp1+i*nvar]-U[offn1+i*nvar])+
 	   w2[v]*(U[offp2+i*nvar]-U[offn2+i*nvar]));
@@ -137,33 +150,41 @@ void Clean_divB(const RunData&  Run, GridData& Grid, const PhysicsData&  Physics
       }
     }
 
-    err = 0.0;  
+    //err = 0.0;  
     #pragma ivdep 
+#pragma acc loop vector reduction(max:err)
     for(i=i_beg;i<=i_end;i++)
       err = max(err,fabs(divB[off0+i]));
 
-    err_loc[0] = max(err_loc[0],err);
+    //err_loc[0] = max(err_loc[0],err);
     
   }
 
+  err_loc[0] = err;
+  
   PGI_COMPARE(divB, double, Grid.bufsize, "divB", "clean_divB.C",
               "Clean_divB", 1)
-    
+  
   for(iter=0;iter<next_iter;iter++){
 
-    YZ_LOOP(Grid,j,k){
+#pragma acc parallel loop  gang collapse(2) \
+ private(off0) \
+ present(divB[:bufsize], phi[:bufsize])
+    for(k=kbeg; k<=kend; k++)
+    for(j=jbeg; j<=jend; j++) {
       off0 = j*next[1]+k*next[2];
       
       #pragma ivdep
+#pragma acc loop vector
       for(i=i_beg;i<=i_end;i++)
 	phi[off0+i] += divB_fac*divB[off0+i] - divB_damp*phi[off0+i];
     }
 
     PGI_COMPARE(phi, double, Grid.bufsize, "phi", "clean_divB.C",
                 "Clean_divB", 2)
-      
+
     time=MPI_Wtime();    
-    exchange_single(Grid,phi);
+    exchange_single_acc(Grid,phi);
     etime+=MPI_Wtime()-time;
 
     PGI_COMPARE(phi, double, Grid.bufsize, "phi", "clean_divB.C",
@@ -173,8 +194,11 @@ void Clean_divB(const RunData&  Run, GridData& Grid, const PhysicsData&  Physics
     // This can probably be done differently now that vertical is x
 
     if( Grid.is_gbeg[0] ) {
-      YZ_LOOP(Grid,j,k){
-	i=Grid.lbeg[0];
+      i = Grid.lbeg[0];
+#pragma acc parallel loop collapse(2) \
+ present(Grid[:1], phi[:bufsize])
+      for(k=kbeg; k<=kend; k++)
+      for(j=jbeg; j<=jend; j++) {
 	phi[Grid.node(i-1,j,k)] = -phi[Grid.node(i,j,k)]; 
 	phi[Grid.node(i-2,j,k)] = -phi[Grid.node(i+1,j,k)];      
       }
@@ -183,23 +207,31 @@ void Clean_divB(const RunData&  Run, GridData& Grid, const PhysicsData&  Physics
                   "Clean_divB", 4)
 
     }
-    
+   
+ 
     if( Grid.is_gend[0] ) {
-      YZ_LOOP(Grid,j,k){
-	i=Grid.lend[0];
+      i = Grid.lend[0];
+#pragma acc parallel loop collapse(2) \
+ present(Grid[:1], phi[:bufsize])
+      for(k=kbeg; k<=kend; k++)
+      for(j=jbeg; j<=jend; j++) {
 	phi[Grid.node(i+1,j,k)] = -phi[Grid.node(i,j,k)]; 
 	phi[Grid.node(i+2,j,k)] = -phi[Grid.node(i-1,j,k)];   
       }
-
       PGI_COMPARE(phi, double, Grid.bufsize, "phi", "clean_divB.C",
                   "Clean_divB", 5)
-
     }
 
-    YZ_LOOP(Grid,j,k){
+#pragma acc parallel loop collapse(2) \
+ private(off0, offp1, offp2, offn1, offn2) \
+ present(Grid[:1], U[:bufsize*8], phi[:bufsize], divB[:bufsize], \
+  Grid.Qres[:bufsize])
+    for(k=kbeg; k<=kend; k++)
+    for(j=jbeg; j<=jend; j++) {
       off0 = j*next[1]+k*next[2];
-    
-      for(v=0;v<Grid.NDIM;v++){
+
+#pragma acc loop seq
+      for(v=0;v<NDIM;v++){
 	offBv = off0*nvar+5+v;
       
 	offp1 = off0 + next[v];
@@ -208,6 +240,7 @@ void Clean_divB(const RunData&  Run, GridData& Grid, const PhysicsData&  Physics
 	offn2 = off0 - 2*next[v];
 	
         #pragma ivdep
+#pragma acc loop vector
 	for(i=i_beg;i<=i_end;i++){
 	  
 	  U[offBv+i*nvar] +=
@@ -218,11 +251,13 @@ void Clean_divB(const RunData&  Run, GridData& Grid, const PhysicsData&  Physics
       }
 
       #pragma ivdep
+#pragma acc loop vector
       for(i=i_beg;i<=i_end;i++)
 	U[(off0+i)*nvar+4] += phi[off0+i]*divB[off0+i];
 
       if(need_diagnostics){
         #pragma ivdep
+#pragma acc loop vector
 	for(i=i_beg;i<=i_end;i++){	  
 	  Grid.Qres[off0+i] += phi[off0+i]*divB[off0+i]*invdt;	  	
 	}
@@ -230,6 +265,7 @@ void Clean_divB(const RunData&  Run, GridData& Grid, const PhysicsData&  Physics
             
     }
 
+    ACC_COMPARE(U, real, bufsize*8)
     PGI_COMPARE(U, double, Grid.bufsize*8, "U", "clean_divB.C",
                 "Clean_divB", 6)
     if(need_diagnostics) {
@@ -238,20 +274,27 @@ void Clean_divB(const RunData&  Run, GridData& Grid, const PhysicsData&  Physics
     }
 
     time=MPI_Wtime();
-    exchange_B(Grid);    
+    exchange_B_acc(Grid);    
     etime+=MPI_Wtime()-time;
 
     PGI_COMPARE(U, double, Grid.bufsize*8, "U", "clean_divB.C",
                 "Clean_divB", 8)
     
-    err_loc[1] = 0.0;
-    YZ_LOOP(Grid,j,k){
+    err = 0.0;
+#pragma acc parallel loop gang collapse(2) \
+ private(off0, offp1, offp2, offn1, offn2) \
+ present(U[:bufsize*8], divB[:bufsize]) \
+ reduction(max:err)
+    for(k=kbeg; k<=kend; k++)
+    for(j=jbeg; j<=jend; j++) {
       off0 = j*next[1]+k*next[2];
     
+#pragma acc loop vector
       for(i=i_beg;i<=i_end;i++)
 	divB[off0+i]  = 0.0;
     
-      for(v=0;v<Grid.NDIM;v++){
+#pragma acc loop seq
+      for(v=0;v<NDIM;v++){
 	offBv = off0*nvar+5+v;
       
 	offp1 = offBv + nvar*next[v];
@@ -260,8 +303,8 @@ void Clean_divB(const RunData&  Run, GridData& Grid, const PhysicsData&  Physics
 	offn2 = offBv - nvar*2*next[v];
 	
         #pragma ivdep
+#pragma acc loop vector
 	for(i=i_beg;i<=i_end;i++){
-	
 	  divB[off0+i] +=
 	    (w1[v]*(U[offp1+i*nvar]-U[offn1+i*nvar])+
 	     w2[v]*(U[offp2+i*nvar]-U[offn2+i*nvar]));
@@ -269,17 +312,17 @@ void Clean_divB(const RunData&  Run, GridData& Grid, const PhysicsData&  Physics
 	}
       }
 
-      err = 0.0;
       #pragma ivdep
+#pragma acc loop vector reduction(max:err)
       for(i=i_beg;i<=i_end;i++)
 	err = max(err,fabs(divB[off0+i]));
-
-      err_loc[1] = max(err_loc[1],err);
     }
+
+    err_loc[1] = err;
 
     PGI_COMPARE(divB, double, Grid.bufsize, "divB", "clean_divB.C",
                 "Clean_divB", 9)
-    
+
   }
 
   time=MPI_Wtime();      
@@ -313,7 +356,5 @@ void Clean_divB(const RunData&  Run, GridData& Grid, const PhysicsData&  Physics
            << (etime+atime)/ttime << endl;
     }
   }
-
-  NVPROF_POP_RANGE
 
 }

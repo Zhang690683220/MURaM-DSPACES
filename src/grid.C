@@ -94,55 +94,56 @@ GridData::GridData() {
 
 GridData::~GridData() {
     ACCH::Free(U, bufsize*sizeof(cState));
-    delete[] U0;
-    delete[] Res;
+    ACCH::Free(U0, bufsize*sizeof(cState));
+    ACCH::Free(Res, bufsize*sizeof(cState));
     
     ACCH::Free(pres, bufsize*sizeof(double));
     ACCH::Free(temp, bufsize*sizeof(double));
 
-    delete[] ne;
-    delete[] amb;
-    delete[] rhoi;
+    ACCH::Free(ne, bufsize*sizeof(double));
+    ACCH::Free(amb, bufsize*sizeof(double));
+    ACCH::Free(rhoi, bufsize*sizeof(double));
 
     ACCH::Free(Qtot, bufsize*sizeof(double));
     ACCH::Free(Stot, bufsize*sizeof(double));
     ACCH::Free(Jtot, bufsize*sizeof(double));
     ACCH::Free(Tau, bufsize*sizeof(double));
 
-    delete[] Qthin;
-    delete[] QH;
-    delete[] QMg;
-    delete[] QCa;
-    delete[] QCor;
-    delete[] QChr;
+    ACCH::Free(Qthin, bufsize*sizeof(double));
+    ACCH::Free(QH, bufsize*sizeof(double));
+    ACCH::Free(QMg, bufsize*sizeof(double));
+    ACCH::Free(QCa, bufsize*sizeof(double));
+    ACCH::Free(QCor, bufsize*sizeof(double));
+    ACCH::Free(QChr, bufsize*sizeof(double));
 
-    delete[] Qres;
-    delete[] Qvis;
+    ACCH::Free(Qres, bufsize*sizeof(double));
+    ACCH::Free(Qvis, bufsize*sizeof(double));
 
-    delete[] divB;
-    delete[] phi;
+    ACCH::Free(divB, bufsize*sizeof(double));
+    ACCH::Free(phi, bufsize*sizeof(double));
 
-    delete[] sflx0;
-    delete[] sflx;
-    delete[] Rflx;
-    delete[] BgradT;
+    ACCH::Free(sflx0, bufsize*sizeof(double));
+    ACCH::Free(sflx, bufsize*sizeof(double));
+    ACCH::Free(Rflx, bufsize*sizeof(double));
+    ACCH::Free(BgradT, bufsize*sizeof(double));
 
-    delete[] curlB;
+    ACCH::Free(curlB, bufsize*sizeof(Vector));
 
-    delete[] v_amb;
-    delete[] v0_amb;
-    delete[] R_amb;
-    delete[] curlBxB;
-    delete[] Qamb;
+    ACCH::Free(v_amb, bufsize*sizeof(Vector));
+    ACCH::Free(v0_amb, bufsize*sizeof(Vector));
+    ACCH::Free(R_amb, bufsize*sizeof(Vector));
+    ACCH::Free(curlBxB, bufsize*sizeof(Vector));
 
-    delete[] tvar1;
-    delete[] tvar2;
-    delete[] tvar3;
-    delete[] tvar4;
-    delete[] tvar5;
-    delete[] tvar6;
-    delete[] tvar7;
-    delete[] tvar8;
+    ACCH::Free(Qamb, bufsize*sizeof(double));
+
+    ACCH::Free(tvar1, bufsize*sizeof(double));
+    ACCH::Free(tvar2, bufsize*sizeof(double));
+    ACCH::Free(tvar3, bufsize*sizeof(double));
+    ACCH::Free(tvar4, bufsize*sizeof(double));
+    ACCH::Free(tvar5, bufsize*sizeof(double));
+    ACCH::Free(tvar6, bufsize*sizeof(double));
+    ACCH::Free(tvar7, bufsize*sizeof(double));
+    ACCH::Free(tvar8, bufsize*sizeof(double));
 
     ACCH::Delete(this, sizeof(GridData));
 }
@@ -266,70 +267,72 @@ void GridData::Init(const RunData &Run,const PhysicsData &Physics) {
     vsize = vsize > vs ? vsize : vs;
   }
 
-  ACCH::Copyin(this, sizeof(GridData));
+  ACCH::Create(this, sizeof(GridData));
 
-  U = (cState*) ACCH::Malloc(bufsize*sizeof(cState));
-  U0  = new cState[bufsize];
-  Res = new cState[bufsize];
+  U =   (cState*) ACCH::Malloc(bufsize*sizeof(cState));
+  U0 =  (cState*) ACCH::Malloc(bufsize*sizeof(cState));
+  Res = (cState*) ACCH::Malloc(bufsize*sizeof(cState));
 
   pres = (double*) ACCH::Malloc(bufsize*sizeof(double));
   temp = (double*) ACCH::Malloc(bufsize*sizeof(double));
 
-  divB = new double[bufsize]();
-  phi = new double[bufsize]();
+  divB = (double*) ACCH::Malloc(bufsize*sizeof(double));
+  phi  = (double*) ACCH::Malloc(bufsize*sizeof(double));
 
-  ne = new double[bufsize]();
-  rhoi = new double[bufsize]();
-  amb = new double[bufsize]();
-
+  ne    = (double*) ACCH::Malloc(bufsize*sizeof(double));
+  rhoi  = (double*) ACCH::Malloc(bufsize*sizeof(double));
+  amb   = (double*) ACCH::Malloc(bufsize*sizeof(double));
+ 
   Qtot = (double*) ACCH::Malloc(bufsize*sizeof(double));
   Jtot = (double*) ACCH::Malloc(bufsize*sizeof(double));
   Stot = (double*) ACCH::Malloc(bufsize*sizeof(double));
   Tau  = (double*) ACCH::Malloc(bufsize*sizeof(double));
 
-  if(Physics.rt_ext[i_ext_cor]>=1)
-    Qthin = new double[bufsize]();
-  if(Physics.rt_ext[i_ext_cor]>=2){
-    QH   = new double[bufsize]();
-    QMg  = new double[bufsize]();
-    QCa  = new double[bufsize]();
-    QCor = new double[bufsize]();
-    QChr = new double[bufsize]();
+  if(Physics.rt_ext[i_ext_cor]>=1) {
+   Qthin = (double*) ACCH::Malloc(bufsize*sizeof(double));
+  }
+  if(Physics.rt_ext[i_ext_cor]>=2) {
+    QH   = (double*) ACCH::Malloc(bufsize*sizeof(double));
+    QMg  = (double*) ACCH::Malloc(bufsize*sizeof(double));
+    QCa  = (double*) ACCH::Malloc(bufsize*sizeof(double));
+    QCor = (double*) ACCH::Malloc(bufsize*sizeof(double));
+    QChr = (double*) ACCH::Malloc(bufsize*sizeof(double));
   }
     
   if(Physics.params[i_param_spitzer] > 0.0){
-    sflx0 = new double[bufsize]();
-    sflx = new double[bufsize]();
-    Rflx = new double[bufsize]();
-    BgradT = new double[bufsize]();
+    sflx0  = (double*) ACCH::Malloc(bufsize*sizeof(double));
+    sflx   = (double*) ACCH::Malloc(bufsize*sizeof(double));
+    Rflx   = (double*) ACCH::Malloc(bufsize*sizeof(double));
+    BgradT = (double*) ACCH::Malloc(bufsize*sizeof(double));
   }
 
   if(Physics.params[i_param_eta] > 0.0){
-    curlB = new Vector[bufsize]();
+    curlB = (Vector*) ACCH::Malloc(bufsize*sizeof(Vector));
   }
 
   if(Physics.params[i_param_ambipolar] > 0.0){
-    v_amb  = new Vector[bufsize]();
-    v0_amb = new Vector[bufsize]();
-    R_amb  = new Vector[bufsize]();
-    curlBxB = new Vector[bufsize]();
+    v_amb   = (Vector*) ACCH::Malloc(bufsize*sizeof(Vector));
+    v0_amb  = (Vector*) ACCH::Malloc(bufsize*sizeof(Vector));
+    R_amb   = (Vector*) ACCH::Malloc(bufsize*sizeof(Vector));
+    curlBxB = (Vector*) ACCH::Malloc(bufsize*sizeof(Vector));
   }
 
   if(Run.diagnostics){
-    tvar1 = new double[bufsize]();
-    tvar2 = new double[bufsize]();
-    tvar3 = new double[bufsize]();
-    tvar4 = new double[bufsize]();
-    tvar5 = new double[bufsize]();
-    tvar6 = new double[bufsize]();
-    tvar7 = new double[bufsize]();
-    tvar8 = new double[bufsize]();
-    
-    Qres = new double[bufsize]();
-    Qvis = new double[bufsize]();
-    
-    if(Physics.params[i_param_ambipolar] > 0.0)
-      Qamb    = new double[bufsize]();
+    tvar1 = (double*) ACCH::Malloc(bufsize*sizeof(double));
+    tvar2 = (double*) ACCH::Malloc(bufsize*sizeof(double));
+    tvar3 = (double*) ACCH::Malloc(bufsize*sizeof(double));
+    tvar4 = (double*) ACCH::Malloc(bufsize*sizeof(double));
+    tvar5 = (double*) ACCH::Malloc(bufsize*sizeof(double));
+    tvar6 = (double*) ACCH::Malloc(bufsize*sizeof(double));
+    tvar7 = (double*) ACCH::Malloc(bufsize*sizeof(double));
+    tvar8 = (double*) ACCH::Malloc(bufsize*sizeof(double));
+
+    Qres = (double*) ACCH::Malloc(bufsize*sizeof(double));
+    Qvis = (double*) ACCH::Malloc(bufsize*sizeof(double));
+   
+    if(Physics.params[i_param_ambipolar] > 0.0) {
+      Qamb = (double*) ACCH::Malloc(bufsize*sizeof(double));
+    }
   }
     
   for(int d=0;d<3;d++) {
@@ -338,6 +341,9 @@ void GridData::Init(const RunData &Run,const PhysicsData &Physics) {
     lxmax[d] = gxmin[d]+(1+end[d]-gbeg[d])*dx[d];
     cellvol *= dx[d];
   }
+
+  ACCH::UpdateGPU(this, sizeof(GridData));
+
 }
 
 void GridData::Show() const {

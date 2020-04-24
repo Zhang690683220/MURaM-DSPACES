@@ -762,9 +762,9 @@ double RTS::wrapper(int rt_upd,GridData &Grid,RunData &Run,const PhysicsData &Ph
 
   double N = pow(2,NDIM);
 
-  ACCH::UpdateGPU(Grid.temp, Grid.bufsize*sizeof(double));
-  ACCH::UpdateGPU(Grid.pres, Grid.bufsize*sizeof(double));
-  ACCH::UpdateGPU(U, Grid.bufsize*sizeof(cState));
+  //ACCH::UpdateGPU(Grid.temp, Grid.bufsize*sizeof(double));
+  //ACCH::UpdateGPU(Grid.pres, Grid.bufsize*sizeof(double));
+  //ACCH::UpdateGPU(U, Grid.bufsize*sizeof(cState));
 #pragma acc parallel loop gang collapse(2) \
  present(this[:1], Grid[:1], Grid.temp[:Grid.bufsize], \
          Grid.pres[:Grid.bufsize], U[:Grid.bufsize], \
@@ -1038,11 +1038,11 @@ void RTS::calc_Qtot_and_Tau(GridData &Grid, const RunData &Run, const PhysicsDat
   double _dt_rad = 0.0;
   double qsum=0.0;
 
-  ACCH::UpdateGPU(Grid.Tau, Grid.bufsize*sizeof(double));
-  ACCH::UpdateGPU(Grid.Jtot, Grid.bufsize*sizeof(double));
-  ACCH::UpdateGPU(Grid.Stot, Grid.bufsize*sizeof(double));
-  ACCH::UpdateGPU(U, Grid.bufsize*sizeof(cState));
-  ACCH::UpdateGPU(Grid.Qtot, Grid.bufsize*sizeof(double));
+  //ACCH::UpdateGPU(Grid.Tau, Grid.bufsize*sizeof(double));
+  //ACCH::UpdateGPU(Grid.Jtot, Grid.bufsize*sizeof(double));
+  //ACCH::UpdateGPU(Grid.Stot, Grid.bufsize*sizeof(double));
+  //ACCH::UpdateGPU(U, Grid.bufsize*sizeof(cState));
+  //ACCH::UpdateGPU(Grid.Qtot, Grid.bufsize*sizeof(double));
 #pragma acc parallel loop gang collapse(2) \
   present(this[:1], Grid[:1], Grid.Tau[:Grid.bufsize], Tau[:nx*ny*nz], \
           Grid.Jtot[:Grid.bufsize], Jt[:nx*ny*nz], Grid.Stot[:Grid.bufsize], \
@@ -1070,11 +1070,13 @@ void RTS::calc_Qtot_and_Tau(GridData &Grid, const RunData &Run, const PhysicsDat
     }
   dt_rad = _dt_rad;
   ACCH::UpdateCPU(Grid.Tau, Grid.bufsize*sizeof(double));
-  ACCH::UpdateCPU(Grid.Jtot, Grid.bufsize*sizeof(double));
-  ACCH::UpdateCPU(Grid.Stot, Grid.bufsize*sizeof(double));
-  ACCH::UpdateCPU(Grid.Qtot, Grid.bufsize*sizeof(double));
+  //ACCH::UpdateCPU(Grid.Jtot, Grid.bufsize*sizeof(double));
+  //ACCH::UpdateCPU(Grid.Stot, Grid.bufsize*sizeof(double));
+  //ACCH::UpdateCPU(Grid.Qtot, Grid.bufsize*sizeof(double));
 
   exchange_single(Grid,Grid.Tau);
+
+  ACCH::UpdateGPU(Grid.Tau, Grid.bufsize*sizeof(double));
 
   double Fqrad;
 
@@ -1774,9 +1776,9 @@ void RTS::get_Tau_and_Iout(GridData &Grid, const RunData &Run, const PhysicsData
 
   const double Temp_TR = Physics.rt[i_rt_tr_tem];
   const double Pres_TR = Physics.rt[i_rt_tr_pre];
-  ACCH::UpdateGPU(Grid.pres, Grid.bufsize*sizeof(double));
-  ACCH::UpdateGPU(Grid.temp, Grid.bufsize*sizeof(double));
-  ACCH::UpdateGPU(Grid.U, Grid.bufsize*sizeof(cState));
+  //ACCH::UpdateGPU(Grid.pres, Grid.bufsize*sizeof(double));
+  //ACCH::UpdateGPU(Grid.temp, Grid.bufsize*sizeof(double));
+  //ACCH::UpdateGPU(Grid.U, Grid.bufsize*sizeof(cState));
 
 #pragma acc parallel loop gang collapse(2) \
  present(this[:1], Grid[:1], Grid.pres[:Grid.bufsize], Grid.temp[:Grid.bufsize], Grid.U[:Grid.bufsize], \
