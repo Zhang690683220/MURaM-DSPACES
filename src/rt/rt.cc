@@ -1685,6 +1685,8 @@ void RTS::exchange(int band,int l,int ZDIR,int XDIR,int YDIR)
   int x0=0,y0=0,z0=0;
   int dest_rk;
   int source_rk;
+  real tempxsb[nz];
+  real tempzsb[nx];
 
   real * ysb = (real*) ACCH::GetDevicePtr(y_sbuf[band][YDIR][XDIR][ZDIR][l]);
   real * yrb = (real*) ACCH::GetDevicePtr(y_rbuf[band][YDIR][XDIR][ZDIR][l]);
@@ -2132,14 +2134,18 @@ void RTS::tauscale_qrad(int band, double DX,double DY,double DZ, double * Ss){
      int col_bnd3 = col_bnd[3];
      int col_bnd0 = col_bnd[0];
      int col_bnd1 = col_bnd[1];
-     cout << col_bnd2 << " " << col_bnd3 << endl;
-     cout << col_bnd0 << " " << col_bnd1 << endl;
+     //cout << "y col_bnd[2]: " << col_bnd[2] << endl;
+     //cout << "y col_bnd[3]: " << col_bnd[3] << endl;
+     //cout << "x col_bnd[0]: " << col_bnd[0] << endl;
+     //cout << "x col_bnd[1]: " << col_bnd[1] << endl;
 #pragma acc parallel loop gang collapse(2) \
  present(this[:1], Col_out[:Nbands][:col_nz][:col_nvar], \
          J_band[:nx*ny*nz], Ss[:nx*ny*nz], kap[:nx*ny*nz], abn[:nx*ny*nz], \
          sig[:nx*ny*nz], B[:nx*ny*nz], Tau[:nx*ny*nz], Qtemp[:ny][:nx][:nz][:2])
-     for (int y=col_bnd2;y<=col_bnd3;++y){
-       for (int x=col_bnd0;x<=col_bnd1;++x){
+     //for (int y=col_bnd3;y<=col_bnd2;++y){
+     //  for (int x=col_bnd1;x<=col_bnd0;++x){
+     for (int y=yl;y<=yh;++y){
+       for (int x=xl;x<=xh;++x){
 #pragma acc loop vector
          for (int z=zl+zo;z<=zh;++z){
            int ind = (y-yl)*nx*nz + (x-xl)*nz + (z-zl);
@@ -2150,8 +2156,8 @@ void RTS::tauscale_qrad(int band, double DX,double DY,double DZ, double * Ss){
            Col_out[band][z-2*zo][4] += sig[ind]*avg_col;
            Col_out[band][z-2*zo][5] += B[ind]*avg_col;
            Col_out[band][z-2*zo][6] += Tau[ind]*avg_col;
-           Col_out[band][z-2*zo][7] += Qtemp[y][x][z][0]*avg_col;
-           Col_out[band][z-2*zo][8] += Qtemp[y][x][z][1]*avg_col;
+           Col_out[band][z-2*zo][7] += Qtemp[y-yl][x-xl][z-zl][0]*avg_col;
+           Col_out[band][z-2*zo][8] += Qtemp[y-yl][x-xl][z-zl][1]*avg_col;
          }
        }
      }
