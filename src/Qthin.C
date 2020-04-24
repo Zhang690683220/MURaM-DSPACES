@@ -47,9 +47,12 @@ double dT_Tab;
 
 // Abundances relative to hydrgoen from Asplund 2009
 const double mp   = 1.67262158E-24;
-const double A_H  = 1.0;
-const double A_Mg = 3.9810e-5;
-const double A_Ca = 2.1877e-6;
+/* Number fraction Abundance relative to hydrogen from
+ * a 15 element mix using Asplund 2009 abundances */
+
+const double A_Mg = 3.9810e-5*1.00784/24.305;
+const double A_Ca = 2.1877e-6*1.00784/40.078;
+
 
 // Electron and hydrogen number density from simple H/He mix.
 const double XX = 0.7;
@@ -459,7 +462,7 @@ void ELTE_Qx(const RunData&  Run, GridData& Grid, const PhysicsData& Physics){
       
       // Multiple NLTE line losses by escape probability
       double escape = lin_1d(tauhax_Hesc,H_esc,log(Hcol[i-i_beg]*4.0e-14),N_Hesc);
-      Grid.QH[inode]  *= escape*A_H;
+      Grid.QH[inode]  *= escape;
 
       escape = lin_1d(cmassax_Caesc,Ca_esc,log(cmass[i-i_beg]),N_Caesc);
       Grid.QCa[inode] *= escape*A_Ca;
