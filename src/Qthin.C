@@ -47,9 +47,11 @@ double dT_Tab;
 
 // Abundances relative to hydrgoen from Asplund 2009
 const double mp   = 1.67262158E-24;
-const double A_H  = 1.0;
-const double A_Mg = 3.9810e-5;
-const double A_Ca = 2.1877e-6;
+/* Number fraction Abundance relative to hydrogen from
+ * a 15 element mix using Asplund 2009 abundances */
+
+const double A_Mg = 3.9810e-5*1.00784/24.305;
+const double A_Ca = 2.1877e-6*1.00784/40.078;
 
 // Electron and hydrogen number density from simple H/He mix.
 const double XX = 0.7;
@@ -185,7 +187,8 @@ void Get_Radloss(const RunData&  Run, GridData& Grid,const PhysicsData& Physics)
     
   // Chianti assumes Q=-n_e*n_H*L(T)
   const double X_H    = 0.7;
-  const double ne_par = sqrt(0.5*(1.0+X_H)*X_H)*6e23;
+  const double ne_ref = 1e9;
+  const double ne_par = sqrt(0.5*(1.0+X_H)*X_H)*6e23/ne_ref;
 
   const double inv_pmax = 1.0/Physics.rt[i_rt_pre_cut];
   
@@ -215,8 +218,9 @@ void Get_Radloss(const RunData&  Run, GridData& Grid,const PhysicsData& Physics)
     del0=1.0/(log(T_tab[1])-log(T_tab[0]));
 
     for(i=0;i<ntab;i++){
-      T_tab[i] = log(T_tab[i]);
-    }
+      T_tab[i]  = log(T_tab[i]);
+      Q_tab[i] *= ne_ref*ne_ref;
+     }
 
     if(Run.rank == 0){
       cout << "Radloss: use log(T), log(rho)" << endl;
@@ -256,14 +260,14 @@ void Get_Radloss(const RunData&  Run, GridData& Grid,const PhysicsData& Physics)
 	t_a=max(tmin,T_tab[n]);
 	t_b=min(tmax,T_tab[n+1]);
 	
-	if(t_b > t_a){
+	if(t_b-t_a > 1e-6 ){
 	  ff = (t_b-t_a)/(tmax-tmin);
 	  ts = 0.5*(t_a+t_b);
 	  pr = (t2-ts)/(t2-t1);
 	  pt = (T_tab[n+1]-ts)/(T_tab[n+1]-T_tab[n]);
-	} else if (t_a == t_b) {
+	} else if (t_b-t_a >= 0.) {
 	  ff = 1.0;
-	  ts = t_a;
+	  ts = 0.5*(t_a+t_b);
 	  pr = 0.5;
 	  pt = (T_tab[n+1]-ts)/(T_tab[n+1]-T_tab[n]);
 	} else {
@@ -424,7 +428,7 @@ void ELTE_Qx(const RunData&  Run, GridData& Grid, const PhysicsData& Physics){
       
       // Multiple NLTE line losses by escape probability
       double escape = lin_1d(tauhax_Hesc,H_esc,log(Hcol[i-i_beg]*4.0e-14),N_Hesc);
-      Grid.QH[inode]  *= escape*A_H;
+      Grid.QH[inode]  *= escape;
 
       escape = lin_1d(cmassax_Caesc,Ca_esc,log(cmass[i-i_beg]),N_Caesc);
       Grid.QCa[inode] *= escape*A_Ca;
