@@ -640,7 +640,7 @@ void RTS_SCATTER::driver(double DZ, double DX, double DY, int band) {
                     for(int zi=zi_i;zi!=zi_f+zstep;zi=zi+zstep){
                       int ind=xyoff+zi-zl;
                       double I_upw=c[0]*ii[ind-off[0]]+c[1]*ii[ind-off[1]]+c[2]*ii[ind-off[2]]+c[3]*ii[ind-off[3]];
-                      ii[ind]=I_upw*coeff[i_nu][0]+coeff[i_nu][1];
+                      ii[ind]=I_upw*coeff[i_nu]+coeff[nx*ny*nz+i_nu];
                       i_nu+=1;
                     }
                   }
@@ -654,7 +654,7 @@ void RTS_SCATTER::driver(double DZ, double DX, double DY, int band) {
                   for(int zi=zi_i;zi!=zi_f+zstep;zi=zi+zstep){
                     int ind=xoff+zi;
                     double I_upw=c[0]*ii[ind-off[0]]+c[1]*ii[ind-off[1]]+c[2]*ii[ind-off[2]]+c[3]*ii[ind-off[3]];
-                    ii[ind]=I_upw*coeff[i_nu][0]+coeff[i_nu][1];
+                    ii[ind]=I_upw*coeff[i_nu]+coeff[i_nu+nx*ny*nz];
                     i_nu+=1;
                   }
                 }
@@ -664,7 +664,7 @@ void RTS_SCATTER::driver(double DZ, double DX, double DY, int band) {
                 for(int i=0;i<4;i++) off[i]=izstep[i];
                 for(int zi=zi_i;zi!=zi_f+zstep;zi=zi+zstep){
                   double I_upw=c[0]*ii[zi-off[0]]+c[1]*ii[zi-off[1]]+c[2]*ii[zi-off[2]]+c[3]*ii[zi-off[3]];
-                  ii[zi]=I_upw*coeff[i_nu][0]+coeff[i_nu][1];
+                  ii[zi]=I_upw*coeff[i_nu]+coeff[i_nu+nx*ny*nz];
                   i_nu+=1;
                 }
               }

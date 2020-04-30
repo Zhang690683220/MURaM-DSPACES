@@ -108,7 +108,7 @@ protected:
   double *Tau;
   double  xmu[3][NMU],wmu[NMU];
   double  ds_upw[NMU];//, ds_dnw[NMU] ,dz_upw, dz_dnw;
-  double **coeff;
+  double *coeff;
 // wrapper
   double F_o,dt_rad;
   double * Fr_mean, * gFr_mean;
@@ -204,6 +204,7 @@ public:
   double Jtot(int,int,int);
   double Iout(int,int); 
   double Fout(void){ return F_o; }
+  void UpdateIout();
   int grey_rt(void){ return 1; } //Nbands == 1? 1:0;
 };
 
