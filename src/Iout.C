@@ -38,7 +38,7 @@ void Iout(const RunData&  Run, const GridData& Grid,
 
   if(Grid.is_gend[0]){  
     icloc = (float*) malloc(localsize*sizeof(float));
-
+    rts->UpdateIout();
     for (int k=kbeg; k<=kend; k++){
       for (int j=jbeg; j<=jend; j++){
 	    ind = j-jbeg + (k-kbeg)*Grid.lsize[1];       
