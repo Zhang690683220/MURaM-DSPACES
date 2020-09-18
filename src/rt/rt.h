@@ -36,7 +36,7 @@
 
 #define dtau_min  1.0E-5
 #define dtau_min2  1.0E-10
-#define threshold 1.0E-3
+#define threshold 0.001
 
 #define C   2.99792458E10            // cm/s
 #define h   6.6260687652E-27         // erg s
@@ -101,14 +101,16 @@ protected:
   int zl,zh,nz,zo;
 // driver
   int ***** numits;
-  double *I_o, *I_n;
+  double *I_o, *I_n, *I_n1;
   int ibase[NMU],ixstep[4],iystep[4],izstep[4];
   double *Fx,*Fy,*Fz;
   double a_00[3][NMU],a_01[3][NMU],a_10[3][NMU],a_11[3][NMU];
   double *Tau;
   double  xmu[3][NMU],wmu[NMU];
   double  ds_upw[NMU];//, ds_dnw[NMU] ,dz_upw, dz_dnw;
-  double *coeff;
+  double *coeff,*coeff1,*coeff2,*dc;
+  //double dc0,dc1,dc2,dc3;
+  //int dsize;
 // wrapper
   double F_o,dt_rad;
   double * Fr_mean, * gFr_mean;

@@ -115,12 +115,15 @@ RTS::~RTS(void)
   
   ACCH::Free(J_band, nx*ny*nz*sizeof(double));
   ACCH::Free(I_n, nx*ny*nz*sizeof(double));
+  ACCH::Free(I_n1, nx*ny*nz*sizeof(double));
 
   ACCH::Free(Fx, nx*ny*nz*sizeof(double));
   ACCH::Free(Fy, nx*ny*nz*sizeof(double));
   ACCH::Free(Fz, nx*ny*nz*sizeof(double));
 
   ACCH::Free(coeff, nx*ny*nz*2*sizeof(double));
+  ACCH::Free(coeff1, nx*ny*nz*sizeof(double));
+  ACCH::Free(coeff2, nx*ny*nz*sizeof(double));
 
   ACCH::Free3D<double>(Col_out, Nbands, col_nz, col_nvar);
    
@@ -339,6 +342,7 @@ RTS::RTS(GridData&Grid,RunData &Run,PhysicsData &Physics){
   B = (double*) ACCH::Malloc(nx*ny*nz*sizeof(double));
   kap = (double*) ACCH::Malloc(nx*ny*nz*sizeof(double));
   I_n = (double*) ACCH::Malloc(nx*ny*nz*sizeof(double));
+  I_n1 = (double*) ACCH::Malloc(nx*ny*nz*sizeof(double));
 
   if (rttype==0){
     sig=kap;
@@ -355,7 +359,9 @@ RTS::RTS(GridData&Grid,RunData &Run,PhysicsData &Physics){
   Fz = (double*) ACCH::Malloc(nx*ny*nz*sizeof(double));
 
   coeff = (double*) ACCH::Malloc(nx*ny*nz*2*sizeof(double));
- 
+  coeff1 = (double*) ACCH::Malloc(nx*ny*nz*sizeof(double));
+  coeff2 = (double*) ACCH::Malloc(nx*ny*nz*sizeof(double));
+
   /* Column outputs
    * 0: J_col - Angle averaged intensity
    * 1: S_col - Total Source function (=B in LTE)
@@ -989,9 +995,10 @@ double RTS::wrapper(int rt_upd,GridData &Grid,RunData &Run,const PhysicsData &Ph
  
 
   for (int band=0;band<Nbands;++band){
-    Fr_mean[band]/=(Grid.gsize[1]*Grid.gsize[2]);
+    //Fr_mean[band]/=(Grid.gsize[1]*Grid.gsize[2]);
     F_o+=Fr_mean[band];
   }
+  F_o/=(Grid.gsize[1]*Grid.gsize[2]);
   
   // If I have the band calculate tau5000 reference grid. If I want 5000 A continuum
   // output then switch that on too.
@@ -1094,27 +1101,155 @@ void RTS::integrate(
   const double c[4]
 )
 {
-  int off[4];
-  int i_nu=0;
-  double *ii=I_n;
-
 
   if(NDIM == 3) {
-    const int off0 = iystep[0]*nx*nz+ixstep[0]*nz+izstep[0];
-    const int off1 = iystep[1]*nx*nz+ixstep[1]*nz+izstep[1];
-    const int off2 = iystep[2]*nx*nz+ixstep[2]*nz+izstep[2];
-    const int off3 = iystep[3]*nx*nz+ixstep[3]*nz+izstep[3];
+    int off0 = iystep[0]*nx*nz+ixstep[0]*nz+izstep[0];
+    int off1 = iystep[1]*nx*nz+ixstep[1]*nz+izstep[1];
+    int off2 = iystep[2]*nx*nz+ixstep[2]*nz+izstep[2];
+    int off3 = iystep[3]*nx*nz+ixstep[3]*nz+izstep[3];
 
     const double c0 = c[0];
     const double c1 = c[1];
     const double c2 = c[2];
     const double c3 = c[3];
     const int size = nx*ny*nz;
+    int constoff = 1;
+    int str11,str21,str31,inustr11,inustr21,inustr31;
+    static int szIn1, szIn2;
+    static int szCf1, szCf2;
+    bool ix, iy, iz;
+  ix = (ixstep[0] == 1 && ixstep[1] == 1    &&
+        ixstep[2] == 1 && ixstep[3] == 1)   ||
+       (ixstep[0] == -1 && ixstep[1] == -1  &&
+        ixstep[2] == -1 && ixstep[3] == -1);
+  iy = (iystep[0] == 1 && iystep[1] == 1    &&
+        iystep[2] == 1 && iystep[3] == 1)   ||
+       (iystep[0] == -1 && iystep[1] == -1  &&
+        iystep[2] == -1 && iystep[3] == -1);
+ iz = (izstep[0] == 1 && izstep[1] == 1    &&
+       izstep[2] == 1 && izstep[3] == 1)   ||
+      (izstep[0] == -1 && izstep[1] == -1  &&
+       izstep[2] == -1 && izstep[3] == -1);
 
-    double * dI_n = (double*) ACCH::GetDevicePtr(I_n);
+    if(ix){
+      constoff = ixstep[0]*ny*nz;
+      off0 = constoff+iystep[0]*nz+izstep[0];
+      off1 = constoff+iystep[1]*nz+izstep[1];
+      off2 = constoff+iystep[2]*nz+izstep[2];
+      off3 = constoff+iystep[3]*nz+izstep[3];
+      
+      str11=ny*nz; str21=nz; str31=1;
+      inustr11 = (ny-1)*(nz-1); inustr21=(nz-1); inustr31=1; 
+    }else if(iy){
+      constoff = iystep[0]*nx*nz;
+      off0 = constoff+ixstep[0]*nz+izstep[0];
+      off1 = constoff+ixstep[1]*nz+izstep[1];
+      off2 = constoff+ixstep[2]*nz+izstep[2];
+      off3 = constoff+ixstep[3]*nz+izstep[3];
+
+      str11=nx*nz;  str21=nz; str31=1;
+      inustr11 = (nx-1)*(nz-1);inustr21=(nz-1); inustr31=1;
+    }else {
+      constoff = izstep[0]*nx*ny;
+      off0 = constoff+iystep[0]*nx+ixstep[0];
+      off1 = constoff+iystep[1]*nx+ixstep[1];
+      off2 = constoff+iystep[2]*nx+ixstep[2];
+      off3 = constoff+iystep[3]*nx+ixstep[3];
+
+      str11=nx*ny;  str21=nx; str31=1;
+      inustr11 = (nx-1)*(ny-1);inustr21=(nx-1); inustr31=1;
+
+    } 
+    double * dI_n   = (double*) ACCH::GetDevicePtr(I_n);
     double * dcoeff = (double*) ACCH::GetDevicePtr(coeff);
+    double * dIn1   = (double*) ACCH::GetDevicePtr(I_n1);
+    double * dCf1   = (double*) ACCH::GetDevicePtr(coeff1);
+    double * dCf2   = (double*) ACCH::GetDevicePtr(coeff2);
 
-#pragma acc loop seq
+
+if (ix || iz) {
+#pragma acc parallel loop gang vector tile(1,32, 32) async(1) \
+  deviceptr(dI_n, dIn1) 
+    for(int b1 = 0; b1 < bound1+1; b1++) { //Z
+      for(int b2 = 0; b2 < bound2+1; b2++) { //Y
+       for(int b3 = 0; b3 < bound3+1; b3++) { //X
+          int b1i = (b1_i-step1) + (b1*step1); //z_i+z*zstep
+          int b2i = (b2_i-step2) + (b2*step2); //Y_i+y*ystep
+          int b3i = (b3_i-step3) + (b3*step3); //x_i +x*xstep
+          
+          int ind = b1i*str1 + b2i*str2 + b3i*str3;          // (zi*1)+(yi*nx*nz)       +(xi*nz)
+
+          int ind1 = b1i*str11 + b2i*str21 + b3i*str31;            // (zi*nx*ny)       +(yi*nx)     +(xi*1)
+        
+          dIn1[ind1] = dI_n[ind];
+        }
+       }
+      }
+
+#pragma acc parallel loop gang vector tile(1,32, 32) async(2) \
+  deviceptr(dcoeff,dCf1,dCf2) 
+    for(int b1 = 0; b1 < bound1; b1++) { //Z
+      for(int b2 = 0; b2 < bound2; b2++) { //Y
+       for(int b3 = 0; b3 < bound3; b3++) { //X
+          int i_nu_acc = b1*inustr1+ b2*inustr2 + b3*inustr3; //(zi*1)+(yi*(nx-1)(nz-1))+(xi*(nz-1))
+          int i_nu_acc1 = b1*inustr11 + b2*inustr21 + b3*inustr31; // (zi*(nx-1)*(ny-1))+(yi*(nx-1))+(xi*1)
+          dCf1[i_nu_acc1] = dcoeff[i_nu_acc];
+          dCf2[i_nu_acc1] = dcoeff[i_nu_acc+size];
+        }
+       }
+      }
+
+#pragma acc wait
+#pragma acc loop seq independent
+    for(int b1 = 0; b1 < bound1; b1++) {
+      int b1i = b1_i + b1*step1;
+#pragma acc parallel loop collapse(2) async independent deviceptr(dIn1,dCf1,dCf2)
+      for(int b2 = 0; b2 < bound2; b2++) {
+        for(int b3 = 0; b3 < bound3; b3=b3+2) {
+          int b2i = b2_i + b2*step2;
+          int b3i0 = b3_i + b3*step3;
+          int b3i1 = b3_i + (b3+1)*step3;
+         
+          int ind1 =  b1i*str11  + b2i*str21;
+          int ind10 = ind1 + b3i0*str31;
+          int ind11 = ind1 + b3i1*str31;
+
+          int i_nu_acc1  = b1*inustr11 + b2*inustr21; 
+          int i_nu_acc10 = i_nu_acc1 + b3*inustr31;
+          int i_nu_acc11 = i_nu_acc1 + (b3+1)*inustr31;
+
+          double I_upw0 = c0*dIn1[ind10-off0] + 
+                         c1*dIn1[ind10-off1] +
+                         c2*dIn1[ind10-off2] +
+                         c3*dIn1[ind10-off3];
+ 
+          double I_upw1 = c0*dIn1[ind11-off0] +
+                         c1*dIn1[ind11-off1] +
+                         c2*dIn1[ind11-off2] +
+                         c3*dIn1[ind11-off3];
+          dIn1[ind10]= I_upw0*dCf1[i_nu_acc10]+dCf2[i_nu_acc10];
+          dIn1[ind11]= I_upw1*dCf1[i_nu_acc11]+dCf2[i_nu_acc11];
+        }
+      }
+    }
+#pragma acc wait
+#pragma acc parallel loop gang vector tile(1,32, 32) deviceptr(dI_n,dIn1) 
+  for(int b1 = 0; b1 < bound1+1; b1++) { //Z
+      for(int b2 = 0; b2 < bound2+1; b2++) { //Y
+       for(int b3 = 0; b3 < bound3+1; b3++) { //X
+          int b1i = (b1_i-step1) + (b1*step1); //z_i+z*zstep
+          int b2i = (b2_i-step2) + (b2*step2); //Y_i+y*ystep
+          int b3i = (b3_i-step3) + (b3*step3); //x_i +x*xstep
+          int ind = b1i*str1 + b2i*str2 + b3i*str3;
+          int ind1 = b1i*str11 + b2i*str21 + b3i*str31;
+          dI_n[ind] = dIn1[ind1];
+        }
+       }
+      }
+#pragma acc wait
+  } else { //end if (ix || iz)
+ 
+#pragma acc loop seq 
     for(int b1 = 0; b1 < bound1; b1++) {
       int b1i = b1_i + b1*step1;
       int b1off = b1i*str1;
@@ -1139,6 +1274,8 @@ void RTS::integrate(
       }
     }
 #pragma acc wait
+
+ }
   } // end DIM 3
 /*
   if(NDIM==2){
