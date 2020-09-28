@@ -829,9 +829,14 @@ double RTS::wrapper(int rt_upd,GridData &Grid,RunData &Run,const PhysicsData &Ph
           l=NT-2;
         else {
 #pragma acc loop seq
-          for (l=0; l<=NT-2; l++)
-            if ((lgTe[ind] >= tab_T[l]) && (lgTe[ind] <= tab_T[l+1]))
-              break;
+          for (int li=0; li<=NT-2; li++){
+            int lflag = 0;
+            if ((lgTe[ind] >= tab_T[li]) && (lgTe[ind] <= tab_T[li+1])){
+              lflag = lflag+ 1;
+              if(lflag==1)
+                l = li;
+            }
+          }
 	}
 
         if(lgPe[ind]<tab_p[0])
@@ -840,10 +845,15 @@ double RTS::wrapper(int rt_upd,GridData &Grid,RunData &Run,const PhysicsData &Ph
           m=Np-2;
         else {
 #pragma acc loop seq
-          for (m=0; m<=Np-2; m++)
-             if ((lgPe[ind] >= tab_p[m]) && (lgPe[ind] <= tab_p[m+1]))
-               break;
-	}
+          for (int mi=0; mi<=Np-2; mi++){
+	     int mflag = 0;
+             if ((lgPe[ind] >= tab_p[mi]) && (lgPe[ind] <= tab_p[mi+1])){
+               mflag = mflag+1;
+               if(mflag==1)
+                 m=mi;
+             }
+          }
+        }
 
         T_ind[ind] = l;
         P_ind[ind] = m;
@@ -1963,9 +1973,14 @@ void RTS::get_Tau_and_Iout(GridData &Grid, const RunData &Run, const PhysicsData
           l=NT-2;
         else {
 #pragma acc loop seq
-          for (l=0; l<=NT-2; l++)
-            if ((lgT >= tab_T[l]) && (lgT <= tab_T[l+1]))
-              break;
+          for (int li=0; li<=NT-2; li++){
+            int lflag = 0;
+            if ((lgT >= tab_T[li]) && (lgT <= tab_T[li+1])){
+              lflag = lflag+1;
+              if(lflag==1)
+                l = li;
+            }
+          }
         }
 
         if(lgP<tab_p[0])
@@ -1974,9 +1989,14 @@ void RTS::get_Tau_and_Iout(GridData &Grid, const RunData &Run, const PhysicsData
           m=Np-2;
         else {
 #pragma acc loop seq
-          for (m=0; m<=Np-2; m++)
-            if ((lgP >= tab_p[m]) && (lgP <= tab_p[m+1]))
-              break;
+          for (int mi=0; mi<=Np-2; mi++){
+            int mflag = 0;
+            if ((lgP >= tab_p[mi]) && (lgP <= tab_p[mi+1])){
+              mflag = mflag+1;
+              if(mflag==1)
+               m = mi;
+          }
+         }
         }
 
         double xt = (lgT-tab_T[l])*invT_tab[l];
