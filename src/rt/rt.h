@@ -132,6 +132,10 @@ protected:
  
   // Multi-dim arrays
   double ***Qt,*St,*Jt;
+  double ** sbuf;
+  double ** rbuf;
+  double **** Qtemp;
+
   double *rho,*lgTe,*lgPe,*ne;
   double *kap, *abn, *sig;
   double *B,*J_band;

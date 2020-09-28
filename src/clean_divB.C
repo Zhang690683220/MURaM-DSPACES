@@ -79,7 +79,9 @@ void Clean_divB(const RunData&  Run, GridData& Grid, const PhysicsData&  Physics
 
   err_unit = 0.5/err_unit*3.5449;
  
-
+#pragma acc enter data copyin(next[:3])
+#pragma acc enter data copyin(w1[:3])
+#pragma acc enter data copyin(w2[:3]) 
  
   dxmin = min(Grid.dx[0],Grid.dx[1]);
   dxmax = max(Grid.dx[0],Grid.dx[1]);
@@ -121,7 +123,7 @@ void Clean_divB(const RunData&  Run, GridData& Grid, const PhysicsData&  Physics
 
 #pragma acc parallel loop gang collapse(2) \
  private(off0, offBv, offp1, offp2, offn1, offn2) \
- present(U[:bufsize*8], divB[:bufsize]) \
+ present(U[:bufsize*8], divB[:bufsize],next[:3],w1[:3],w2[:3]) \
  reduction(max:err)
   for(k=kbeg; k<=kend; k++)
   for(j=jbeg; j<=jend; j++) {
@@ -158,7 +160,7 @@ void Clean_divB(const RunData&  Run, GridData& Grid, const PhysicsData&  Physics
 
     //err_loc[0] = max(err_loc[0],err);
     
-  }
+  } // end 1st kern
 
   err_loc[0] = err;
   
@@ -324,7 +326,7 @@ void Clean_divB(const RunData&  Run, GridData& Grid, const PhysicsData&  Physics
                 "Clean_divB", 9)
 
   }
-
+#pragma acc exit data delete(next[:3],w1[:3],w2[:3])
   time=MPI_Wtime();      
   MPI_Allreduce(err_loc,err_glo,2,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
   atime+=MPI_Wtime()-time;

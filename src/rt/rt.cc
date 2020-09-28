@@ -125,6 +125,9 @@ RTS::~RTS(void)
   ACCH::Free(coeff1, nx*ny*nz*sizeof(double));
   ACCH::Free(coeff2, nx*ny*nz*sizeof(double));
 
+  ACCH::Free4D<double>(Qtemp, ny, nx, nz, 2);
+  ACCH::Free2D<double>(sbuf, ny, nx);
+  ACCH::Free2D<double>(rbuf, ny, nx);
   ACCH::Free3D<double>(Col_out, Nbands, col_nz, col_nvar);
    
   del_i5dim(numits,0,Nbands-1,FWD,BWD,RIGHT,LEFT,UP,DOWN,0,NMU-1);
@@ -311,6 +314,28 @@ RTS::RTS(GridData&Grid,RunData &Run,PhysicsData &Physics){
     MPI_Abort(MPI_COMM_WORLD,1);
   }
 
+  int* ranks=new int [cart_sizes[0]];
+  MPI_Group MPI_GROUP_WORLD;
+
+  MPI_Comm_group(MPI_COMM_WORLD,&MPI_GROUP_WORLD);
+  MPI_Group ** grp_col = new MPI_Group * [cart_sizes[2]];
+  comm_col = new MPI_Comm * [cart_sizes[2]];
+
+  for(int j=0; j<cart_sizes[2];j++){
+    grp_col[j]=new MPI_Group [cart_sizes[1]];
+    comm_col[j] = new MPI_Comm [cart_sizes[1]];
+  }
+
+  for(int j=0; j< cart_sizes[2]; j++){
+    for(int k=0; k< cart_sizes[1]; k++){
+      for(int i=0; i< cart_sizes[0]; i++)
+        ranks[i]=colranks[j][k][cart_sizes[0]-1-i];
+      MPI_Group_incl(MPI_GROUP_WORLD,cart_sizes[0],ranks,&(grp_col[j][k]));
+      MPI_Comm_create(MPI_COMM_WORLD,grp_col[j][k],&(comm_col[j][k]));
+    }
+  }
+
+
   // load kappa bins
 
   ACCH::Copyin(this, sizeof(RTS));
@@ -337,7 +362,9 @@ RTS::RTS(GridData&Grid,RunData &Run,PhysicsData &Physics){
   Qt = ACCH::Malloc3D<double>(ny-yo, nx-xo, nz-zo); // MHD grid
   Jt = (double*) ACCH::Malloc(nx*ny*nz*sizeof(double)); // MHD grid
   St = (double*) ACCH::Malloc(nx*ny*nz*sizeof(double)); // MHD grid
-
+  sbuf = (double**) ACCH::Malloc2D<double>(ny, nx);
+  rbuf = (double**) ACCH::Malloc2D<double>(ny, nx);
+  Qtemp = (double****) ACCH::Malloc4D<double>(ny, nx, nz, 2);
 // frequency dependent quantities
   B = (double*) ACCH::Malloc(nx*ny*nz*sizeof(double));
   kap = (double*) ACCH::Malloc(nx*ny*nz*sizeof(double));
@@ -429,6 +456,8 @@ RTS::RTS(GridData&Grid,RunData &Run,PhysicsData &Physics){
     }
   } 
 
+
+
   if (NDIM>1){
 #pragma acc parallel loop collapse(6) \
  present(this[:1], x_sbuf[:Nbands][:2][:2][:2][:NMU][:ny*nz], \
@@ -478,7 +507,7 @@ RTS::RTS(GridData&Grid,RunData &Run,PhysicsData &Physics){
   }
 
   memset(numits[0][UP][RIGHT][FWD],0,2*2*2*Nbands*NMU*sizeof(int));
-
+/*
   // init for qrad_tauscale
   int* ranks=new int [cart_sizes[0]];
   MPI_Group MPI_GROUP_WORLD;
@@ -500,6 +529,7 @@ RTS::RTS(GridData&Grid,RunData &Run,PhysicsData &Physics){
       MPI_Comm_create(MPI_COMM_WORLD,grp_col[j][k],&(comm_col[j][k]));
     }
   }
+*/
   delete[] ranks;
 // all done...?
   del_i3dim(colranks,0,cart_sizes[2]-1,0,cart_sizes[1]-1,0,cart_sizes[0]-1);
@@ -696,6 +726,14 @@ void RTS::load_bins(char* kap_name){
 }
 
 double RTS::wrapper(int rt_upd,GridData &Grid,RunData &Run,const PhysicsData &Physics){
+#pragma acc enter data copyin(sbuf[:ny][:nx], rbuf[:ny][:nx],Qtemp[:ny][:nx][:nz][:2]) async
+#pragma acc enter data copyin(this[:1], I_band[:nx*ny], I_o[:nx*ny],Grid[:1], Grid.temp[:Grid.bufsize], \
+         Grid.pres[:Grid.bufsize], \
+         tr_switch[:nx*ny*nz], lgTe[:nx*ny*nz], lgPe[:nx*ny*nz], \
+         rho[:nx*ny*nz], tab_T[:NT], tab_p[:Np], T_ind[:nx*ny*nz], P_ind[:nx*ny*nz], \
+         B[:nx*ny*nz], invT_tab[:NT], invP_tab[:Np], \
+         B_tab[:Nbands][:NT], kap[:nx*ny*nz], kap_tab[:Nbands][:NT][:Np], \
+         Qt[:(ny-yo)][:(nx-xo)][:(nz-zo)],St[:nx*ny*nz], Jt[:nx*ny*nz],z_rbuf[:Nbands][:2][:2][:2][:NMU][:nx*ny])
 
 #pragma acc parallel loop \
  present(this[:1], I_band[:nx*ny], I_o[:nx*ny])
@@ -765,7 +803,7 @@ double RTS::wrapper(int rt_upd,GridData &Grid,RunData &Run,const PhysicsData &Ph
 // *****************************************************************
 
   cState *U=Grid.U;
-
+#pragma acc enter data copyin(U[:Grid.bufsize])
   double N = pow(2,NDIM);
 
   //ACCH::UpdateGPU(Grid.temp, Grid.bufsize*sizeof(double));
@@ -775,7 +813,7 @@ double RTS::wrapper(int rt_upd,GridData &Grid,RunData &Run,const PhysicsData &Ph
  present(this[:1], Grid[:1], Grid.temp[:Grid.bufsize], \
          Grid.pres[:Grid.bufsize], U[:Grid.bufsize], \
          tr_switch[:nx*ny*nz], lgTe[:nx*ny*nz], lgPe[:nx*ny*nz], \
-         rho[:nx*ny*nz], tab_T[:NT], tab_p[:Np], T_ind[:nx*ny*nz], P_ind[:nx*ny*nz])
+         rho[:nx*ny*nz], tab_T[:NT], tab_p[:Np], T_ind[:nx*ny*nz], P_ind[:nx*ny*nz]) 
   for(int y=0;y<ny;++y){
     for(int x=0;x<nx;++x){
       int y0 = y+yl;
@@ -828,30 +866,28 @@ double RTS::wrapper(int rt_upd,GridData &Grid,RunData &Run,const PhysicsData &Ph
         else if(lgTe[ind]>tab_T[NT-1])
           l=NT-2;
         else {
-#pragma acc loop seq
-          for (int li=0; li<=NT-2; li++){
+#pragma acc loop seq 
+	for (int li=0; li<=NT-2; li++){
             int lflag = 0;
-            if ((lgTe[ind] >= tab_T[li]) && (lgTe[ind] <= tab_T[li+1])){
+            if ((lgTe[ind] >= tab_T[li]) && (lgTe[ind] <= tab_T[li+1]))
               lflag = lflag+ 1;
-              if(lflag==1)
-                l = li;
-            }
+            if(lflag==1)
+              l = li;
           }
-	}
+        }
 
         if(lgPe[ind]<tab_p[0])
           m=0;
         else if(lgPe[ind]>tab_p[Np-1])
           m=Np-2;
         else {
-#pragma acc loop seq
-          for (int mi=0; mi<=Np-2; mi++){
-	     int mflag = 0;
-             if ((lgPe[ind] >= tab_p[mi]) && (lgPe[ind] <= tab_p[mi+1])){
+#pragma acc loop seq 
+	for (int mi=0; mi<=Np-2; mi++){
+             int mflag = 0;
+             if ((lgPe[ind] >= tab_p[mi]) && (lgPe[ind] <= tab_p[mi+1]))
                mflag = mflag+1;
-               if(mflag==1)
-                 m=mi;
-             }
+             if(mflag==1)
+               m=mi;
           }
         }
 
@@ -1142,6 +1178,11 @@ void RTS::integrate(
        izstep[2] == -1 && izstep[3] == -1);
 
     if(ix){
+      //constoff = ixstep[0]*nz;
+      //off0 = iystep[0]*nz+izstep[0];
+      //off1 = iystep[1]*nz+izstep[1];
+      //off2 = iystep[2]*nz+izstep[2];
+      //off3 = iystep[3]*nz+izstep[3];
       constoff = ixstep[0]*ny*nz;
       off0 = constoff+iystep[0]*nz+izstep[0];
       off1 = constoff+iystep[1]*nz+izstep[1];
@@ -1152,6 +1193,10 @@ void RTS::integrate(
       inustr11 = (ny-1)*(nz-1); inustr21=(nz-1); inustr31=1; 
     }else if(iy){
       constoff = iystep[0]*nx*nz;
+      //off0 = ixstep[0]*nz+izstep[0];
+      //off1 = ixstep[1]*nz+izstep[1];
+      //off2 = ixstep[2]*nz+izstep[2];
+      //off3 = ixstep[3]*nz+izstep[3];
       off0 = constoff+ixstep[0]*nz+izstep[0];
       off1 = constoff+ixstep[1]*nz+izstep[1];
       off2 = constoff+ixstep[2]*nz+izstep[2];
@@ -1160,6 +1205,11 @@ void RTS::integrate(
       str11=nx*nz;  str21=nz; str31=1;
       inustr11 = (nx-1)*(nz-1);inustr21=(nz-1); inustr31=1;
     }else {
+      //constoff = izstep[0];
+      //off0 = iystep[0]*nx+ixstep[0];
+      //off1 = iystep[1]*nx+ixstep[1];
+      //off2 = iystep[2]*nx+ixstep[2];
+      //off3 = iystep[3]*nx+ixstep[3];
       constoff = izstep[0]*nx*ny;
       off0 = constoff+iystep[0]*nx+ixstep[0];
       off1 = constoff+iystep[1]*nx+ixstep[1];
@@ -1178,11 +1228,14 @@ void RTS::integrate(
 
 
 if (ix || iz) {
+//#pragma acc parallel loop collapse(3) async(1) \
+
 #pragma acc parallel loop gang vector tile(1,32, 32) async(1) \
   deviceptr(dI_n, dIn1) 
     for(int b1 = 0; b1 < bound1+1; b1++) { //Z
       for(int b2 = 0; b2 < bound2+1; b2++) { //Y
        for(int b3 = 0; b3 < bound3+1; b3++) { //X
+//#pragma acc cache(dIn1[((b1_i-step1)+(b1*step1))+((b2_i-step2)+(b2*step2)):str21])
           int b1i = (b1_i-step1) + (b1*step1); //z_i+z*zstep
           int b2i = (b2_i-step2) + (b2*step2); //Y_i+y*ystep
           int b3i = (b3_i-step3) + (b3*step3); //x_i +x*xstep
@@ -1195,6 +1248,9 @@ if (ix || iz) {
         }
        }
       }
+
+//#pragma acc parallel loop collapse(3) async(2) \
+//  deviceptr(dcoeff,dCf1,dCf2) 
 
 #pragma acc parallel loop gang vector tile(1,32, 32) async(2) \
   deviceptr(dcoeff,dCf1,dCf2) 
@@ -1215,38 +1271,33 @@ if (ix || iz) {
       int b1i = b1_i + b1*step1;
 #pragma acc parallel loop collapse(2) async independent deviceptr(dIn1,dCf1,dCf2)
       for(int b2 = 0; b2 < bound2; b2++) {
-        for(int b3 = 0; b3 < bound3; b3=b3+2) {
+        for(int b3 = 0; b3 < bound3; b3=b3++) {
+#pragma acc cache(dIn1[(((b1_i+b1*step1))*str11)-constoff:str21])//dCf1[(b1*inustr11)+(b2*inustr21):inustr31],dCf2[(b1*inustr11)+(b2*inustr21):inustr31])
           int b2i = b2_i + b2*step2;
           int b3i0 = b3_i + b3*step3;
-          int b3i1 = b3_i + (b3+1)*step3;
          
           int ind1 =  b1i*str11  + b2i*str21;
           int ind10 = ind1 + b3i0*str31;
-          int ind11 = ind1 + b3i1*str31;
 
           int i_nu_acc1  = b1*inustr11 + b2*inustr21; 
           int i_nu_acc10 = i_nu_acc1 + b3*inustr31;
-          int i_nu_acc11 = i_nu_acc1 + (b3+1)*inustr31;
 
           double I_upw0 = c0*dIn1[ind10-off0] + 
                          c1*dIn1[ind10-off1] +
                          c2*dIn1[ind10-off2] +
                          c3*dIn1[ind10-off3];
  
-          double I_upw1 = c0*dIn1[ind11-off0] +
-                         c1*dIn1[ind11-off1] +
-                         c2*dIn1[ind11-off2] +
-                         c3*dIn1[ind11-off3];
           dIn1[ind10]= I_upw0*dCf1[i_nu_acc10]+dCf2[i_nu_acc10];
-          dIn1[ind11]= I_upw1*dCf1[i_nu_acc11]+dCf2[i_nu_acc11];
         }
       }
     }
 #pragma acc wait
+//#pragma acc parallel loop collapse(3) async deviceptr(dI_n,dIn1) 
 #pragma acc parallel loop gang vector tile(1,32, 32) deviceptr(dI_n,dIn1) 
   for(int b1 = 0; b1 < bound1+1; b1++) { //Z
       for(int b2 = 0; b2 < bound2+1; b2++) { //Y
        for(int b3 = 0; b3 < bound3+1; b3++) { //X
+//#pragma acc cache(dIn1[((b1_i-step1)+(b1*step1))+((b2_i-step2)+(b2*step2)):str21])
           int b1i = (b1_i-step1) + (b1*step1); //z_i+z*zstep
           int b2i = (b2_i-step2) + (b2*step2); //Y_i+y*ystep
           int b3i = (b3_i-step3) + (b3*step3); //x_i +x*xstep
@@ -1286,6 +1337,7 @@ if (ix || iz) {
 #pragma acc wait
 
  }
+//#pragma acc exit data delete(dIn1,dCf1,dCf2)
   } // end DIM 3
 /*
   if(NDIM==2){
@@ -1320,7 +1372,12 @@ void RTS::driver(double DZ, double DX, double DY, int band){
   int stepvec[3][4][3] = { {{1,0,0},{1,0,1},{1,1,0},{1,1,1}},
                {{0,1,0},{1,1,0},{0,1,1},{1,1,1}},
                {{0,0,1},{0,1,1},{1,0,1},{1,1,1}} };
-  
+
+//#pragma acc enter data copyin(sbuf[:ny][:nx], rbuf[:ny][:nx],Qtemp[:ny][:nx][:nz][:2]) async
+#pragma acc enter data copyin(this[:1], I_n[:nx*ny*nz], Fz[:nx*ny*nz], Fx[:nx*ny*nz], \
+         Fy[:nx*ny*nz], J_band[:nx*ny*nz],rho[:nx*ny*nz],kap[:nx*ny*nz], coeff[:nx*ny*nz*2],B[:nx*ny*nz],sbuf[:ny][:nx], rbuf[:ny][:nx])
+         //sbuf[:ny][:nx], rbuf[:ny][:nx],Qtemp[:ny][:nx][:nz][:2])  
+
 #pragma acc parallel loop \
  present(this[:1], I_n[:nx*ny*nz], Fz[:nx*ny*nz], Fx[:nx*ny*nz], \
          Fy[:nx*ny*nz], J_band[:nx*ny*nz])
@@ -1352,7 +1409,7 @@ void RTS::driver(double DZ, double DX, double DY, int band){
           iystep[m]=stepvec[ibase[l]][m][1]*ystep;
           izstep[m]=stepvec[ibase[l]][m][2]*zstep;
         }
-
+#pragma acc enter data copyin(c[:4])
         IntegrateSetup(yi_i-yl, xi_i-xl, zi_i-zl, ystep, xstep, zstep);
 
         double stime=MPI_Wtime();
@@ -1410,12 +1467,14 @@ void RTS::driver(double DZ, double DX, double DY, int band){
       }// end YDIR
     }// end XDIR
   }// end ZDIR 
-
+//#pragma acc exit data copyout(this[:1], I_n[:nx*ny*nz], Fz[:nx*ny*nz], Fx[:nx*ny*nz], \
+         Fy[:nx*ny*nz], J_band[:nx*ny*nz],rho[:nx*ny*nz],kap[:nx*ny*nz], coeff[:nx*ny*nz*2], B[:nx*ny*nz])  
 // continuum band last -> can use tau in tau_slice as for grey RT 
   double stime=MPI_Wtime();
   tauscale_qrad(band,DX,DY,DZ,B);
   tau_time+=MPI_Wtime()-stime;
-
+//#pragma acc exit data copyout(this[:1], I_n[:nx*ny*nz], Fz[:nx*ny*nz], Fx[:nx*ny*nz], \
+         Fy[:nx*ny*nz], J_band[:nx*ny*nz],rho[:nx*ny*nz],kap[:nx*ny*nz], coeff[:nx*ny*nz*2], B[:nx*ny*nz]) 
   if((myrank==0) && (verbose>1)){
     fprintf(stdout,"rt_driver iter : %f %f \n",aravg/(8.0*NMU),itavg/(8.0*NMU));
     fprintf(stdout,"rt_driver error: %e %e \n",maxerr_up,maxerr_down);
@@ -1514,65 +1573,76 @@ void RTS::interpol_and_integrate(
 }
 
 void RTS::interpol(int zi_i,int zi_f,int zstep,int xi_i,int xi_f,int xstep,
-           int yi_i,int yi_f,int ystep,int l,double* coeff, double * Ss)
+           int yi_i,int yi_f,int ystep,int l,double* coeff, double * B)
 {
 
   double ds3=ds_upw[l]*inv3,ds6=ds_upw[l]*inv6;
   double c[]={a_00[ibase[l]][l],a_01[ibase[l]][l],a_10[ibase[l]][l],a_11[ibase[l]][l]};
-
+  double c0 = a_00[ibase[l]][l];
+  double c1 = a_01[ibase[l]][l];
+  double c2 = a_10[ibase[l]][l];
+  double c3 = a_11[ibase[l]][l];
   int zmin=(zi_i<zi_f)?zi_i:zi_f;
   int zmax=(zi_i>zi_f)?zi_i:zi_f;
 
   double r_upw[zmax+1],k_upw[zmax+1],S_upw[zmax+1],r0[zmax+1],k0[zmax+1],S0[zmax+1];
-  double _r_upw, _k_upw, _S_upw, _r0, _k0, _S0;
+ // double _r_upw, _k_upw, _S_upw, _r0, _k0, _S0;
   int i_nu=0;
 
   const int stride[] = {nx*nz, nz, 1};
+  const int stride0 = nx*nz;
+  const int stride1 = nz;
+  const int stride2 = 1;
   const int stride_inter[] = {(nx-1)*(nz-1), nz-1, 1};
+  const int stride_inter0 = (nx-1)*(nz-1);
+  const int stride_inter1 = nz-1;
+  const int stride_inter2 = 1;
   const int off[] = {
     iystep[0]*stride[0]+ixstep[0]*stride[1]+izstep[0],
     iystep[1]*stride[0]+ixstep[1]*stride[1]+izstep[1],
     iystep[2]*stride[0]+ixstep[2]*stride[1]+izstep[2],
     iystep[3]*stride[0]+ixstep[3]*stride[1]+izstep[3]
   };
-
+  const int off0 = iystep[0]*stride[0]+ixstep[0]*stride[1]+izstep[0];
+  const int off1 = iystep[1]*stride[0]+ixstep[1]*stride[1]+izstep[1];
+  const int off2 = iystep[2]*stride[0]+ixstep[2]*stride[1]+izstep[2];
+  const int off3 = iystep[3]*stride[0]+ixstep[3]*stride[1]+izstep[3];
   const int size = nx*ny*nz;
 
   if(NDIM==3){
-#pragma acc parallel loop gang collapse(2) \
- private(_r_upw, _k_upw, _S_upw, _r0, _k0, _S0) \
- present(this[:1], rho[:nx*ny*nz], kap[:nx*ny*nz], Ss[:nx*ny*nz], coeff[:nx*ny*nz*2])
+#pragma acc parallel loop collapse(3) \
+ present(this[:1], rho[:nx*ny*nz], kap[:nx*ny*nz], B[:nx*ny*nz], coeff[:nx*ny*nz*2]) 
+ //copyin(c[:4],stride[:3],stride_inter[:3],off[:4],ds3,ds6)
     for(int y = 0; y < ny-1; y++) {
       for(int x = 0; x < nx-1; x++) {
-        int yi = (yi_i-yl) + y*ystep;
-        int xi = (xi_i-xl) + x*xstep;
-#pragma acc loop vector \
- private(_r_upw, _k_upw, _S_upw, _r0, _k0, _S0)
         for(int z = 0; z < nz-1; z++) {
+          double _r_upw, _k_upw, _S_upw, _r0, _k0, _S0;
+          int yi = (yi_i-yl) + y*ystep;
+          int xi = (xi_i-xl) + x*xstep;
           int zi = (zi_i-zl) + z*zstep;
-          int ind = yi*stride[0] + xi*stride[1] + zi;
-	  int i_nu_ = y*stride_inter[0] + x*stride_inter[1] + z;
+          int ind = yi*stride0 + xi*stride1 + zi;
+	  int i_nu_ = y*stride_inter0 + x*stride_inter1 + z;
           _r_upw=
-            c[0]*rho[ind-off[0]]+
-            c[1]*rho[ind-off[1]]+
-            c[2]*rho[ind-off[2]]+
-            c[3]*rho[ind-off[3]];
+            c0*rho[ind-off0]+
+            c1*rho[ind-off1]+
+            c2*rho[ind-off2]+
+            c3*rho[ind-off3];
           
           _k_upw=
-            c[0]*kap[ind-off[0]]+
-            c[1]*kap[ind-off[1]]+
-            c[2]*kap[ind-off[2]]+
-            c[3]*kap[ind-off[3]];
+            c0*kap[ind-off0]+
+            c1*kap[ind-off1]+
+            c2*kap[ind-off2]+
+            c3*kap[ind-off3];
 
           _S_upw=
-            c[0]*Ss[ind-off[0]]+
-            c[1]*Ss[ind-off[1]]+
-            c[2]*Ss[ind-off[2]]+
-            c[3]*Ss[ind-off[3]];
+            c0*B[ind-off0]+
+            c1*B[ind-off1]+
+            c2*B[ind-off2]+
+            c3*B[ind-off3];
 
           _r0=rho[ind];
           _k0=kap[ind];
-          _S0=Ss[ind];
+          _S0=B[ind];
 
           double dt=ds3*(_k_upw*_r_upw+_k0*_r0)+ds6*(_k0*_r_upw+_k_upw*_r0);
           double expo=exp(-dt);
@@ -1613,14 +1683,14 @@ void RTS::interpol(int zi_i,int zi_f,int zstep,int xi_i,int xi_f,int xstep,
         c[3]*kap[zi-izstep[3]-zl];
 
       S_upw[zi]=
-        c[0]*Ss[zi-izstep[0]-zl]+
-        c[1]*Ss[zi-izstep[1]-zl]+
-        c[2]*Ss[zi-izstep[2]-zl]+
-        c[3]*Ss[zi-izstep[3]-zl];
+        c[0]*B[zi-izstep[0]-zl]+
+        c[1]*B[zi-izstep[1]-zl]+
+        c[2]*B[zi-izstep[2]-zl]+
+        c[3]*B[zi-izstep[3]-zl];
 
       r0[zi]=rho[zi-zl];
       k0[zi]=kap[zi-zl];
-      S0[zi]=Ss[zi-zl];
+      S0[zi]=B[zi-zl];
     }
 
     for(int zi=zi_i;zi!=zi_f+zstep;zi=zi+zstep){
@@ -1663,14 +1733,14 @@ void RTS::interpol(int zi_i,int zi_f,int zstep,int xi_i,int xi_f,int xstep,
           c[3]*kap[(xi-ixstep[3]-xl)*nz+(zi-izstep[3]-zl)];
 
         S_upw[zi]=
-          c[0]*Ss[(xi-ixstep[0]-xl)*nz+(zi-izstep[0]-zl)]+
-          c[1]*Ss[(xi-ixstep[1]-xl)*nz+(zi-izstep[1]-zl)]+
-          c[2]*Ss[(xi-ixstep[2]-xl)*nz+(zi-izstep[2]-zl)]+
-          c[3]*Ss[(xi-ixstep[3]-xl)*nz+(zi-izstep[3]-zl)];
+          c[0]*B[(xi-ixstep[0]-xl)*nz+(zi-izstep[0]-zl)]+
+          c[1]*B[(xi-ixstep[1]-xl)*nz+(zi-izstep[1]-zl)]+
+          c[2]*B[(xi-ixstep[2]-xl)*nz+(zi-izstep[2]-zl)]+
+          c[3]*B[(xi-ixstep[3]-xl)*nz+(zi-izstep[3]-zl)];
 
         r0[zi]=rho[(xi-xl)*nz+(zi-zl)];
         k0[zi]=kap[(xi-xl)*nz+(zi-zl)];
-        S0[zi]=Ss[(xi-xl)*nz+(zi-zl)];
+        S0[zi]=B[(xi-xl)*nz+(zi-zl)];
       }
       for(int zi=zi_i;zi!=zi_f+zstep;zi=zi+zstep){
         double dt=ds3*(k_upw[zi]*r_upw[zi]+k0[zi]*r0[zi])+ds6*(k0[zi]*r_upw[zi]+k_upw[zi]*r0[zi]);
@@ -1703,7 +1773,8 @@ double RTS::error(int band,int l,int ZDIR,int XDIR,int YDIR,double I_min)
   int z0=(ZDIR==UP),z1=(ZDIR==DOWN); 
   int x0=(XDIR==RIGHT),x1=(XDIR==LEFT); 
   double err_max=0.0;
-//
+
+#pragma acc enter data copyin(err_max)
   if (NDIM==3){
     real *ysb=y_sbuf[band][YDIR][XDIR][ZDIR][l],*yob=y_oldbuf[band][YDIR][XDIR][ZDIR][l];
 #pragma acc parallel loop collapse(2) reduction(max:err_max) \
@@ -1733,59 +1804,84 @@ double RTS::error(int band,int l,int ZDIR,int XDIR,int YDIR,double I_min)
     err_max=max(err_max,fabs(((double) (zsb[ind]-zob[ind]))/max(I_min,(double)zob[ind])));
   }
 //
-
+#pragma acc exit data copyout(err_max)
   return err_max;
 }
 
 void RTS::readbuf(int band,int l,int ZDIR,int XDIR,int YDIR)
 {//RHC
-  if(NDIM==3){
-    int y0=(YDIR==FWD)?0:ny-1;
-    int y = y0*nx*nz;
     real * ysb = y_sbuf[band][YDIR][XDIR][ZDIR][l];
     real * yrb = y_rbuf[band][YDIR][XDIR][ZDIR][l];
     real * yob = y_oldbuf[band][YDIR][XDIR][ZDIR][l];
+    real * xsb = x_sbuf[band][YDIR][XDIR][ZDIR][l];
+    real * xrb = x_rbuf[band][YDIR][XDIR][ZDIR][l];
+    real * xob = x_oldbuf[band][YDIR][XDIR][ZDIR][l];
+    real * zsb = z_sbuf[band][YDIR][XDIR][ZDIR][l];
+    real * zrb = z_rbuf[band][YDIR][XDIR][ZDIR][l];
+    real * zob = z_oldbuf[band][YDIR][XDIR][ZDIR][l];
+#pragma acc enter data copyin(this[:1], I_n[:nx*ny*nz], yrb[:nx*nz],yob[:nx*nz], ysb[:nx*nz],xrb[:ny*nz],xob[:ny*nz], xsb[:ny*nz],zrb[:ny*nx],zob[:ny*nx], zsb[:ny*nx])
+  if(NDIM==3){
+    int y0=(YDIR==FWD)?0:ny-1;
+    int y = y0*nx*nz;
+    //real * ysb = y_sbuf[band][YDIR][XDIR][ZDIR][l];
+    //real * yrb = y_rbuf[band][YDIR][XDIR][ZDIR][l];
+    //real * yob = y_oldbuf[band][YDIR][XDIR][ZDIR][l];
+//#pragma acc enter data copyin(this[:1], I_n[:nx*ny*nz], yrb[:nx*nz],yob[:nx*nz], ysb[:nx*nz])
+
 #pragma acc parallel loop collapse(2) \
- present(this[:1], I_n[:nx*ny*nz], yrb[:nx*nz])
+ present(this[:1], I_n[:nx*ny*nz], yrb[:nx*nz]) async(1)
     for(int x=0;x<nx;++x)
-      for(int z=0;z<nz;++z)
+      for(int z=0;z<nz;++z){
+        int ob  = x*nz+z;
         I_n[y+x*nz+z]= (double) yrb[z*nx+x];
-#pragma acc parallel loop \
- present(this[:1], yob[:nx*nz], ysb[:nx*nz])
-    for(int i = 0; i < nx*nz; i++)
-      yob[i] = ysb[i];
+        yob[ob] = ysb[ob];
+       }
+//#pragma acc parallel loop \
+// present(this[:1], yob[:nx*nz], ysb[:nx*nz]) async(2)
+//    for(int i = 0; i < nx*nz; i++)
+//      yob[i] = ysb[i];
   }
 
   if(NDIM>1){
     int x0=(XDIR==RIGHT)?0:nx-1;
     int x = x0*nz;
-    real * xsb = x_sbuf[band][YDIR][XDIR][ZDIR][l];
-    real * xrb = x_rbuf[band][YDIR][XDIR][ZDIR][l];
-    real * xob = x_oldbuf[band][YDIR][XDIR][ZDIR][l];
+    //real * xsb = x_sbuf[band][YDIR][XDIR][ZDIR][l];
+    //real * xrb = x_rbuf[band][YDIR][XDIR][ZDIR][l];
+    //real * xob = x_oldbuf[band][YDIR][XDIR][ZDIR][l];
+//#pragma acc enter data copyin(xrb[:ny*nz],xob[:ny*nz], xsb[:ny*nz])
 #pragma acc parallel loop collapse(2) \
- present(this[:1], I_n[:nx*ny*nz], xrb[:ny*nz])
+ present(this[:1], I_n[:nx*ny*nz], xrb[:ny*nz]) async(2)
     for(int y=0;y<ny;++y)
-      for(int z=0;z<nz;++z)
+      for(int z=0;z<nz;++z){
+        int ob  = y*nz+z;
         I_n[y*nx*nz+x+z]= (double) xrb[z*ny+y];
-#pragma acc parallel loop \
- present(this[:1], xob[:ny*nz], xsb[:ny*nz])
-    for(int i = 0; i < ny*nz; i++)
-      xob[i] = xsb[i];
+        xob[ob] = xsb[ob];
+        }
+//#pragma acc parallel loop \
+// present(this[:1], xob[:ny*nz], xsb[:ny*nz]) async(4)
+//    for(int i = 0; i < ny*nz; i++)
+//      xob[i] = xsb[i];
   }
   
   int z0=(ZDIR==UP)?0:nz-1;
-  real * zsb = z_sbuf[band][YDIR][XDIR][ZDIR][l];
-  real * zrb = z_rbuf[band][YDIR][XDIR][ZDIR][l];
-  real * zob = z_oldbuf[band][YDIR][XDIR][ZDIR][l];
+  //real * zsb = z_sbuf[band][YDIR][XDIR][ZDIR][l];
+  //real * zrb = z_rbuf[band][YDIR][XDIR][ZDIR][l];
+  //real * zob = z_oldbuf[band][YDIR][XDIR][ZDIR][l];
+//#pragma acc enter data copyin(zrb[:ny*nx],zob[:ny*nx], zsb[:ny*nx])
 #pragma acc parallel loop collapse(2) \
- present(this[:1], I_n[:nx*ny*nz], zrb[:ny*nx])
+ present(this[:1], I_n[:nx*ny*nz], zrb[:ny*nx]) async(3)
   for(int y=0;y<ny;++y)
-    for(int x=0;x<nx;++x)
+    for(int x=0;x<nx;++x){
+      int ob  = y*nx+x;
       I_n[y*nx*nz+x*nz+z0]= (double) zrb[x*ny+y];
-#pragma acc parallel loop \
- present(this[:1], zob[:ny*nx], zsb[:ny*nx])
-  for(int i = 0; i < nx*ny; i++)
-    zob[i] = zsb[i];
+      zob[ob] = zsb[ob]; 
+    }
+//#pragma acc parallel loop \
+// present(this[:1], zob[:ny*nx], zsb[:ny*nx]) async(2)
+//  for(int i = 0; i < nx*ny; i++)
+//    zob[i] = zsb[i];
+
+#pragma acc wait
 }
 
 void RTS::writebuf(int band, int l,int ZDIR,int XDIR,int YDIR){
@@ -1794,7 +1890,7 @@ void RTS::writebuf(int band, int l,int ZDIR,int XDIR,int YDIR){
     int y = y0*nx*nz;
     real * ysb = y_sbuf[band][YDIR][XDIR][ZDIR][l];
 #pragma acc parallel loop collapse(2) \
- present(this[:1], I_n[:nx*ny*nz], ysb[:nx*nz])
+ present(this[:1], I_n[:nx*ny*nz], ysb[:nx*nz]) async(1) 
     for(int x=0;x<nx;++x)
       for(int z=0;z<nz;++z)
         ysb[z*nx+x]=(real) I_n[y+x*nz+z];
@@ -1805,7 +1901,7 @@ void RTS::writebuf(int band, int l,int ZDIR,int XDIR,int YDIR){
     int x = x0*nz;
     real * xsb = x_sbuf[band][YDIR][XDIR][ZDIR][l];
 #pragma acc parallel loop collapse(2) \
- present(this[:1], I_n[:nx*ny*nz], xsb[:ny*nz])
+ present(this[:1], I_n[:nx*ny*nz], xsb[:ny*nz]) async(2)
     for(int y=0;y<ny;++y)
       for(int z=0;z<nz;++z)
         xsb[z*ny+y]=(real) I_n[y*nx*nz+x+z];
@@ -1814,11 +1910,11 @@ void RTS::writebuf(int band, int l,int ZDIR,int XDIR,int YDIR){
   int z0=(ZDIR==UP)?nz-1:0;
   real * zsb = z_sbuf[band][YDIR][XDIR][ZDIR][l];
 #pragma acc parallel loop collapse(2) \
- present(this[:1], I_n[:nx*ny*nz], zsb[:ny*nx])
+ present(this[:1], I_n[:nx*ny*nz], zsb[:ny*nx]) async(3)
   for(int y=0;y<ny;++y)
     for(int x=0;x<nx;++x)
       zsb[x*ny+y]=(real) I_n[y*nx*nz+x*nz+z0];
-
+#pragma acc wait
 }
 
 void RTS::exchange(int band,int l,int ZDIR,int XDIR,int YDIR)
@@ -1833,47 +1929,63 @@ void RTS::exchange(int band,int l,int ZDIR,int XDIR,int YDIR)
   int source_rk;
   real tempxsb[nz];
   real tempzsb[nx];
-
+/*
   real * ysb = (real*) ACCH::GetDevicePtr(y_sbuf[band][YDIR][XDIR][ZDIR][l]);
   real * yrb = (real*) ACCH::GetDevicePtr(y_rbuf[band][YDIR][XDIR][ZDIR][l]);
   real * xsb = (real*) ACCH::GetDevicePtr(x_sbuf[band][YDIR][XDIR][ZDIR][l]);
   real * xrb = (real*) ACCH::GetDevicePtr(x_rbuf[band][YDIR][XDIR][ZDIR][l]);
   real * zsb = (real*) ACCH::GetDevicePtr(z_sbuf[band][YDIR][XDIR][ZDIR][l]);
   real * zrb = (real*) ACCH::GetDevicePtr(z_rbuf[band][YDIR][XDIR][ZDIR][l]);
+*/
 
+  real * ysb = y_sbuf[band][YDIR][XDIR][ZDIR][l];
+  real * yrb = y_rbuf[band][YDIR][XDIR][ZDIR][l];
+  real * xsb = x_sbuf[band][YDIR][XDIR][ZDIR][l];
+  real * xrb = x_rbuf[band][YDIR][XDIR][ZDIR][l];
+  real * zsb = z_sbuf[band][YDIR][XDIR][ZDIR][l];
+  real * zrb = z_rbuf[band][YDIR][XDIR][ZDIR][l];
+
+//#pragma acc data present(yrb[:nx*nz], ysb[:nx*nz],xrb[:ny*nz], xsb[:ny*nz],zrb[:ny*nx], zsb[:ny*nx])
+//{
+//#pragma acc w
   if (NDIM==3){
     // y-direction
     dest_rk=(YDIR==FWD)?rightr[2]:leftr[2];
     source_rk=(YDIR==FWD)?leftr[2]:rightr[2];
+#pragma acc host_data use_device(yrb,ysb)
+{
     MPI_Irecv(yrb,nx*nz,REALTYPE,source_rk,tag2,MPI_COMM_WORLD,r2+0);
     MPI_Isend(ysb,nx*nz,REALTYPE,dest_rk,tag2,MPI_COMM_WORLD,r2+1);
+}
     MPI_Waitall(2,r2,s2);
   
     z0=(ZDIR==UP)?nz-1:0;
-    y0=(YDIR==FWD)?0:ny-1;
-#pragma acc parallel loop deviceptr(yrb, zsb)
-    for(int x=0;x<nx;++x)
-      zsb[x*ny+y0]=yrb[z0*nx+x];
-  
     x0=(XDIR==RIGHT)?nx-1:0;
     y0=(YDIR==FWD)?0:ny-1;
-#pragma acc parallel loop deviceptr(xsb, yrb)
-    for(int z=0;z<nz;++z)
-      xsb[z*ny+y0]=yrb[z*nx+x0];
+#pragma acc parallel loop collapse(2) present(this[:1],yrb[:nx*nz], xsb[:ny*nz],zsb[:ny*nx]) async(1)
+    for(int x=0;x<nx;++x){
+      for(int z=0;z<nz;++z){
+        xsb[z*ny+y0]=yrb[z*nx+x0];
+        zsb[x*ny+y0]=yrb[z0*nx+x];
+      }
+    }
+  
   }
 
   if (NDIM >1){
     // x-direction
     dest_rk=(XDIR==RIGHT)?rightr[1]:leftr[1];
     source_rk=(XDIR==RIGHT)?leftr[1]:rightr[1];
+#pragma acc host_data use_device(xrb,xsb)
+{ 
     MPI_Irecv(xrb,nz*ny,REALTYPE,source_rk,tag1,MPI_COMM_WORLD,r1+0);
     MPI_Isend(xsb,nz*ny,REALTYPE,dest_rk,tag1,MPI_COMM_WORLD,r1+1);
-
+}
     MPI_Waitall(2,r1,s1);
  
     x0=(XDIR==RIGHT)?0:nx-1;
     z0=(ZDIR==UP)?nz-1:0;
-#pragma acc parallel loop deviceptr(xrb, zsb)
+#pragma acc parallel loop present(this[:1],xrb[:ny*nz], zsb[:nx*ny]) async(1)
     for(int y=0;y<ny;++y)
       zsb[x0*ny+y]=xrb[z0*ny+y];
   }
@@ -1881,10 +1993,14 @@ void RTS::exchange(int band,int l,int ZDIR,int XDIR,int YDIR)
 // z-direction
   dest_rk  =(ZDIR==UP)?rightr[0]:leftr[0];
   source_rk=(ZDIR==UP)?leftr[0]:rightr[0];
+#pragma acc host_data use_device(zrb,zsb)
+{ 
   MPI_Irecv(zrb,nx*ny,REALTYPE,source_rk,tag3,MPI_COMM_WORLD,r3+0);
   MPI_Isend(zsb,nx*ny,REALTYPE,dest_rk,tag3,MPI_COMM_WORLD,r3+1);
-  MPI_Waitall(2,r3,s3);
 
+  MPI_Waitall(2,r3,s3);
+ }
+ // } data
 }
 
 void RTS::flux(int l,int ZDIR,int XDIR,int YDIR)
@@ -1894,6 +2010,7 @@ void RTS::flux(int l,int ZDIR,int XDIR,int YDIR)
   double c_z = 0.5*PI*zsign*wmu[l]*xmu[2][l];
   double c_x = 0.5*PI*xsign*wmu[l]*xmu[0][l];
   double c_y = 0.5*PI*ysign*wmu[l]*xmu[1][l];
+
 #pragma acc parallel loop collapse(2) gang \
  present(this[:1], I_n[:nx*ny*nz], J_band[:nx*ny*nz], \
          Fz[:nx*ny*nz], Fy[:nx*ny*nz], Fx[:nx*ny*nz])
@@ -1917,8 +2034,8 @@ void RTS::get_Tau_and_Iout(GridData &Grid, const RunData &Run, const PhysicsData
   
   double ttime=MPI_Wtime(),stime=0.0,atime=0.0;
   
-  double ** sbuf = ACCH::Malloc2D<double>(ny, nx);
-  double ** rbuf = ACCH::Malloc2D<double>(ny, nx);
+  //double ** sbuf = ACCH::Malloc2D<double>(ny, nx);
+  //double ** rbuf = ACCH::Malloc2D<double>(ny, nx);
 
   double N = pow(2,Grid.NDIM);
 
@@ -1972,13 +2089,13 @@ void RTS::get_Tau_and_Iout(GridData &Grid, const RunData &Run, const PhysicsData
         else if(lgT>tab_T[NT-1])
           l=NT-2;
         else {
-#pragma acc loop seq
-          for (int li=0; li<=NT-2; li++){
+#pragma acc loop seq 
+        for (int li=0; li<=NT-2; li++){
             int lflag = 0;
             if ((lgT >= tab_T[li]) && (lgT <= tab_T[li+1])){
               lflag = lflag+1;
-              if(lflag==1)
-                l = li;
+            if(lflag==1)
+              l = li;
             }
           }
         }
@@ -1988,15 +2105,14 @@ void RTS::get_Tau_and_Iout(GridData &Grid, const RunData &Run, const PhysicsData
         else if(lgP>tab_p[Np-1])
           m=Np-2;
         else {
-#pragma acc loop seq
-          for (int mi=0; mi<=Np-2; mi++){
+#pragma acc loop seq 
+        for (int mi=0; mi<=Np-2; mi++){
             int mflag = 0;
-            if ((lgP >= tab_p[mi]) && (lgP <= tab_p[mi+1])){
+            if ((lgP >= tab_p[mi]) && (lgP <= tab_p[mi+1]))
               mflag = mflag+1;
-              if(mflag==1)
-               m = mi;
+            if(mflag==1)
+              m = mi;
           }
-         }
         }
 
         double xt = (lgT-tab_T[l])*invT_tab[l];
@@ -2095,8 +2211,8 @@ void RTS::get_Tau_and_Iout(GridData &Grid, const RunData &Run, const PhysicsData
   }
 
 
-  ACCH::Free2D<double>(sbuf, ny, nx);
-  ACCH::Free2D<double>(rbuf, ny, nx);
+  //ACCH::Free2D<double>(sbuf, ny, nx);
+  //ACCH::Free2D<double>(rbuf, ny, nx);
   //
   ttime=MPI_Wtime()-ttime;
   if((myrank==0)&&(verbose>2)) printf("tau5000 time: %f %f %f %f \n",ttime,stime,atime,(stime+atime)/ttime);
@@ -2115,9 +2231,14 @@ void RTS::tauscale_qrad(int band, double DX,double DY,double DZ, double * Ss){
     idy=0.0;
   }
 
-  double ** sbuf = ACCH::Malloc2D<double>(ny, nx);
-  double ** rbuf = ACCH::Malloc2D<double>(ny, nx);
-  double **** Qtemp = ACCH::Malloc4D<double>(ny, nx, nz, 2);
+  //double ** sbuf = ACCH::Malloc2D<double>(ny, nx);
+  //double ** rbuf = ACCH::Malloc2D<double>(ny, nx);
+  //double **** Qtemp = ACCH::Malloc4D<double>(ny, nx, nz, 2);
+
+#pragma acc enter data copyin(this[:1], Fx[:nx*ny*nz], Fy[:nx*ny*nz], Fz[:nx*ny*nz], \
+        I_n[:nx*ny*nz], Qt[:ny-yo][:nx-xo][:nz-zo], Ss[:nx*ny*nz], \
+        Tau[:nx*ny*nz],kap[:nx*ny*nz], rho[:nx*ny*nz],sbuf[:ny][:nx], rbuf[:ny][:nx])
+       // sbuf[:ny][:nx], rbuf[:ny][:nx],Qtemp[:ny][:nx][:nz][:2])
 
 #pragma acc parallel loop collapse(2) \
  present(this[:1], Tau[:nx*ny*nz], kap[:nx*ny*nz], rho[:nx*ny*nz])  
@@ -2214,10 +2335,12 @@ void RTS::tauscale_qrad(int band, double DX,double DY,double DZ, double * Ss){
 
 // 
   double inv_tau_0=1.0e1;
-
+//present(this[:1], Fx[:nx*ny*nz], Fy[:nx*ny*nz], Fz[:nx*ny*nz], \
+//        I_n[:nx*ny*nz], Qt[:ny-yo][:nx-xo][:nz-zo], Qtemp[:ny][:nx][:nz][:2], \
+//                Tau[:nx*ny*nz])
 #pragma acc parallel loop gang collapse(2) \
- present(this[:1], Fx[:nx*ny*nz], Fy[:nx*ny*nz], Fz[:nx*ny*nz], \
-        I_n[:nx*ny*nz], Qt[:ny-yo][:nx-xo][:nz-zo], Qtemp[:ny][:nx][:nz][:2], \
+present(this[:1], Fx[:nx*ny*nz], Fy[:nx*ny*nz], Fz[:nx*ny*nz], \
+        I_n[:nx*ny*nz], Qt[:ny-yo][:nx-xo][:nz-zo], \
         Tau[:nx*ny*nz])
   for(int y=0;y<ny-yo;++y){
     for(int x=0;x<nx-xo;++x){
@@ -2320,9 +2443,9 @@ void RTS::tauscale_qrad(int band, double DX,double DY,double DZ, double * Ss){
      ACCH::UpdateCPU3D<double>(Col_out, Nbands, col_nz, col_nvar);
    }
 
-  ACCH::Free4D<double>(Qtemp, ny, nx, nz, 2);
-  ACCH::Free2D<double>(sbuf, ny, nx);
-  ACCH::Free2D<double>(rbuf, ny, nx);
+ // ACCH::Free4D<double>(Qtemp, ny, nx, nz, 2);
+ // ACCH::Free2D<double>(sbuf, ny, nx);
+ // ACCH::Free2D<double>(rbuf, ny, nx);
   //
   ttime=MPI_Wtime()-ttime;
 

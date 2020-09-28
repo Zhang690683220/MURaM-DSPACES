@@ -91,7 +91,7 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
 
   cState* U  = (cState*) Grid.U;
     
-  int stride[3];
+  int stride[3],strided1,strided2,strided3;
   int dim_order[3];
  
   int bounds[3][2];
@@ -109,7 +109,7 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
   double dn,vv,bb,cs2,va2,lf,rf,hh,cf,cmax,sl,sr,sl_lim,vsqr_diff,lower,upper,
     slm,x2,x4,s,cfast,CME_mode;
 
-  double idx[3],tvd_coeff[4];
+  double idx[3],tvd_coeff[4],idxd1;
 
   double idt_full = 1.0/Run.dt;
   double dt_fac = dt_tvd/Run.dt;
@@ -117,7 +117,6 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
   idx[0] = 1./Grid.dx[0];
   if (Grid.NDIM >= 2) idx[1] = 1./Grid.dx[1];
   if (Grid.NDIM == 3) idx[2] = 1.0/Grid.dx[2];
-
   tvd_coeff[0] = Physics.tvd_coeff[0];
   tvd_coeff[1] = Physics.tvd_coeff[1];
   tvd_coeff[2] = Physics.tvd_coeff[2];
@@ -188,7 +187,11 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
 #pragma acc enter data copyin(hfb[:vsize])
 #pragma acc enter data copyin(qft[:vsize])
 #pragma acc enter data copyin(hft[:vsize])
-      
+#pragma acc enter data copyin(tvd_h[:4])
+#pragma acc enter data copyin(tvd_cs[:4])
+#pragma acc enter data copyin(tvd_coeff[:4])
+//#pragma acc enter data copyin(stride[:3])      
+//#pragma acc enter data copyin(idx[:3])   
     tvd_ini_flag =0;
   }
 
@@ -211,7 +214,13 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
     tvd_fac[vsize], bsqr[vsize], vsqr[vsize], BC2[vsize],pres[vsize],
     hyperdiff[vsize], qres[vsize], qvis[vsize], qft1[vsize],
     hyp_e[vsize],hyp_v[vsize],hyp_B[vsize],CZ_fac[vsize];
-
+#pragma acc data present(Grid, U[:bufsize], Grid.pres[:bufsize],                   \
+    Grid.Tau[:bufsize], Grid.v_amb[:bufsize],                       \
+    hfb[:vsize], hft[:vsize], qft[:vsize],                          \
+    Grid.tvar8[:bufsize], Grid.Qres[:bufsize],                      \
+    Grid.Qvis[:bufsize], Grid.tvar6[:bufsize],                      \
+    Grid.tvar7[:bufsize])  
+{
   /* y direction first to be consistent with vertical boundary */
   for (d=0;d<Grid.NDIM;d++){
     d1=loop_order[dim_order[d]][0];
@@ -224,7 +233,10 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
     gh = Grid.ghosts[d1];
 
     str=stride[d1];
-
+    strided1 = stride[d1];
+    strided2 = stride[d2];
+    strided3 = stride[d3];
+    idxd1 = idx[d1];
     kbeg = bounds[d3][0];
     kend = bounds[d3][1];
     jbeg = bounds[d2][0];
@@ -252,7 +264,7 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
     for(k=kbeg; k<=kend; k++)
     for(j=jbeg; j<=jend; j++) {
 
-      offset = j*stride[d2]+k*stride[d3];
+      offset = j*strided2+k*strided3;
       //time = MPI_Wtime();
       #pragma ivdep
 #pragma acc loop vector private(node)
@@ -372,7 +384,7 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
 #pragma acc loop vector 
 	for(i=0;i<sz;i++){
 	  hyperdiff[i] = vhyp*sqrt(vsqr[i]);	  
-	  hyperdiff[i] = 0.5*idx[d1]*max(0.0,min(hyperdiff[i],cmax-cm[i]));
+	  hyperdiff[i] = 0.5*idxd1*max(0.0,min(hyperdiff[i],cmax-cm[i]));
 	}
       }
 
@@ -483,7 +495,7 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
       // diffusion coefficient
 #pragma acc loop vector 
       for(i=0;i<sz-1;i++)
-	tvd_fac[i] = 0.5*idx[d1]*min(cmax,max(cm[i],cm[i+1]));
+	tvd_fac[i] = 0.5*idxd1*min(cmax,max(cm[i],cm[i+1]));
 
  #pragma acc loop vector collapse(2)      
       for(ivar=0;ivar<nvar;ivar++)
@@ -694,7 +706,8 @@ void TVDlimit(const RunData&  Run, GridData& Grid,
     bounds[d1][0] = Grid.lbeg[d1];
     bounds[d1][1] = Grid.lend[d1];
   }
-
+  } //exit data 
+//#pragma acc exit data delete(stride[:3],idx[:3])
   //t_time += MPI_Wtime()-s_time;
   //call_count += 1;
 
