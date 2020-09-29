@@ -168,7 +168,7 @@ RTS::~RTS(void)
   ACCH::Free(I_band, nx*ny);
 
   ACCH::Delete(this, sizeof(RTS));
-
+  //fprintf(stdout,"deleting RTS mem");
 }
  
 double RTS::tau(int z,int x,int y){
@@ -572,7 +572,15 @@ RTS::RTS(GridData&Grid,RunData &Run,PhysicsData &Physics){
   I_band = (double*) ACCH::Malloc(nx*ny*sizeof(double));
 
   ACCH::UpdateGPU(this, sizeof(RTS));
-
+  //fprintf(stdout,"allocating RTS mem");
+#pragma acc enter data copyin(this[:1], I_band[:nx*ny], I_o[:nx*ny],Grid[:1], Grid.temp[:Grid.bufsize], \
+         Grid.pres[:Grid.bufsize], \
+         tr_switch[:nx*ny*nz], lgTe[:nx*ny*nz], lgPe[:nx*ny*nz], \
+         rho[:nx*ny*nz], tab_T[:NT], tab_p[:Np], T_ind[:nx*ny*nz], P_ind[:nx*ny*nz], \
+         B[:nx*ny*nz], invT_tab[:NT], invP_tab[:Np], \
+         B_tab[:Nbands][:NT], kap[:nx*ny*nz], kap_tab[:Nbands][:NT][:Np], \
+         Qt[:(ny-yo)][:(nx-xo)][:(nz-zo)],St[:nx*ny*nz], Jt[:nx*ny*nz],  \
+         z_rbuf[:Nbands][:2][:2][:2][:NMU][:nx*ny],sbuf[:ny][:nx], rbuf[:ny][:nx],Qtemp[:ny][:nx][:nz][:2])
 }
 void RTS::load_bins(char* kap_name){
   
@@ -726,14 +734,14 @@ void RTS::load_bins(char* kap_name){
 }
 
 double RTS::wrapper(int rt_upd,GridData &Grid,RunData &Run,const PhysicsData &Physics){
-#pragma acc enter data copyin(sbuf[:ny][:nx], rbuf[:ny][:nx],Qtemp[:ny][:nx][:nz][:2]) async
-#pragma acc enter data copyin(this[:1], I_band[:nx*ny], I_o[:nx*ny],Grid[:1], Grid.temp[:Grid.bufsize], \
+//#pragma acc enter data copyin(sbuf[:ny][:nx], rbuf[:ny][:nx],Qtemp[:ny][:nx][:nz][:2]) async
+//#pragma acc enter data copyin(this[:1], I_band[:nx*ny], I_o[:nx*ny],Grid[:1], Grid.temp[:Grid.bufsize], \
          Grid.pres[:Grid.bufsize], \
          tr_switch[:nx*ny*nz], lgTe[:nx*ny*nz], lgPe[:nx*ny*nz], \
          rho[:nx*ny*nz], tab_T[:NT], tab_p[:Np], T_ind[:nx*ny*nz], P_ind[:nx*ny*nz], \
          B[:nx*ny*nz], invT_tab[:NT], invP_tab[:Np], \
          B_tab[:Nbands][:NT], kap[:nx*ny*nz], kap_tab[:Nbands][:NT][:Np], \
-         Qt[:(ny-yo)][:(nx-xo)][:(nz-zo)],St[:nx*ny*nz], Jt[:nx*ny*nz],z_rbuf[:Nbands][:2][:2][:2][:NMU][:nx*ny])
+         Qt[:(ny-yo)][:(nx-xo)][:(nz-zo)],St[:nx*ny*nz], Jt[:nx*ny*nz],z_rbuf[:Nbands][:2][:2][:2][:NMU][:nx*ny]) async
 
 #pragma acc parallel loop \
  present(this[:1], I_band[:nx*ny], I_o[:nx*ny])
@@ -1773,12 +1781,17 @@ double RTS::error(int band,int l,int ZDIR,int XDIR,int YDIR,double I_min)
   int z0=(ZDIR==UP),z1=(ZDIR==DOWN); 
   int x0=(XDIR==RIGHT),x1=(XDIR==LEFT); 
   double err_max=0.0;
-
+   
+   real *ysb=y_sbuf[band][YDIR][XDIR][ZDIR][l],*yob=y_oldbuf[band][YDIR][XDIR][ZDIR][l];
+   real *xsb=x_sbuf[band][YDIR][XDIR][ZDIR][l],*xob=x_oldbuf[band][YDIR][XDIR][ZDIR][l];
+   real *zsb=z_sbuf[band][YDIR][XDIR][ZDIR][l],*zob=z_oldbuf[band][YDIR][XDIR][ZDIR][l];
 #pragma acc enter data copyin(err_max)
+#pragma acc data present(this[:1], ysb[:nx*nz], yob[:nx*nz],xsb[:ny*nz], xob[:ny*nz],zsb[:ny*nx], zob[:ny*nx])
+{
   if (NDIM==3){
-    real *ysb=y_sbuf[band][YDIR][XDIR][ZDIR][l],*yob=y_oldbuf[band][YDIR][XDIR][ZDIR][l];
+//    real *ysb=y_sbuf[band][YDIR][XDIR][ZDIR][l],*yob=y_oldbuf[band][YDIR][XDIR][ZDIR][l];
 #pragma acc parallel loop collapse(2) reduction(max:err_max) \
- present(this[:1], ysb[:nx*nz], yob[:nx*nz])
+ present(this[:1], ysb[:nx*nz], yob[:nx*nz]) async
     for(int z=z0;z<nz-z1;++z)
       for(int x=x0;x<nx-x1;++x){
         int ind=z*nx+x;
@@ -1787,9 +1800,9 @@ double RTS::error(int band,int l,int ZDIR,int XDIR,int YDIR,double I_min)
   }
 //
   if (NDIM>1){
-    real *xsb=x_sbuf[band][YDIR][XDIR][ZDIR][l],*xob=x_oldbuf[band][YDIR][XDIR][ZDIR][l];
+  //  real *xsb=x_sbuf[band][YDIR][XDIR][ZDIR][l],*xob=x_oldbuf[band][YDIR][XDIR][ZDIR][l];
 #pragma acc parallel loop collapse(2) reduction(max:err_max) \
- present(this[:1], xsb[:ny*nz], xob[:ny*nz])
+ present(this[:1], xsb[:ny*nz], xob[:ny*nz]) async
     for(int z=z0;z<nz-z1;++z)
       for(int y=0;y<ny;++y){
         int ind=z*ny+y;
@@ -1797,15 +1810,16 @@ double RTS::error(int band,int l,int ZDIR,int XDIR,int YDIR,double I_min)
       }
   }
 //
-  real *zsb=z_sbuf[band][YDIR][XDIR][ZDIR][l],*zob=z_oldbuf[band][YDIR][XDIR][ZDIR][l];
+  //real *zsb=z_sbuf[band][YDIR][XDIR][ZDIR][l],*zob=z_oldbuf[band][YDIR][XDIR][ZDIR][l];
 #pragma acc parallel loop reduction(max:err_max) \
- present(this[:1], zsb[:ny*nx], zob[:ny*nx])
+ present(this[:1], zsb[:ny*nx], zob[:ny*nx]) async
   for(int ind=0;ind<nx*ny;++ind){
     err_max=max(err_max,fabs(((double) (zsb[ind]-zob[ind]))/max(I_min,(double)zob[ind])));
   }
-//
+
 #pragma acc exit data copyout(err_max)
   return err_max;
+} //data
 }
 
 void RTS::readbuf(int band,int l,int ZDIR,int XDIR,int YDIR)
@@ -1945,8 +1959,8 @@ void RTS::exchange(int band,int l,int ZDIR,int XDIR,int YDIR)
   real * zsb = z_sbuf[band][YDIR][XDIR][ZDIR][l];
   real * zrb = z_rbuf[band][YDIR][XDIR][ZDIR][l];
 
-//#pragma acc data present(yrb[:nx*nz], ysb[:nx*nz],xrb[:ny*nz], xsb[:ny*nz],zrb[:ny*nx], zsb[:ny*nx])
-//{
+#pragma acc data present(this[:1],yrb[:nx*nz], ysb[:nx*nz],xrb[:ny*nz], xsb[:ny*nz],zrb[:ny*nx], zsb[:ny*nx])
+{
 //#pragma acc w
   if (NDIM==3){
     // y-direction
@@ -1956,9 +1970,9 @@ void RTS::exchange(int band,int l,int ZDIR,int XDIR,int YDIR)
 {
     MPI_Irecv(yrb,nx*nz,REALTYPE,source_rk,tag2,MPI_COMM_WORLD,r2+0);
     MPI_Isend(ysb,nx*nz,REALTYPE,dest_rk,tag2,MPI_COMM_WORLD,r2+1);
-}
+
     MPI_Waitall(2,r2,s2);
-  
+}  
     z0=(ZDIR==UP)?nz-1:0;
     x0=(XDIR==RIGHT)?nx-1:0;
     y0=(YDIR==FWD)?0:ny-1;
@@ -1980,9 +1994,9 @@ void RTS::exchange(int band,int l,int ZDIR,int XDIR,int YDIR)
 { 
     MPI_Irecv(xrb,nz*ny,REALTYPE,source_rk,tag1,MPI_COMM_WORLD,r1+0);
     MPI_Isend(xsb,nz*ny,REALTYPE,dest_rk,tag1,MPI_COMM_WORLD,r1+1);
-}
+
     MPI_Waitall(2,r1,s1);
- 
+} 
     x0=(XDIR==RIGHT)?0:nx-1;
     z0=(ZDIR==UP)?nz-1:0;
 #pragma acc parallel loop present(this[:1],xrb[:ny*nz], zsb[:nx*ny]) async(1)
@@ -2000,7 +2014,7 @@ void RTS::exchange(int band,int l,int ZDIR,int XDIR,int YDIR)
 
   MPI_Waitall(2,r3,s3);
  }
- // } data
+ } //data
 }
 
 void RTS::flux(int l,int ZDIR,int XDIR,int YDIR)
