@@ -121,6 +121,7 @@ void ComputeSolution(RunData& Run,GridData& Grid,const PhysicsData& Physics,RTS 
       ConsToPrim(Grid,Physics,Run);
       eos_time+=MPI_Wtime()-clock;
 
+      MPI_Barrier(MPI_COMM_WORLD);
       if(stage == 1){
 	clock=MPI_Wtime();
         Adjust_Valf_Max(Run,Grid,Physics);
