@@ -9,7 +9,7 @@
 #include "limit_va.H"
 #include "exchange.H"
 #include <stdio.h>
-#include "muramacc.H"
+#include "ACCH.h"
 
 #define XZ_LOOP(G,i,k) \
   for((k)=(G).lbeg[2];(k)<=(G).lend[2];(k)++) \
@@ -63,7 +63,7 @@ void Source_Integrate_Tcheck(const RunData& Run, GridData& Grid,
   const bool spitzer   = (Physics.params[i_param_spitzer] > 0.0);
 
   double vmax,vv,ekin,eps_max;
-  double ee_low[vsize], ee_up[vsize], vfac[vsize], rho[vsize], Qrad[vsize], efac[vsize], ee[vsize], e_dmp[vsize];
+  double ee_low, ee_up, vfac[vsize], rho[vsize], Qrad[vsize], efac[vsize], ee[vsize], e_dmp[vsize];
 
   if(v_lim > 0.0)
     vmax = v_lim;
@@ -90,12 +90,12 @@ void Source_Integrate_Tcheck(const RunData& Run, GridData& Grid,
   double boris[4][vsize];
 
   int sz = Grid.lsize[0]+2*Grid.ghosts[0];
-  static double* dmp =  (double*) malloc(sz*sizeof(double));
-#pragma acc enter data create(dmp[:sz])
+  static double* dmp =  (double*) ACCH::Malloc(sz*sizeof(double)); //malloc(sz*sizeof(double));
+//#pragma acc enter data create(dmp[:sz])
 
   if(stage == 1) {
     get_damping(Run,Grid,Physics,dmp);
-#pragma acc update device(dmp[:sz])
+//#pragma acc update device(dmp[:sz])
   }
 
 #pragma acc parallel loop collapse(2) gang                       \
@@ -109,7 +109,7 @@ void Source_Integrate_Tcheck(const RunData& Run, GridData& Grid,
   Grid.Rflx[:bufsize], Grid.v_amb[:bufsize],                     \
   Grid.v0_amb[:bufsize], Grid.R_amb[:bufsize],                   \
   dmp[:sz])                                                      \
- private(off0, ee_low[:vsize], ee_up[:vsize], vfac[:vsize],      \
+ private(off0, vfac[:vsize],      \
   rho[:vsize], Qrad[:vsize], efac[:vsize], ee[:vsize],           \
   e_dmp[:vsize], boris[:4][:vsize])
   for(k=kbeg; k<=kend; k++)
@@ -268,7 +268,7 @@ void Source_Integrate_Tcheck(const RunData& Run, GridData& Grid,
 
     // Tcheck - catch extreme values before they cause problems
     #pragma ivdep
-#pragma acc loop vector private(node, dn, vv, s, ekin) 
+#pragma acc loop vector private(node, ee_low,ee_up,dn, vv, s, ekin) 
     for(i=i_beg;i<=i_end;i++){
       node = off0+i;
 
@@ -278,11 +278,12 @@ void Source_Integrate_Tcheck(const RunData& Run, GridData& Grid,
       s  = vmax/max(vmax,vv);
 
       ekin = 0.5*dn*vv*vv;
-
-      ee_low[i] = eps_min*dn+ekin;
-      ee_up[i]  = eps_max*dn+ekin*s*s;
+      ee[i] = Grid.U[node].e;
+      ee_low = eps_min*dn+ekin;
+      ee_up  = eps_max*dn+ekin*s*s;
       vfac[i]   = s;
       rho[i]    = dn;
+      Grid.U[node].e  = min(max(ee[i],ee_low),ee_up);
     }
 
     #pragma ivdep
@@ -290,11 +291,11 @@ void Source_Integrate_Tcheck(const RunData& Run, GridData& Grid,
     for(i=i_beg;i<=i_end;i++){
       node = off0+i;
 
-      ee[i] = Grid.U[node].e;
+     // ee[i] = Grid.U[node].e;
 
       Grid.U[node].d  = rho[i];
       Grid.U[node].M *= vfac[i];
-      Grid.U[node].e  = min(max(ee[i],ee_low[i]),ee_up[i]);
+      //Grid.U[node].e  = min(max(ee[i],ee_low[i]),ee_up[i]);
     }
 
     if(need_diagnostics){
@@ -320,30 +321,8 @@ void Source_Integrate_Tcheck(const RunData& Run, GridData& Grid,
 
   } // end loop
 
-  PGI_COMPARE(Grid.U, double, Grid.bufsize*8, "U", "Add_Sources_Integrate_SR.C",
-              "Source_Integrate_Tcheck", 1)
-  PGI_COMPARE(Grid.Res, double, Grid.bufsize*8, "Res", "Add_Sources_Integrate_SR.C",
-              "Source_Integrate_Tcheck", 2)
-  if(spitzer) {
-      PGI_COMPARE(Grid.sflx, double, Grid.bufsize, "sflx", "Add_Sources_Integrate_SR.C",
-              "Source_Integrate_Tcheck", 3)
-  }
-  if(ambipolar) {
-      PGI_COMPARE(Grid.v_amb, double, Grid.bufsize*3, "v_amb", "Add_Sources_Integrate_SR.C",
-              "Source_Integrate_Tcheck", 4)
-  }
-  if(Run.need_diagnostics) {
-      PGI_COMPARE(Grid.tvar4, double, Grid.bufsize, "tvar4", "Add_Sources_Integrate_SR.C",
-              "Source_Integrate_Tcheck", 5)
-      PGI_COMPARE(Grid.tvar5, double, Grid.bufsize, "tvar5", "Add_Sources_Integrate_SR.C",
-              "Source_Integrate_Tcheck", 6)
-      PGI_COMPARE(Grid.tvar6, double, Grid.bufsize, "tvar6", "Add_Sources_Integrate_SR.C",
-              "Source_Integrate_Tcheck", 7)
-      PGI_COMPARE(Grid.tvar7, double, Grid.bufsize, "tvar7", "Add_Sources_Integrate_SR.C",
-              "Source_Integrate_Tcheck", 8)
-  }
- 
 }
+
 /*****************************************************************************/
 void SaveCons(GridData& Grid,const PhysicsData& Physics) {
 
@@ -401,19 +380,8 @@ void SaveCons(GridData& Grid,const PhysicsData& Physics) {
       }
     }
   }
-
-  PGI_COMPARE(Grid.U0, double, Grid.bufsize*8, "U0", "Add_Sources_Integrate_SR.C",
-              "SaveCons", 9)
-  if(Physics.params[i_param_spitzer] > 0.0) {
-    PGI_COMPARE(Grid.sflx0, double, Grid.bufsize, "sflx0", "Add_Sources_Integrate_SR.C",
-                "SaveCons", 10)
-  }
-  if(Physics.params[i_param_ambipolar] > 0.0) {
-    PGI_COMPARE(Grid.v0_amb, double, Grid.bufsize*3, "v0_amb", "Add_Sources_Integrate_SR.C",
-                "SaveCons", 11)
-  }
-
-} 
+}
+ 
 /*****************************************************************************/
 void TCheck(const RunData&  Run, GridData& Grid, const PhysicsData& Physics) {
 
@@ -429,7 +397,7 @@ void TCheck(const RunData&  Run, GridData& Grid, const PhysicsData& Physics) {
   const double rho_min = Physics.tchk[i_tchk_rho_min];
   
   double dn,vmax,vv,ekin,s,eps_max;
-  double ee_low[vsize], ee_up[vsize], vfac[vsize], rho[vsize], ee[vsize];
+  double ee_low, ee_up, vfac[vsize], rho[vsize], ee[vsize];
 
   const int i_beg = Grid.lbeg[0];
   const int i_end = Grid.lend[0];
@@ -474,14 +442,14 @@ void TCheck(const RunData&  Run, GridData& Grid, const PhysicsData& Physics) {
 
 #pragma acc parallel loop collapse(2) gang             \
  present(Grid, Grid.U[:bufsize], Grid.tvar7[:bufsize]) \
- private(off0, ee_low[:vsize], ee_up[:vsize],          \
+ private(off0,          \
   vfac[:vsize], rho[:vsize], ee[:vsize])
   for(k=kbeg; k<=kend; k++)
   for(j=jbeg; j<=jend; j++) {
     off0 = j*next[1]+k*next[2];
 
     #pragma ivdep
-#pragma acc loop vector private(node, dn, vv, s, ekin)
+#pragma acc loop vector private(node, ee_low,ee_up,dn, vv, s, ekin)
     for(i=i_beg;i<=i_end;i++){
       node = off0+i;
 
@@ -492,10 +460,12 @@ void TCheck(const RunData&  Run, GridData& Grid, const PhysicsData& Physics) {
 
       ekin = 0.5*dn*vv*vv;
 
-      ee_low[i] = eps_min*dn+ekin;
-      ee_up[i]  = eps_max*dn+ekin*s*s;
+      ee_low = eps_min*dn+ekin;
+      ee_up  = eps_max*dn+ekin*s*s;
+      ee[i] = Grid.U[node].e;
       vfac[i]   = s;
       rho[i]    = dn;
+      Grid.U[node].e  = min(max(ee[i],ee_low),ee_up);
     }
 
     #pragma ivdep
@@ -503,11 +473,11 @@ void TCheck(const RunData&  Run, GridData& Grid, const PhysicsData& Physics) {
     for(i=i_beg;i<=i_end;i++){
       node = off0+i;
 
-      ee[i] = Grid.U[node].e;
+      //ee[i] = Grid.U[node].e;
 
       Grid.U[node].d  = rho[i];
       Grid.U[node].M *= vfac[i];
-      Grid.U[node].e  = min(max(ee[i],ee_low[i]),ee_up[i]);
+      //Grid.U[node].e  = min(max(ee[i],ee_low[i]),ee_up[i]);
     }
 
     if(need_diagnostics){
@@ -520,13 +490,8 @@ void TCheck(const RunData&  Run, GridData& Grid, const PhysicsData& Physics) {
     }
       
   }
-
-  PGI_COMPARE(Grid.U, double, Grid.bufsize*8, "U", "Add_Sources_Integrate_SR.C", "TCheck", 12)
-  if(Run.need_diagnostics) {
-    PGI_COMPARE(Grid.tvar7, double, Grid.bufsize, "tvar7", "Add_Sources_Integrate_SR.C", "TCheck", 13)
-  }
-
 }
+
 /*****************************************************************************/
 void get_damping(const RunData&  Run, const GridData& Grid,
 		 const PhysicsData& Physics, double* my_mean) {
@@ -541,26 +506,47 @@ void get_damping(const RunData&  Run, const GridData& Grid,
   int hsize = Grid.gsize[1]*Grid.gsize[2];
   int vsize = Grid.lsize[0]+2*Grid.ghosts[0];
 
-  static double *lbuf    = (double*) malloc(vsize*sizeof(double));
-  static double *rh_mean = (double*) malloc(vsize*sizeof(double));
+  static double *lbuf    = (double*) ACCH::Malloc(vsize*sizeof(double)); //malloc(vsize*sizeof(double));
+  static double *rh_mean = (double*) ACCH::Malloc(vsize*sizeof(double)); //malloc(vsize*sizeof(double));
   static double rho_max;
 
   const double tau_ref = 1.0/Physics.dmp[i_dmp_tau_ref];
   const double vel_ref = Physics.dmp[i_dmp_vel_ref];
   const double tau_min = 1.0/Physics.dmp[i_dmp_tau_min];
 
+  const int kbeg = Grid.lbeg[2];
+  const int kend = Grid.lend[2];
+  const int jbeg = Grid.lbeg[1];
+  const int jend = Grid.lend[1];
+  const int ibeg = Grid.lbeg[0];
+  const int iend = Grid.lend[0];
+
   //-------------------------------------------------------------------
 
   if (ini_flag == 1){
     hh = 0.0;
+#pragma acc parallel loop present(lbuf[:vsize])
     for(i=0;i<vsize;i++) lbuf[i] = 0.0;
-    LOCAL_LOOP(Grid,i,j,k){
-      node     = Grid.node(i,j,k);
-      hh       = max(hh,Grid.U[node].d);
-      lbuf[i] += Grid.U[node].d/hsize;  
+
+#pragma acc parallel loop collapse(3) \
+ reduction(max:hh) \
+ present(Grid[:1], Grid.U[:Grid.bufsize], lbuf[:vsize])
+    for(k=kbeg; k<=kend; k++) {
+      for(j=jbeg; j<=jend; j++) {
+        for(i=ibeg; i<=iend; i++) {
+          node     = Grid.node(i,j,k);
+          hh       = max(hh,Grid.U[node].d);
+#pragma acc atomic update
+          lbuf[i] += Grid.U[node].d/hsize;  
+        }
+      }
     }
+
     MPI_Allreduce(&hh,&rho_max,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
+#pragma acc host_data use_device(lbuf, rh_mean)
+{
     MPI_Allreduce(lbuf,rh_mean,vsize,MPI_DOUBLE,MPI_SUM,YZ_COMM);
+}
 
     if ( Run.rank == 0 ) {
       cout << "damp: tau_ref = " << tau_ref         << endl;
@@ -574,17 +560,32 @@ void get_damping(const RunData&  Run, const GridData& Grid,
 
   //-----------------------------------------------------------------
 
+#pragma acc parallel loop present(lbuf[:vsize])
   for(j=0;j<vsize;j++) lbuf[j] = 0.0;
-  LOCAL_LOOP(Grid,i,j,k){
-    node = Grid.node(i,j,k);
-    lbuf[i] += Grid.U[node].M.x*Grid.U[node].d/hsize;  
+#pragma acc parallel loop collapse(3) \
+ present(Grid[:1], Grid.U[:Grid.bufsize], lbuf[:vsize])
+  for(k=kbeg; k<=kend; k++) {
+    for(j=jbeg; j<=jend; j++) {
+      for(i=ibeg; i<=iend; i++) {
+        node = Grid.node(i,j,k);
+#pragma acc atomic update
+        lbuf[i] += Grid.U[node].M.x*Grid.U[node].d/hsize;  
+      }
+    }
   }
-  
+
+#pragma acc host_data use_device(lbuf, my_mean)
+{  
   MPI_Allreduce(lbuf,my_mean,vsize,MPI_DOUBLE,MPI_SUM,YZ_COMM);
+}
 
   hmax  = 0.0; hphot = 0.0; fmax  = 0.0; vmax  = 0.0;
     
-  for(j=Grid.lbeg[0];j <=Grid.lend[0];j++){
+  //for(j=Grid.lbeg[0];j <=Grid.lend[0];j++){
+#pragma acc parallel loop \
+ reduction(max:hmax) reduction(max:hphot) reduction(max:fmax) reduction(max:vmax) \
+ present(my_mean[:vsize])
+  for(j=ibeg; j<=iend; j++) {
 
     hh = tau_ref*pow(my_mean[j]/(vel_ref*rho_max),4);
     hh = min(tau_min,hh);
@@ -611,11 +612,5 @@ void get_damping(const RunData&  Run, const GridData& Grid,
     }
   }
 
-  PGI_COMPARE(&fmax, double, 1, "fmax", "Add_Sources_Integrate_SR.C", "get_damping", 14)
-  PGI_COMPARE(&vmax, double, 1, "vmax", "Add_Sources_Integrate_SR.C", "get_damping", 15)
-  PGI_COMPARE(&hmax, double, 1, "hmax", "Add_Sources_Integrate_SR.C", "get_damping", 16)
-  PGI_COMPARE(&hphot, double, 1, "hphot", "Add_Sources_Integrate_SR.C", "get_damping", 17)
-  PGI_COMPARE(my_mean, double, vsize, "my_mean", "Add_Sources_Integrate_SR.C", "get_damping", 18)
-
 }
-/*****************************************************************************/
+
