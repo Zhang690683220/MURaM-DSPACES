@@ -1180,17 +1180,12 @@ void RTS::integrate(
         iystep[2] == 1 && iystep[3] == 1)   ||
        (iystep[0] == -1 && iystep[1] == -1  &&
         iystep[2] == -1 && iystep[3] == -1);
- iz = (izstep[0] == 1 && izstep[1] == 1    &&
+  iz = (izstep[0] == 1 && izstep[1] == 1    &&
        izstep[2] == 1 && izstep[3] == 1)   ||
-      (izstep[0] == -1 && izstep[1] == -1  &&
+       (izstep[0] == -1 && izstep[1] == -1  &&
        izstep[2] == -1 && izstep[3] == -1);
 
     if(ix){
-      //constoff = ixstep[0]*nz;
-      //off0 = iystep[0]*nz+izstep[0];
-      //off1 = iystep[1]*nz+izstep[1];
-      //off2 = iystep[2]*nz+izstep[2];
-      //off3 = iystep[3]*nz+izstep[3];
       constoff = ixstep[0]*ny*nz;
       off0 = constoff+iystep[0]*nz+izstep[0];
       off1 = constoff+iystep[1]*nz+izstep[1];
@@ -1201,10 +1196,6 @@ void RTS::integrate(
       inustr11 = (ny-1)*(nz-1); inustr21=(nz-1); inustr31=1; 
     }else if(iy){
       constoff = iystep[0]*nx*nz;
-      //off0 = ixstep[0]*nz+izstep[0];
-      //off1 = ixstep[1]*nz+izstep[1];
-      //off2 = ixstep[2]*nz+izstep[2];
-      //off3 = ixstep[3]*nz+izstep[3];
       off0 = constoff+ixstep[0]*nz+izstep[0];
       off1 = constoff+ixstep[1]*nz+izstep[1];
       off2 = constoff+ixstep[2]*nz+izstep[2];
@@ -1213,11 +1204,6 @@ void RTS::integrate(
       str11=nx*nz;  str21=nz; str31=1;
       inustr11 = (nx-1)*(nz-1);inustr21=(nz-1); inustr31=1;
     }else {
-      //constoff = izstep[0];
-      //off0 = iystep[0]*nx+ixstep[0];
-      //off1 = iystep[1]*nx+ixstep[1];
-      //off2 = iystep[2]*nx+ixstep[2];
-      //off3 = iystep[3]*nx+ixstep[3];
       constoff = izstep[0]*nx*ny;
       off0 = constoff+iystep[0]*nx+ixstep[0];
       off1 = constoff+iystep[1]*nx+ixstep[1];
@@ -1236,37 +1222,31 @@ void RTS::integrate(
 
 
 if (ix || iz) {
-//#pragma acc parallel loop collapse(3) async(1) \
 
 #pragma acc parallel loop gang vector tile(1,32, 32) async(1) \
   deviceptr(dI_n, dIn1) 
-    for(int b1 = 0; b1 < bound1+1; b1++) { //Z
-      for(int b2 = 0; b2 < bound2+1; b2++) { //Y
-       for(int b3 = 0; b3 < bound3+1; b3++) { //X
-//#pragma acc cache(dIn1[((b1_i-step1)+(b1*step1))+((b2_i-step2)+(b2*step2)):str21])
-          int b1i = (b1_i-step1) + (b1*step1); //z_i+z*zstep
-          int b2i = (b2_i-step2) + (b2*step2); //Y_i+y*ystep
-          int b3i = (b3_i-step3) + (b3*step3); //x_i +x*xstep
+    for(int b1 = 0; b1 < bound1+1; b1++) { 
+      for(int b2 = 0; b2 < bound2+1; b2++) { 
+       for(int b3 = 0; b3 < bound3+1; b3++) { 
+          int b1i = (b1_i-step1) + (b1*step1); 
+          int b2i = (b2_i-step2) + (b2*step2); 
+          int b3i = (b3_i-step3) + (b3*step3); 
           
-          int ind = b1i*str1 + b2i*str2 + b3i*str3;          // (zi*1)+(yi*nx*nz)       +(xi*nz)
-
-          int ind1 = b1i*str11 + b2i*str21 + b3i*str31;            // (zi*nx*ny)       +(yi*nx)     +(xi*1)
+          int ind = b1i*str1 + b2i*str2 + b3i*str3;
+          int ind1 = b1i*str11 + b2i*str21 + b3i*str31; 
         
           dIn1[ind1] = dI_n[ind];
         }
        }
       }
 
-//#pragma acc parallel loop collapse(3) async(2) \
-//  deviceptr(dcoeff,dCf1,dCf2) 
-
 #pragma acc parallel loop gang vector tile(1,32, 32) async(2) \
   deviceptr(dcoeff,dCf1,dCf2) 
-    for(int b1 = 0; b1 < bound1; b1++) { //Z
-      for(int b2 = 0; b2 < bound2; b2++) { //Y
-       for(int b3 = 0; b3 < bound3; b3++) { //X
-          int i_nu_acc = b1*inustr1+ b2*inustr2 + b3*inustr3; //(zi*1)+(yi*(nx-1)(nz-1))+(xi*(nz-1))
-          int i_nu_acc1 = b1*inustr11 + b2*inustr21 + b3*inustr31; // (zi*(nx-1)*(ny-1))+(yi*(nx-1))+(xi*1)
+    for(int b1 = 0; b1 < bound1; b1++) { 
+      for(int b2 = 0; b2 < bound2; b2++) { 
+       for(int b3 = 0; b3 < bound3; b3++) {
+          int i_nu_acc = b1*inustr1+ b2*inustr2 + b3*inustr3;
+          int i_nu_acc1 = b1*inustr11 + b2*inustr21 + b3*inustr31;
           dCf1[i_nu_acc1] = dcoeff[i_nu_acc];
           dCf2[i_nu_acc1] = dcoeff[i_nu_acc+size];
         }
@@ -1280,35 +1260,31 @@ if (ix || iz) {
 #pragma acc parallel loop collapse(2) async independent deviceptr(dIn1,dCf1,dCf2)
       for(int b2 = 0; b2 < bound2; b2++) {
         for(int b3 = 0; b3 < bound3; b3=b3++) {
-#pragma acc cache(dIn1[(((b1_i+b1*step1))*str11)-constoff:str21])//dCf1[(b1*inustr11)+(b2*inustr21):inustr31],dCf2[(b1*inustr11)+(b2*inustr21):inustr31])
+#pragma acc cache(dIn1[(((b1_i+b1*step1))*str11)-constoff:str21])
           int b2i = b2_i + b2*step2;
-          int b3i0 = b3_i + b3*step3;
+          int b3i = b3_i + b3*step3;
          
-          int ind1 =  b1i*str11  + b2i*str21;
-          int ind10 = ind1 + b3i0*str31;
+          int ind1 =  b1i*str11  + b2i*str21 + b3i*str31;
 
-          int i_nu_acc1  = b1*inustr11 + b2*inustr21; 
-          int i_nu_acc10 = i_nu_acc1 + b3*inustr31;
+          int i_nu_acc1  = b1*inustr11 + b2*inustr21 + b3*inustr31;
 
-          double I_upw0 = c0*dIn1[ind10-off0] + 
-                         c1*dIn1[ind10-off1] +
-                         c2*dIn1[ind10-off2] +
-                         c3*dIn1[ind10-off3];
+          double I_upw0 = c0*dIn1[ind1-off0] + 
+                         c1*dIn1[ind1-off1] +
+                         c2*dIn1[ind1-off2] +
+                         c3*dIn1[ind1-off3];
  
-          dIn1[ind10]= I_upw0*dCf1[i_nu_acc10]+dCf2[i_nu_acc10];
+          dIn1[ind1]= I_upw0*dCf1[i_nu_acc1]+dCf2[i_nu_acc1];
         }
       }
     }
 #pragma acc wait
-//#pragma acc parallel loop collapse(3) async deviceptr(dI_n,dIn1) 
 #pragma acc parallel loop gang vector tile(1,32, 32) deviceptr(dI_n,dIn1) 
-  for(int b1 = 0; b1 < bound1+1; b1++) { //Z
-      for(int b2 = 0; b2 < bound2+1; b2++) { //Y
-       for(int b3 = 0; b3 < bound3+1; b3++) { //X
-//#pragma acc cache(dIn1[((b1_i-step1)+(b1*step1))+((b2_i-step2)+(b2*step2)):str21])
-          int b1i = (b1_i-step1) + (b1*step1); //z_i+z*zstep
-          int b2i = (b2_i-step2) + (b2*step2); //Y_i+y*ystep
-          int b3i = (b3_i-step3) + (b3*step3); //x_i +x*xstep
+  for(int b1 = 0; b1 < bound1+1; b1++) { 
+      for(int b2 = 0; b2 < bound2+1; b2++) { 
+       for(int b3 = 0; b3 < bound3+1; b3++) { 
+          int b1i = (b1_i-step1) + (b1*step1); 
+          int b2i = (b2_i-step2) + (b2*step2); 
+          int b3i = (b3_i-step3) + (b3*step3); 
           int ind = b1i*str1 + b2i*str2 + b3i*str3;
           int ind1 = b1i*str11 + b2i*str21 + b3i*str31;
           dI_n[ind] = dIn1[ind1];
@@ -1344,8 +1320,7 @@ if (ix || iz) {
     }
 #pragma acc wait
 
- }
-//#pragma acc exit data delete(dIn1,dCf1,dCf2)
+   }
   } // end DIM 3
 /*
   if(NDIM==2){
