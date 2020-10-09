@@ -378,6 +378,8 @@ void ComputeSolution(RunData& Run,GridData& Grid,const PhysicsData& Physics,RTS 
     /* output of some global quantities */
     if ( !(Run.globiter%Run.anlfreq)){ 
       clock=MPI_Wtime();    
+	  ACCH::UpdateCPU(Grid.U, Grid.bufsize*sizeof(cState));
+      ACCH::UpdateCPU(Grid.Tau, Grid.bufsize*sizeof(double));
       AnalyzeSolution(Run,Grid,Physics,rts);
       io_time += MPI_Wtime()-clock;         
     }
