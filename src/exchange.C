@@ -529,7 +529,7 @@ void exchange_single(const GridData& Grid, double* var) {
 //*****************************************************************
 void exchange_grid_acc(GridData& Grid, const PhysicsData& Physics, const int needs_sflx_amb_bnd) {
 
-  register int i,j,k,i_nu,buf,dim,d1,d2,d3,v,igh;
+  register int i,j,k,i_nu,buf,buf_sp,buf_amb,dim,d1,d2,d3,v,igh;
   int bfsz;
 
   MPI_Status st[2];
@@ -605,7 +605,7 @@ void exchange_grid_acc(GridData& Grid, const PhysicsData& Physics, const int nee
 
   int nvar = Physics.NVAR;
   int bufsize = Grid.bufsize;
-
+#pragma acc loop seq independent
   for(dim=0;dim<Grid.NDIM;dim++){
     d1=perm[dim][0];
     d2=perm[dim][1];
@@ -624,56 +624,40 @@ void exchange_grid_acc(GridData& Grid, const PhysicsData& Physics, const int nee
     int lend = Grid.lend[d1];
     int ghosts = Grid.ghosts[d1];
 
-    bfsz = (Physics.NVAR+spitzer+ambipolar*3)*Grid.ghosts[d1]*(gs[d2][1]-gs[d2][0]+1)
+    bfsz = (Physics.NVAR+spitzer+ambipolar*3)*ghosts*(gs[d2][1]-gs[d2][0]+1)
       *(gs[d3][1]-gs[d3][0]+1);
 
     //if(timing) data_sent += 2*bfsz*sizeof(double);
 
     //if(timing) time=MPI_Wtime();
-    buf = 0;
+    buf = k_length*j_length*nvar;
+    buf_sp = spitzer*k_length*j_length;
+    buf_amb = ambipolar* k_length*j_length*3;
+//#pragma acc enter data copyin(i_next1,i_next2,i_next3)
 
-#pragma acc enter data copyin(i_next1,i_next2,i_next3)
-    for(igh=0;igh<ghosts;igh++){
-      //GLOOP(gs,j,k,d2,d3){
-#pragma acc parallel loop collapse(2) private(i,i_nu,v) \
+#pragma acc parallel loop collapse(3) private(i,i_nu,v) \
  present(U[:bufsize*8],v_amb[:bufsize*3],sflx[:bufsize], \
   sndbuf_l[:bfsz], sndbuf_r[:bfsz], recbuf_l[:bfsz], recbuf_r[:bfsz])
+    for(igh=0;igh<ghosts;igh++){
       for(k=kbeg; k<=kend; k++)
       for(j=jbeg; j<=jend; j++) {
+        int buffer = igh*(buf+buf_sp+buf_amb);
 	i=lbeg+igh;
 	i_nu  = i*i_next1+j*i_next2+k*i_next3;
 #pragma acc loop seq
 	for(v=0;v<nvar;v++)
-	  sndbuf_l[buf + (k-kbeg)*j_length*nvar + (j-jbeg)*nvar + v] = U[i_nu*nvar+v];
-      }
-      buf += k_length*j_length*nvar;
-      if(spitzer){
-	//GLOOP(gs,j,k,d2,d3){
-#pragma acc parallel loop collapse(2) private(i,i_nu,v) \
- present(U[:bufsize*8],v_amb[:bufsize*3],sflx[:bufsize], \
-  sndbuf_l[:bfsz], sndbuf_r[:bfsz], recbuf_l[:bfsz], recbuf_r[:bfsz])
-        for(k=kbeg; k<=kend; k++)
-        for(j=jbeg; j<=jend; j++) {
-	  i=lbeg+igh;
-	  i_nu  = i*i_next1+j*i_next2+k*i_next3;
-	  sndbuf_l[buf + (k-kbeg)*j_length + (j-jbeg)] = sflx[i_nu];
+	  sndbuf_l[buffer + (k-kbeg)*j_length*nvar + (j-jbeg)*nvar + v] = U[i_nu*nvar+v];
+
+        if(spitzer){
+          int buffer_sp = ((igh+1)*buf)+(igh*(buf_sp+buf_amb));
+	  sndbuf_l[buffer_sp + (k-kbeg)*j_length + (j-jbeg)] = sflx[i_nu];
 	}
-        buf += k_length*j_length;
-      }
-      if(ambipolar){
-	//GLOOP(gs,j,k,d2,d3){
-#pragma acc parallel loop collapse(2) private(i,i_nu,v) \
- present(U[:bufsize*8],v_amb[:bufsize*3],sflx[:bufsize], \
-  sndbuf_l[:bfsz], sndbuf_r[:bfsz], recbuf_l[:bfsz], recbuf_r[:bfsz])
-        for(k=kbeg; k<=kend; k++)
-        for(j=jbeg; j<=jend; j++) {
-	  i=lbeg+igh;
-	  i_nu  = i*i_next1+j*i_next2+k*i_next3;
+        if(ambipolar){
+          int buffer_amb = ((igh+1)*(buf+buf_sp))+(igh*(buf_amb));
 #pragma acc loop seq
 	  for(v=0;v<3;v++)
-	    sndbuf_l[buf + (k-kbeg)*j_length*3 + (j-jbeg)*3 + v] = v_amb[i_nu*3+v];
+	    sndbuf_l[buffer_amb + (k-kbeg)*j_length*3 + (j-jbeg)*3 + v] = v_amb[i_nu*3+v];
 	}
-        buf += k_length*j_length*3;
       }
       
     }
@@ -686,49 +670,29 @@ void exchange_grid_acc(GridData& Grid, const PhysicsData& Physics, const int nee
 }
 
     //if(timing) time=MPI_Wtime();
-    buf = 0;
-    for(igh=0;igh<ghosts;igh++){
-      //GLOOP(gs,j,k,d2,d3){
-#pragma acc parallel loop collapse(2) private(i,i_nu,v) \
+#pragma acc parallel loop collapse(3) private(i,i_nu,v) \
  present(U[:bufsize*8],v_amb[:bufsize*3],sflx[:bufsize], \
   sndbuf_l[:bfsz], sndbuf_r[:bfsz], recbuf_l[:bfsz], recbuf_r[:bfsz])
+    for(igh=0;igh<ghosts;igh++){
       for(k=kbeg; k<=kend; k++)
       for(j=jbeg; j<=jend; j++) {
+        int buffer = igh*(buf+buf_sp+buf_amb);
 	i=lend-ghosts+1+igh;
 	i_nu  = i*i_next1+j*i_next2+k*i_next3;
 #pragma acc loop seq
 	for(v=0;v<nvar;v++)
-	  sndbuf_r[buf + (k-kbeg)*j_length*nvar + (j-jbeg)*nvar + v] = U[i_nu*nvar+v];
-      }
-      buf += k_length*j_length*nvar;
-      if(spitzer){
-	//GLOOP(gs,j,k,d2,d3){
-#pragma acc parallel loop collapse(2) private(i,i_nu,v) \
- present(U[:bufsize*8],v_amb[:bufsize*3],sflx[:bufsize], \
-  sndbuf_l[:bfsz], sndbuf_r[:bfsz], recbuf_l[:bfsz], recbuf_r[:bfsz])
-        for(k=kbeg; k<=kend; k++)
-        for(j=jbeg; j<=jend; j++) {
-	  i=lend-ghosts+1+igh;
-	  i_nu  = i*i_next1+j*i_next2+k*i_next3;
-	  sndbuf_r[buf + (k-kbeg)*j_length + (j-jbeg)] = sflx[i_nu];
+	  sndbuf_r[buffer + (k-kbeg)*j_length*nvar + (j-jbeg)*nvar + v] = U[i_nu*nvar+v];
+      
+        if(spitzer){
+           int buffer_sp = ((igh+1)*buf)+(igh*(buf_sp+buf_amb));
+	   sndbuf_r[buffer_sp + (k-kbeg)*j_length + (j-jbeg)] = sflx[i_nu];
 	}
-        buf += k_length*j_length;
-      }
       if(ambipolar){
-	//GLOOP(gs,j,k,d2,d3){
-#pragma acc parallel loop collapse(2) private(i,i_nu,v) \
- present(U[:bufsize*8],v_amb[:bufsize*3],sflx[:bufsize], \
-  sndbuf_l[:bfsz], sndbuf_r[:bfsz], recbuf_l[:bfsz], recbuf_r[:bfsz])
-        for(k=kbeg; k<=kend; k++)
-        for(j=jbeg; j<=jend; j++) {
-	  //i=lbeg+igh;
-	  i=lend-ghosts+1+igh;
-	  i_nu  = i*i_next1+j*i_next2+k*i_next3;
+          int buffer_amb = ((igh+1)*(buf+buf_sp))+(igh*(buf_amb));
 #pragma acc loop seq
 	  for(v=0;v<3;v++)
-	    sndbuf_r[buf + (k-kbeg)*j_length*3 + (j-jbeg)*3 + v] = v_amb[i_nu*3+v];
+	    sndbuf_r[buffer_amb + (k-kbeg)*j_length*3 + (j-jbeg)*3 + v] = v_amb[i_nu*3+v];
 	}
-        buf += k_length*j_length*3;
       }
     }
     //if(timing) btime+=MPI_Wtime()-time;
@@ -743,48 +707,29 @@ void exchange_grid_acc(GridData& Grid, const PhysicsData& Physics, const int nee
 
     //if(timing) time=MPI_Wtime();
     if( !Grid.is_gend[d1] or Grid.periods[d1] ) {
-      buf = 0;
-      for(igh=0;igh<ghosts;igh++){
-	//GLOOP(gs,j,k,d2,d3){
-#pragma acc parallel loop collapse(2) private(i,i_nu,v) \
+#pragma acc parallel loop collapse(3) private(i,i_nu,v) \
  present(U[:bufsize*8],v_amb[:bufsize*3],sflx[:bufsize], \
   sndbuf_l[:bfsz], sndbuf_r[:bfsz], recbuf_l[:bfsz], recbuf_r[:bfsz])
+      for(igh=0;igh<ghosts;igh++){
         for(k=kbeg; k<=kend; k++)
         for(j=jbeg; j<=jend; j++) {
+          int buffer = igh*(buf+buf_sp+buf_amb);
 	  i=lend+1+igh;
 	  i_nu  = i*i_next1+j*i_next2+k*i_next3;
 #pragma acc loop seq
 	  for(v=0;v<nvar;v++)  
-	    U[i_nu*nvar+v] = recbuf_r[buf + (k-kbeg)*j_length*nvar + (j-jbeg)*nvar + v];
-	}
-        buf += k_length*j_length*nvar;
-	if(spitzer){
-	  //GLOOP(gs,j,k,d2,d3){
-#pragma acc parallel loop collapse(2) private(i,i_nu,v) \
- present(U[:bufsize*8],v_amb[:bufsize*3],sflx[:bufsize], \
-  sndbuf_l[:bfsz], sndbuf_r[:bfsz], recbuf_l[:bfsz], recbuf_r[:bfsz])
-          for(k=kbeg; k<=kend; k++)
-          for(j=jbeg; j<=jend; j++) {
-	    i=lend+1+igh;
-	    i_nu  = i*i_next1+j*i_next2+k*i_next3;
-	    sflx[i_nu] = recbuf_r[buf + (k-kbeg)*j_length + (j-jbeg)];
+	    U[i_nu*nvar+v] = recbuf_r[buffer + (k-kbeg)*j_length*nvar + (j-jbeg)*nvar + v];
+	
+         if(spitzer){
+           int buffer_sp = ((igh+1)*buf)+(igh*(buf_sp+buf_amb));
+	    sflx[i_nu] = recbuf_r[buffer_sp + (k-kbeg)*j_length + (j-jbeg)];
 	  }
-          buf += k_length*j_length;
-	}
 	if(ambipolar){
-	  //GLOOP(gs,j,k,d2,d3){
-#pragma acc parallel loop collapse(2) private(i,i_nu,v) \
- present(U[:bufsize*8],v_amb[:bufsize*3],sflx[:bufsize], \
-  sndbuf_l[:bfsz], sndbuf_r[:bfsz], recbuf_l[:bfsz], recbuf_r[:bfsz])
-          for(k=kbeg; k<=kend; k++)
-          for(j=jbeg; j<=jend; j++) {
-	    i=lend+1+igh;
-	    i_nu  = i*i_next1+j*i_next2+k*i_next3;
+            int buffer_amb = ((igh+1)*(buf+buf_sp))+(igh*(buf_amb));
 #pragma acc loop seq
 	    for(v=0;v<3;v++)
-	      v_amb[i_nu*3+v] = recbuf_r[buf + (k-kbeg)*j_length*3 + (j-jbeg)*3 + v];
+	      v_amb[i_nu*3+v] = recbuf_r[buffer_amb + (k-kbeg)*j_length*3 + (j-jbeg)*3 + v];
 	  }
-          buf += k_length*j_length*3;
 	}
       }
       gs[d1][1]+=ghosts;
@@ -795,57 +740,36 @@ void exchange_grid_acc(GridData& Grid, const PhysicsData& Physics, const int nee
 
     //if(timing) time=MPI_Wtime();
     if( !Grid.is_gbeg[d1] or Grid.periods[d1] ) { 
-      buf = 0;
-      for(igh=0;igh<ghosts;igh++){
-	//GLOOP(gs,j,k,d2,d3){
-#pragma acc parallel loop collapse(2) private(i,i_nu,v) \
+#pragma acc parallel loop collapse(3) private(i,i_nu,v) \
  present(U[:bufsize*8],v_amb[:bufsize*3],sflx[:bufsize], \
   sndbuf_l[:bfsz], sndbuf_r[:bfsz], recbuf_l[:bfsz], recbuf_r[:bfsz])
+      for(igh=0;igh<ghosts;igh++){
         for(k=kbeg; k<=kend; k++)
         for(j=jbeg; j<=jend; j++) {
+          int buffer = igh*(buf+buf_sp+buf_amb);
 	  i =lbeg-ghosts+igh;
 	  i_nu  = i*i_next1+j*i_next2+k*i_next3;
 #pragma acc loop seq
 	  for(v=0;v<nvar;v++)
-	    U[i_nu*nvar+v] = recbuf_l[buf + (k-kbeg)*j_length*nvar + (j-jbeg)*nvar + v]; 
-	}
-        buf += k_length*j_length*nvar;
-	if(spitzer){
-	  //GLOOP(gs,j,k,d2,d3){
-#pragma acc parallel loop collapse(2) private(i,i_nu,v) \
- present(U[:bufsize*8],v_amb[:bufsize*3],sflx[:bufsize], \
-  sndbuf_l[:bfsz], sndbuf_r[:bfsz], recbuf_l[:bfsz], recbuf_r[:bfsz])
-          for(k=kbeg; k<=kend; k++)
-          for(j=jbeg; j<=jend; j++) {
-	    i =lbeg-ghosts+igh;
-	    i_nu  = i*i_next1+j*i_next2+k*i_next3;
-	    sflx[i_nu] = recbuf_l[buf + (k-kbeg)*j_length + (j-jbeg)];
+	    U[i_nu*nvar+v] = recbuf_l[buffer + (k-kbeg)*j_length*nvar + (j-jbeg)*nvar + v]; 
+	
+         if(spitzer){
+            int buffer_sp = ((igh+1)*buf)+(igh*(buf_sp+buf_amb));
+	    sflx[i_nu] = recbuf_l[buffer_sp + (k-kbeg)*j_length + (j-jbeg)];
 	  }
-          buf += k_length*j_length;
-	}
 	if(ambipolar){
-	  //GLOOP(gs,j,k,d2,d3){
-#pragma acc parallel loop collapse(2) private(i,i_nu,v) \
- present(U[:bufsize*8],v_amb[:bufsize*3],sflx[:bufsize], \
-  sndbuf_l[:bfsz], sndbuf_r[:bfsz], recbuf_l[:bfsz], recbuf_r[:bfsz])
-          for(k=kbeg; k<=kend; k++)
-          for(j=jbeg; j<=jend; j++) {
-	    //i=lend+1+igh;
-	    i =lbeg-ghosts+igh;
-	    i_nu  = i*i_next1+j*i_next2+k*i_next3;
+            int buffer_amb = ((igh+1)*(buf+buf_sp))+(igh*(buf_amb));
 #pragma acc loop seq
 	    for(v=0;v<3;v++)
-	      v_amb[i_nu*3+v] = recbuf_l[buf + (k-kbeg)*j_length*3 + (j-jbeg)*3 + v];
+	      v_amb[i_nu*3+v] = recbuf_l[buffer_amb + (k-kbeg)*j_length*3 + (j-jbeg)*3 + v];
 	  }
-          buf += k_length*j_length*3;
 	}
       }
       gs[d1][0]-=ghosts;
     }
-#pragma acc exit data delete(i_next1,i_next2,i_next3)
+//#pragma acc exit data delete(i_next1,i_next2,i_next3)
     //if(timing) btime+=MPI_Wtime()-time;
   }
-
   //if(timing){ 
   //ttime=MPI_Wtime()-ttime;
   //if(myrank == 0)
@@ -874,7 +798,7 @@ void exchange_B_acc(GridData& Grid) {
   const int *rightr = Grid.rightr;
   const int myrank  = Grid.rank;
 
-  static int size[3],i_next[3];
+  static int size[3],i_next[3],i_nextd1,i_nextd2,i_nextd3;
   static int bfsz_max;
   static int ini_flag=1;
 
@@ -928,13 +852,17 @@ void exchange_B_acc(GridData& Grid) {
   //data_sent=0;
 
   int bufsize = Grid.bufsize;
-#pragma acc data copyin(U[:bufsize*8],sndbuf_l[:bfsz], sndbuf_r[:bfsz], recbuf_l[:bfsz], recbuf_r[:bfsz],i_next[:3])
+#pragma acc data copyin(U[:bufsize*8],sndbuf_l[:bfsz_max], sndbuf_r[:bfsz_max], recbuf_l[:bfsz_max], recbuf_r[:bfsz_max])
 {
-
+#pragma acc loop seq independent
   for(dim=0;dim<Grid.NDIM;dim++){
     d1=perm[dim][0];
     d2=perm[dim][1];
     d3=perm[dim][2];  
+ 
+    i_nextd1 = i_next[d1];
+    i_nextd2 = i_next[d2];
+    i_nextd3 = i_next[d3];
 
     int kbeg = gs[d3][0];
     int kend = gs[d3][1];
@@ -952,22 +880,19 @@ void exchange_B_acc(GridData& Grid) {
     //if(timing) data_sent += 2*bfsz*sizeof(double);
 
     //if(timing) time=MPI_Wtime();
-    //buf = 0;
-    //for(igh=0;igh<ghosts;igh++){
-      //GLOOP(gs,j,k,d2,d3){
-#pragma acc parallel loop collapse(3) private(i,i_nu,v) \
+#pragma acc parallel loop gang collapse(3) private(i,i_nu,v) \
  present(U[:bufsize*8], \
   sndbuf_l[:bfsz], sndbuf_r[:bfsz], recbuf_l[:bfsz], recbuf_r[:bfsz])
-    for(igh=0;igh<Grid.ghosts[d1];igh++){
+    for(igh=0;igh<ghosts;igh++){
       for(k=kbeg; k<=kend; k++)
       for(j=jbeg; j<=jend; j++) {
         int buffer = igh*k_length*j_length*(v1-v0);
 	i=lbeg+igh;
-	i_nu  = i*i_next[d1]+j*i_next[d2]+k*i_next[d3];
+	i_nu  = i*i_nextd1+j*i_nextd2+k*i_nextd3;
+#pragma acc loop vector
 	for(v=v0;v<v1;v++)
 	  sndbuf_l[buffer + (k-kbeg)*j_length*(v1-v0) + (j-jbeg)*(v1-v0) + (v-v0)] = U[i_nu*nvar+v];
       }  
-     // buf += k_length*j_length*(v1-v0);
     }
     //if(timing) btime+=MPI_Wtime()-time;
 
@@ -978,10 +903,7 @@ void exchange_B_acc(GridData& Grid) {
 }
 
     //if(timing) time=MPI_Wtime();
-    //buf = 0;
-    //for(igh=0;igh<ghosts;igh++){
-      //GLOOP(gs,j,k,d2,d3){
-#pragma acc parallel loop collapse(3) private(i,i_nu,v) \
+#pragma acc parallel loop gang collapse(3) private(i,i_nu,v) \
  present(U[:bufsize*8], \
   sndbuf_l[:bfsz], sndbuf_r[:bfsz], recbuf_l[:bfsz], recbuf_r[:bfsz]) 
     for(igh=0;igh<ghosts;igh++){
@@ -989,11 +911,11 @@ void exchange_B_acc(GridData& Grid) {
       for(j=jbeg; j<=jend; j++) {
         int buffer = igh*k_length*j_length*(v1-v0);
 	i=lend-ghosts+1+igh;
-	i_nu  = i*i_next[d1]+j*i_next[d2]+k*i_next[d3];
+	i_nu  = i*i_nextd1+j*i_nextd2+k*i_nextd3;
+#pragma acc loop vector
 	for(v=v0;v<v1;v++)
 	  sndbuf_r[buffer + (k-kbeg)*j_length*(v1-v0) + (j-jbeg)*(v1-v0) + (v-v0)] = U[i_nu*nvar+v];
       }
-      //buf += k_length*j_length*(v1-v0);
     }
     //if(timing) btime+=MPI_Wtime()-time;
 
@@ -1007,10 +929,7 @@ void exchange_B_acc(GridData& Grid) {
 
     //if(timing) time=MPI_Wtime();
     if( !Grid.is_gend[d1] or Grid.periods[d1] ) {
-      //buf = 0;
-      //for(igh=0;igh<Grid.ghosts[d1];igh++){
-	//GLOOP(gs,j,k,d2,d3){
-#pragma acc parallel loop collapse(3) private(i,i_nu,v) \
+#pragma acc parallel loop gang collapse(3) private(i,i_nu,v) \
  present(U[:bufsize*8], \
   sndbuf_l[:bfsz], sndbuf_r[:bfsz], recbuf_l[:bfsz], recbuf_r[:bfsz])
       for(igh=0;igh<ghosts;igh++){
@@ -1018,11 +937,11 @@ void exchange_B_acc(GridData& Grid) {
         for(j=jbeg; j<=jend; j++) {
           int buffer = igh*k_length*j_length*(v1-v0);
 	  i=lend+1+igh;
-	  i_nu  = i*i_next[d1]+j*i_next[d2]+k*i_next[d3];
+	  i_nu  = i*i_nextd1+j*i_nextd2+k*i_nextd3;
+#pragma acc loop vector
 	  for(v=v0;v<v1;v++)  
 	    U[i_nu*nvar+v] = recbuf_r[buffer + (k-kbeg)*j_length*(v1-v0) + (j-jbeg)*(v1-v0) + (v-v0)];
 	}
-       // buf += k_length*j_length*(v1-v0);
       }
       gs[d1][1]+=ghosts;
     }
@@ -1032,10 +951,7 @@ void exchange_B_acc(GridData& Grid) {
 
     //if(timing) time=MPI_Wtime();
     if( !Grid.is_gbeg[d1] or Grid.periods[d1] ) { 
-     // buf = 0;
-      //for(igh=0;igh<Grid.ghosts[d1];igh++){
-	//GLOOP(gs,j,k,d2,d3){
-#pragma acc parallel loop collapse(3) private(i,i_nu,v) \
+#pragma acc parallel loop gang collapse(3) private(i,i_nu,v) \
  present(U[:bufsize*8], \
   sndbuf_l[:bfsz], sndbuf_r[:bfsz], recbuf_l[:bfsz], recbuf_r[:bfsz])
       for(igh=0;igh<ghosts;igh++){
@@ -1043,11 +959,11 @@ void exchange_B_acc(GridData& Grid) {
         for(j=jbeg; j<=jend; j++) {
           int buffer = igh*k_length*j_length*(v1-v0);
 	  i =lbeg-ghosts+igh;
-	  i_nu  = i*i_next[d1]+j*i_next[d2]+k*i_next[d3];
+	  i_nu  = i*i_nextd1+j*i_nextd2+k*i_nextd3;
+#pragma acc loop vector
 	  for(v=v0;v<v1;v++)
 	    U[i_nu*nvar+v] = recbuf_l[buffer + (k-kbeg)*j_length*(v1-v0) + (j-jbeg)*(v1-v0) + (v-v0)];
 	}
-       // buf += k_length*j_length*(v1-v0);
       }
       gs[d1][0]-=ghosts;
     }
@@ -1078,7 +994,7 @@ void exchange_single_acc(const GridData& Grid, double* var) {
   const int *rightr = Grid.rightr;
   const int myrank  = Grid.rank;
 
-  static int size[3],i_next[3],i_next0,i_next1,i_next2;
+  static int size[3],i_next[3],i_nextd1,i_nextd2,i_nextd3;
   static int bfsz_max;
   static int ini_flag=1;
 
@@ -1092,16 +1008,13 @@ void exchange_single_acc(const GridData& Grid, double* var) {
     i_next[0] = 1;
     i_next[1] = size[0]; 
     i_next[2] = size[0]*size[1];
-    i_next0 = 1;
-    i_next1 = size[0];
-    i_next2 = size[0]*size[1];
 
     bfsz_max=0;
     for(dim=0;dim<Grid.NDIM;dim++){
       d1=perm[dim][0];
       d2=perm[dim][1];
       d3=perm[dim][2];  
-      
+       
       bfsz = Grid.ghosts[d1]*size[d2]*size[d3];
 
       bfsz_max = (bfsz_max>bfsz ? bfsz_max : bfsz);
@@ -1133,12 +1046,17 @@ void exchange_single_acc(const GridData& Grid, double* var) {
   //data_sent=0;
 
   int bufsize = Grid.bufsize;
-#pragma acc data copyin(var[:bufsize],sndbuf_l[:bfsz], sndbuf_r[:bfsz], recbuf_l[:bfsz], recbuf_r[:bfsz],i_next[:3])
+#pragma acc data copyin(var[:bufsize],sndbuf_l[:bfsz_max], sndbuf_r[:bfsz_max], recbuf_l[:bfsz_max], recbuf_r[:bfsz_max])
 {
+#pragma acc loop seq independent
   for(dim=0;dim<Grid.NDIM;dim++){
     d1=perm[dim][0];
     d2=perm[dim][1];
     d3=perm[dim][2]; 
+
+    i_nextd1 = i_next[d1];
+    i_nextd2 = i_next[d2];
+    i_nextd3 = i_next[d3];
 
     int kbeg = gs[d3][0];
     int kend = gs[d3][1];
@@ -1158,12 +1076,8 @@ void exchange_single_acc(const GridData& Grid, double* var) {
     //if(timing) time=MPI_Wtime();
     buf = 0;
 
-//#pragma acc enter data copyin(kbeg,kend,jbeg,jend,k_length,j_length,lbeg,lend,ghosts)
 
-//#pragma acc update device(d1,d2,d3, kbeg,kend,jbeg,jend,k_length,j_length,lbeg,lend,ghosts,bfsz)
-//    for(igh=0;igh<Grid.ghosts[d1];igh++){
-      //GLOOP(gs,j,k,d2,d3){
-#pragma acc parallel loop collapse(3) independent private(i,i_nu) \
+#pragma acc parallel loop gang vector collapse(3) private(i,i_nu) \
  present(var[:bufsize], \
   sndbuf_l[:bfsz], sndbuf_r[:bfsz], recbuf_l[:bfsz], recbuf_r[:bfsz])
     for(igh=0;igh< ghosts;igh++){
@@ -1171,10 +1085,9 @@ void exchange_single_acc(const GridData& Grid, double* var) {
       for(j=jbeg; j<=jend; j++) {
         int buffer = igh*k_length*j_length;
 	i=lbeg+igh;
-	i_nu  = i*i_next[d1]+j*i_next[d2]+k*i_next[d3];
+	i_nu  = i*i_nextd1+j*i_nextd2+k*i_nextd3;
 	sndbuf_l[buffer + (k-kbeg)*j_length + (j-jbeg)] = var[i_nu];
       }  
-  //    buf += k_length*j_length;
     }
     //if(timing) btime+=MPI_Wtime()-time;
 
@@ -1185,10 +1098,7 @@ void exchange_single_acc(const GridData& Grid, double* var) {
 }
 
     //if(timing) time=MPI_Wtime();
-   // buf = 0;
-   // for(igh=0;igh<Grid.ghosts[d1];igh++){
-      //GLOOP(gs,j,k,d2,d3){
-#pragma acc parallel loop collapse(3) independent private(i,i_nu) \
+#pragma acc parallel loop gang vector collapse(3)  private(i,i_nu) \
  present(var[:bufsize], \
   sndbuf_l[:bfsz], sndbuf_r[:bfsz], recbuf_l[:bfsz], recbuf_r[:bfsz])
     for(igh=0;igh<ghosts;igh++){
@@ -1196,10 +1106,9 @@ void exchange_single_acc(const GridData& Grid, double* var) {
       for(j=jbeg; j<=jend; j++) {
         int buffer = igh*k_length*j_length;
 	i=lend-ghosts+1+igh;
-	i_nu  = i*i_next[d1]+j*i_next[d2]+k*i_next[d3];
+	i_nu  = i*i_nextd1+j*i_nextd2+k*i_nextd3;
 	sndbuf_r[buffer + (k-kbeg)*j_length + (j-jbeg)] = var[i_nu];
       }
-     // buf += k_length*j_length;
     }
     //if(timing) btime+=MPI_Wtime()-time;
 
@@ -1214,10 +1123,7 @@ void exchange_single_acc(const GridData& Grid, double* var) {
 
     //if(timing) time=MPI_Wtime();
     if( !Grid.is_gend[d1] or Grid.periods[d1] ) {
-      //buf = 0;
-      //for(igh=0;igh<Grid.ghosts[d1];igh++){
-	//GLOOP(gs,j,k,d2,d3){
-#pragma acc parallel loop collapse(3) independent private(i,i_nu) \
+#pragma acc parallel loop gang vector collapse(3) private(i,i_nu) \
  present(var[:bufsize], \
   sndbuf_l[:bfsz], sndbuf_r[:bfsz], recbuf_l[:bfsz], recbuf_r[:bfsz])
        for(igh=0;igh<ghosts;igh++){
@@ -1225,10 +1131,9 @@ void exchange_single_acc(const GridData& Grid, double* var) {
         for(j=jbeg; j<=jend; j++) {
           int buffer = igh*k_length*j_length;
 	  i=lend+1+igh;
-	  i_nu  = i*i_next[d1]+j*i_next[d2]+k*i_next[d3];
+	  i_nu  = i*i_nextd1+j*i_nextd2+k*i_nextd3;
 	  var[i_nu] = recbuf_r[buffer + (k-kbeg)*j_length + (j-jbeg)];
 	}
-        //buf += k_length*j_length;
       }
       gs[d1][1]+=ghosts;
     }
@@ -1238,10 +1143,7 @@ void exchange_single_acc(const GridData& Grid, double* var) {
 
     //if(timing) time=MPI_Wtime();
     if( !Grid.is_gbeg[d1] or Grid.periods[d1] ) { 
-      //buf = 0;
-      //for(igh=0;igh<Grid.ghosts[d1];igh++){
-	//GLOOP(gs,j,k,d2,d3){
-#pragma acc parallel loop collapse(3) independent private(i,i_nu) \
+#pragma acc parallel loop gang vector collapse(3) private(i,i_nu) \
  present(var[:bufsize], \
   sndbuf_l[:bfsz], sndbuf_r[:bfsz], recbuf_l[:bfsz], recbuf_r[:bfsz])
        for(igh=0;igh< ghosts;igh++){
@@ -1249,10 +1151,9 @@ void exchange_single_acc(const GridData& Grid, double* var) {
         for(j=jbeg; j<=jend; j++) {
           int buffer = igh*k_length*j_length;
 	  i =lbeg-ghosts+igh;
-	  i_nu  = i*i_next[d1]+j*i_next[d2]+k*i_next[d3];
+	  i_nu  = i*i_nextd1+j*i_nextd2+k*i_nextd3;
 	  var[i_nu] = recbuf_l[buffer + (k-kbeg)*j_length + (j-jbeg)];
 	}
-       // buf += k_length*j_length;
       }
       gs[d1][0]-=ghosts;
     }

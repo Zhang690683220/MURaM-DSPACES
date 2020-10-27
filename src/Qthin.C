@@ -250,6 +250,7 @@ void Get_Radloss(const RunData&  Run, GridData& Grid,const PhysicsData& Physics)
  private(off, qthin[:2][:i_end+2])
   for(k=kbeg; k<=kend; k++)
   for(j=jbeg; j<=jend; j++) {
+#pragma acc cache(qthin[:2][:i_end+2])
     off = j*next[1]+k*next[2];
 
 #pragma acc loop vector
@@ -324,6 +325,7 @@ void Get_Radloss(const RunData&  Run, GridData& Grid,const PhysicsData& Physics)
       Grid.Qthin[off+i] = qthin[0][i] + qthin[1][i];
 
     // remove radiative loss in high pressure regions 
+#pragma acc loop vector
     for(i=i_beg;i<=i_end;i++)
       Grid.Qthin[off+i] *= max(0.0,1.-pow(Grid.pres[off+i]*inv_pmax,2));
   }
