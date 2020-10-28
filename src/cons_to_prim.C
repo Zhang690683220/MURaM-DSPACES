@@ -52,9 +52,9 @@ void ConsToPrim(GridData& Grid, const PhysicsData& Physics, const RunData& Run) 
 
   cState* U = Grid.U;
 
-  double var[v_nvar][sz], coeff[4][sz], ptab[4][sz],
-  netab[4][sz], rhoitab[4][sz],ambtab[4][sz],ttab[4][sz], lge[sz],eps[sz], 
-  lgr[sz], pres[sz], temp[sz],nel[sz],amb[sz],rhoi[sz];
+  double var[5][sz], 
+  eps[sz], 
+  lgr[sz], pres[sz], temp[sz],nel[sz],amb[sz],rhoi[sz],coeff0,coeff1,coeff2,coeff3;
 
   kbeg = Grid.lbeg[2]-Grid.ghosts[2];
   kend = Grid.lend[2]+Grid.ghosts[2];
@@ -71,9 +71,8 @@ void ConsToPrim(GridData& Grid, const PhysicsData& Physics, const RunData& Run) 
   T_eostab[:N_eps][:N_lr], s_eostab[:N_eps][:N_lr],            \
   ne_eostab[:N_eps][:N_lr], rhoi_eostab[:N_eps][:N_lr],        \
   amb_eostab[:N_eps][:N_lr])                                   \
- private(var[:8][:sz], coeff[:4][:sz], ptab[:4][:sz],          \
-  netab[:4][:sz], rhoitab[:4][:sz], ambtab[:4][:sz],           \
-  ttab[:4][:sz], lge[:sz], eps[:sz],                           \
+ private(var[:5][:sz],         \
+   eps[:sz],                           \
   lgr[:sz], pres[:sz], temp[:sz], nel[:sz],                    \
   amb[:sz], rhoi[:sz])
   for(k=kbeg; k<=kend; k++){
@@ -87,9 +86,9 @@ void ConsToPrim(GridData& Grid, const PhysicsData& Physics, const RunData& Run) 
         var[2][i] = U[node].M.y;
         var[3][i] = U[node].M.z;
         var[4][i] = U[node].e;
-        var[5][i] = U[node].B.x;
-        var[6][i] = U[node].B.y;
-        var[7][i] = U[node].B.z;
+        //var[5][i] = U[node].B.x;
+        //var[6][i] = U[node].B.y;
+        //var[7][i] = U[node].B.z;
       }
       //r_time += MPI_Wtime()-time;
 
@@ -110,13 +109,12 @@ void ConsToPrim(GridData& Grid, const PhysicsData& Physics, const RunData& Run) 
         eps[i] = var[4][i]*dn +eps_off;
 
         lgr[i] = log(var[0][i]);
-        lge[i] = log(eps[i]);
       }
 
-#pragma acc loop vector private(ep, lr, i_d, i_e)
+#pragma acc loop vector private(ep, lr, i_d, i_e,coeff0,coeff1,coeff2,coeff3)
       for(i=0;i<sz;i++){
 
-        ep = lge[i];
+        ep = log(eps[i]);
         lr = lgr[i];
 
 	i_d = (int) ( (lr-xlr[0])*inv_del_lr );
@@ -127,64 +125,35 @@ void ConsToPrim(GridData& Grid, const PhysicsData& Physics, const RunData& Run) 
         i_e = max(0,i_e);
         i_e = min(N_eps-2,i_e);
   
-        coeff[0][i] = (ep-xeps[i_e])   * (lr-xlr[i_d]);
-        coeff[1][i] = (ep-xeps[i_e])   * (xlr[i_d+1]-lr);
-        coeff[2][i] = (xeps[i_e+1]-ep) * (lr-xlr[i_d]);
-        coeff[3][i] = (xeps[i_e+1]-ep) * (xlr[i_d+1]-lr);
+        coeff0 = (ep-xeps[i_e])   * (lr-xlr[i_d]);
+        coeff1 = (ep-xeps[i_e])   * (xlr[i_d+1]-lr);
+        coeff2 = (xeps[i_e+1]-ep) * (lr-xlr[i_d]);
+        coeff3 = (xeps[i_e+1]-ep) * (xlr[i_d+1]-lr);
           
-        ptab[0][i]  = (double) p_eostab[i_e+1][i_d+1];
-        ptab[1][i]  = (double) p_eostab[i_e+1][i_d];
-        ptab[2][i]  = (double) p_eostab[i_e][i_d+1];
-        ptab[3][i]  = (double) p_eostab[i_e][i_d];
-
-        ttab[0][i]  = (double) T_eostab[i_e+1][i_d+1];
-        ttab[1][i]  = (double) T_eostab[i_e+1][i_d];
-        ttab[2][i]  = (double) T_eostab[i_e][i_d+1];
-        ttab[3][i]  = (double) T_eostab[i_e][i_d];  
-
-        netab[0][i]  = (double) ne_eostab[i_e+1][i_d+1];
-        netab[1][i]  = (double) ne_eostab[i_e+1][i_d];  
-        netab[2][i]  = (double) ne_eostab[i_e][i_d+1];  
-        netab[3][i]  = (double) ne_eostab[i_e][i_d];    
-
-        rhoitab[0][i]  = (double) rhoi_eostab[i_e+1][i_d+1];
-        rhoitab[1][i]  = (double) rhoi_eostab[i_e+1][i_d];  
-        rhoitab[2][i]  = (double) rhoi_eostab[i_e][i_d+1];  
-        rhoitab[3][i]  = (double) rhoi_eostab[i_e][i_d];    
-
-        ambtab[0][i]  = (double) amb_eostab[i_e+1][i_d+1];
-        ambtab[1][i]  = (double) amb_eostab[i_e+1][i_d];  
-        ambtab[2][i]  = (double) amb_eostab[i_e][i_d+1];  
-        ambtab[3][i]  = (double) amb_eostab[i_e][i_d];    
-
-      }
-  
-#pragma acc loop vector 
-      for(i=0;i<sz;i++){
-        double pp  = coeff[0][i] * ptab[0][i];
-        pp += coeff[1][i] * ptab[1][i];
-        pp += coeff[2][i] * ptab[2][i];
-        pp += coeff[3][i] * ptab[3][i];
+        double pp  = coeff0 * (double) p_eostab[i_e+1][i_d+1];
+        pp += coeff1 * (double) p_eostab[i_e+1][i_d];
+        pp += coeff2 * (double) p_eostab[i_e][i_d+1];
+        pp += coeff3 * (double) p_eostab[i_e][i_d];
         
-        double tt  = coeff[0][i] * ttab[0][i];
-        tt += coeff[1][i] * ttab[1][i];
-        tt += coeff[2][i] * ttab[2][i];
-        tt += coeff[3][i] * ttab[3][i];
+        double tt  = coeff0 * (double) T_eostab[i_e+1][i_d+1];
+        tt += coeff1 * (double) T_eostab[i_e+1][i_d];
+        tt += coeff2 * (double) T_eostab[i_e][i_d+1];
+        tt += coeff3 * (double) T_eostab[i_e][i_d];
 
-        double nn  = coeff[0][i] * netab[0][i];
-        nn += coeff[1][i] * netab[1][i];
-        nn += coeff[2][i] * netab[2][i];
-        nn += coeff[3][i] * netab[3][i];
+        double nn  = coeff0 * (double) ne_eostab[i_e+1][i_d+1];
+        nn += coeff1 * (double) ne_eostab[i_e+1][i_d];
+        nn += coeff2 * (double) ne_eostab[i_e][i_d+1];
+        nn += coeff3 * (double) ne_eostab[i_e][i_d];
        
-        double ii = coeff[0][i] * rhoitab[0][i]; 
-        ii += coeff[1][i] * rhoitab[1][i]; 
-        ii += coeff[2][i] * rhoitab[2][i]; 
-        ii += coeff[3][i] * rhoitab[3][i];
+        double ii = coeff0 * (double) rhoi_eostab[i_e+1][i_d+1]; 
+        ii += coeff1 * (double) rhoi_eostab[i_e+1][i_d]; 
+        ii += coeff2 * (double) rhoi_eostab[i_e][i_d+1]; 
+        ii += coeff3 * (double) rhoi_eostab[i_e][i_d];
 
-        double aa  = coeff[0][i] * ambtab[0][i];
-        aa += coeff[1][i] * ambtab[1][i];
-        aa += coeff[2][i] * ambtab[2][i];
-        aa += coeff[3][i] * ambtab[3][i];
+        double aa  = coeff0 * (double) amb_eostab[i_e+1][i_d+1];
+        aa += coeff1 * (double) amb_eostab[i_e+1][i_d];
+        aa += coeff2 * (double) amb_eostab[i_e][i_d+1];
+        aa += coeff3 * (double) amb_eostab[i_e][i_d];
 
         pres[i] = exp(pp);
         temp[i] = exp(tt);

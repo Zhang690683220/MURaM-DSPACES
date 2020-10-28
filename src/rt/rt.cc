@@ -1179,9 +1179,9 @@ void RTS::integrate(
         iystep[2] == 1 && iystep[3] == 1)   ||
        (iystep[0] == -1 && iystep[1] == -1  &&
         iystep[2] == -1 && iystep[3] == -1);
-  iz = (izstep[0] == 1 && izstep[1] == 1    &&
+ iz = (izstep[0] == 1 && izstep[1] == 1    &&
        izstep[2] == 1 && izstep[3] == 1)   ||
-       (izstep[0] == -1 && izstep[1] == -1  &&
+      (izstep[0] == -1 && izstep[1] == -1  &&
        izstep[2] == -1 && izstep[3] == -1);
 
     if(ix){
@@ -1224,28 +1224,30 @@ if (ix || iz) {
 
 #pragma acc parallel loop gang vector tile(1,32, 32) async(1) \
   deviceptr(dI_n, dIn1) 
-    for(int b1 = 0; b1 < bound1+1; b1++) { 
-      for(int b2 = 0; b2 < bound2+1; b2++) { 
-       for(int b3 = 0; b3 < bound3+1; b3++) { 
-          int b1i = (b1_i-step1) + (b1*step1); 
-          int b2i = (b2_i-step2) + (b2*step2); 
-          int b3i = (b3_i-step3) + (b3*step3); 
+    for(int b1 = 0; b1 < bound1+1; b1++) { //Z
+      for(int b2 = 0; b2 < bound2+1; b2++) { //Y
+       for(int b3 = 0; b3 < bound3+1; b3++) { //X
+          int b1i = (b1_i-step1) + (b1*step1); //z_i+z*zstep
+          int b2i = (b2_i-step2) + (b2*step2); //Y_i+y*ystep
+          int b3i = (b3_i-step3) + (b3*step3); //x_i +x*xstep
           
-          int ind = b1i*str1 + b2i*str2 + b3i*str3;
-          int ind1 = b1i*str11 + b2i*str21 + b3i*str31; 
+          int ind = b1i*str1 + b2i*str2 + b3i*str3;          // (zi*1)+(yi*nx*nz)       +(xi*nz)
+
+          int ind1 = b1i*str11 + b2i*str21 + b3i*str31;            // (zi*nx*ny)       +(yi*nx)     +(xi*1)
         
           dIn1[ind1] = dI_n[ind];
         }
        }
       }
 
+
 #pragma acc parallel loop gang vector tile(1,32, 32) async(2) \
   deviceptr(dcoeff,dCf1,dCf2) 
-    for(int b1 = 0; b1 < bound1; b1++) { 
-      for(int b2 = 0; b2 < bound2; b2++) { 
-       for(int b3 = 0; b3 < bound3; b3++) {
-          int i_nu_acc = b1*inustr1+ b2*inustr2 + b3*inustr3;
-          int i_nu_acc1 = b1*inustr11 + b2*inustr21 + b3*inustr31;
+    for(int b1 = 0; b1 < bound1; b1++) { //Z
+      for(int b2 = 0; b2 < bound2; b2++) { //Y
+       for(int b3 = 0; b3 < bound3; b3++) { //X
+          int i_nu_acc = b1*inustr1+ b2*inustr2 + b3*inustr3; //(zi*1)+(yi*(nx-1)(nz-1))+(xi*(nz-1))
+          int i_nu_acc1 = b1*inustr11 + b2*inustr21 + b3*inustr31; // (zi*(nx-1)*(ny-1))+(yi*(nx-1))+(xi*1)
           dCf1[i_nu_acc1] = dcoeff[i_nu_acc];
           dCf2[i_nu_acc1] = dcoeff[i_nu_acc+size];
         }
@@ -1256,41 +1258,43 @@ if (ix || iz) {
 #pragma acc loop seq independent
     for(int b1 = 0; b1 < bound1; b1++) {
       int b1i = b1_i + b1*step1;
+      int b1str = b1i * str11;
+      int b1inustr = b1*inustr11;
 #pragma acc parallel loop collapse(2) async independent deviceptr(dIn1,dCf1,dCf2)
       for(int b2 = 0; b2 < bound2; b2++) {
         for(int b3 = 0; b3 < bound3; b3=b3++) {
-#pragma acc cache(dIn1[(((b1_i+b1*step1))*str11)-constoff:str21])
+#pragma acc cache(dIn1[b1str-constoff:str21],dCf1[b1inustr:inustr21],dCf2[b1inustr:inustr21])
           int b2i = b2_i + b2*step2;
           int b3i = b3_i + b3*step3;
          
-          int ind1 =  b1i*str11  + b2i*str21 + b3i*str31;
+          int ind =  b1str + b2i*str21 + b3i*str31;
 
-          int i_nu_acc1  = b1*inustr11 + b2*inustr21 + b3*inustr31;
+          int i_nu_acc  = b1inustr + b2*inustr21 +b3*inustr31;
 
-          double I_upw0 = c0*dIn1[ind1-off0] + 
-                         c1*dIn1[ind1-off1] +
-                         c2*dIn1[ind1-off2] +
-                         c3*dIn1[ind1-off3];
+          double I_upw = c0*dIn1[ind-off0] + 
+                         c1*dIn1[ind-off1] +
+                         c2*dIn1[ind-off2] +
+                         c3*dIn1[ind-off3];
  
-          dIn1[ind1]= I_upw0*dCf1[i_nu_acc1]+dCf2[i_nu_acc1];
+          dIn1[ind]= I_upw*dCf1[i_nu_acc]+dCf2[i_nu_acc];
         }
       }
     }
 #pragma acc wait
 #pragma acc parallel loop gang vector tile(1,32, 32) deviceptr(dI_n,dIn1) 
-  for(int b1 = 0; b1 < bound1+1; b1++) { 
-      for(int b2 = 0; b2 < bound2+1; b2++) { 
-       for(int b3 = 0; b3 < bound3+1; b3++) { 
-          int b1i = (b1_i-step1) + (b1*step1); 
-          int b2i = (b2_i-step2) + (b2*step2); 
-          int b3i = (b3_i-step3) + (b3*step3); 
+  for(int b1 = 0; b1 < bound1+1; b1++) { //Z
+      for(int b2 = 0; b2 < bound2+1; b2++) { //Y
+       for(int b3 = 0; b3 < bound3+1; b3++) { //X
+          int b1i = (b1_i-step1) + (b1*step1); //z_i+z*zstep
+          int b2i = (b2_i-step2) + (b2*step2); //Y_i+y*ystep
+          int b3i = (b3_i-step3) + (b3*step3); //x_i +x*xstep
           int ind = b1i*str1 + b2i*str2 + b3i*str3;
           int ind1 = b1i*str11 + b2i*str21 + b3i*str31;
           dI_n[ind] = dIn1[ind1];
         }
        }
       }
-#pragma acc wait
+//#pragma acc wait
   } else { //end if (ix || iz)
  
 #pragma acc loop seq 
@@ -1319,7 +1323,8 @@ if (ix || iz) {
     }
 #pragma acc wait
 
-   }
+ }
+//#pragma acc exit data delete(dIn1,dCf1,dCf2)
   } // end DIM 3
 /*
   if(NDIM==2){
@@ -1355,10 +1360,8 @@ void RTS::driver(double DZ, double DX, double DY, int band){
                {{0,1,0},{1,1,0},{0,1,1},{1,1,1}},
                {{0,0,1},{0,1,1},{1,0,1},{1,1,1}} };
 
-//#pragma acc enter data copyin(sbuf[:ny][:nx], rbuf[:ny][:nx],Qtemp[:ny][:nx][:nz][:2]) async
 #pragma acc enter data copyin(this[:1], I_n[:nx*ny*nz], Fz[:nx*ny*nz], Fx[:nx*ny*nz], \
          Fy[:nx*ny*nz], J_band[:nx*ny*nz],rho[:nx*ny*nz],kap[:nx*ny*nz], coeff[:nx*ny*nz*2],B[:nx*ny*nz],sbuf[:ny][:nx], rbuf[:ny][:nx])
-         //sbuf[:ny][:nx], rbuf[:ny][:nx],Qtemp[:ny][:nx][:nz][:2])  
 
 #pragma acc parallel loop \
  present(this[:1], I_n[:nx*ny*nz], Fz[:nx*ny*nz], Fx[:nx*ny*nz], \
@@ -1449,14 +1452,9 @@ void RTS::driver(double DZ, double DX, double DY, int band){
       }// end YDIR
     }// end XDIR
   }// end ZDIR 
-//#pragma acc exit data copyout(this[:1], I_n[:nx*ny*nz], Fz[:nx*ny*nz], Fx[:nx*ny*nz], \
-         Fy[:nx*ny*nz], J_band[:nx*ny*nz],rho[:nx*ny*nz],kap[:nx*ny*nz], coeff[:nx*ny*nz*2], B[:nx*ny*nz])  
-// continuum band last -> can use tau in tau_slice as for grey RT 
   double stime=MPI_Wtime();
   tauscale_qrad(band,DX,DY,DZ,B);
   tau_time+=MPI_Wtime()-stime;
-//#pragma acc exit data copyout(this[:1], I_n[:nx*ny*nz], Fz[:nx*ny*nz], Fx[:nx*ny*nz], \
-         Fy[:nx*ny*nz], J_band[:nx*ny*nz],rho[:nx*ny*nz],kap[:nx*ny*nz], coeff[:nx*ny*nz*2], B[:nx*ny*nz]) 
   if((myrank==0) && (verbose>1)){
     fprintf(stdout,"rt_driver iter : %f %f \n",aravg/(8.0*NMU),itavg/(8.0*NMU));
     fprintf(stdout,"rt_driver error: %e %e \n",maxerr_up,maxerr_down);
@@ -1594,7 +1592,6 @@ void RTS::interpol(int zi_i,int zi_f,int zstep,int xi_i,int xi_f,int xstep,
   if(NDIM==3){
 #pragma acc parallel loop collapse(3) \
  present(this[:1], rho[:nx*ny*nz], kap[:nx*ny*nz], B[:nx*ny*nz], coeff[:nx*ny*nz*2]) 
- //copyin(c[:4],stride[:3],stride_inter[:3],off[:4],ds3,ds6)
     for(int y = 0; y < ny-1; y++) {
       for(int x = 0; x < nx-1; x++) {
         for(int z = 0; z < nz-1; z++) {
@@ -1763,7 +1760,6 @@ double RTS::error(int band,int l,int ZDIR,int XDIR,int YDIR,double I_min)
 #pragma acc data present(this[:1], ysb[:nx*nz], yob[:nx*nz],xsb[:ny*nz], xob[:ny*nz],zsb[:ny*nx], zob[:ny*nx])
 {
   if (NDIM==3){
-//    real *ysb=y_sbuf[band][YDIR][XDIR][ZDIR][l],*yob=y_oldbuf[band][YDIR][XDIR][ZDIR][l];
 #pragma acc parallel loop collapse(2) reduction(max:err_max) \
  present(this[:1], ysb[:nx*nz], yob[:nx*nz]) async
     for(int z=z0;z<nz-z1;++z)
@@ -1772,9 +1768,7 @@ double RTS::error(int band,int l,int ZDIR,int XDIR,int YDIR,double I_min)
         err_max=max(err_max,fabs(((double) (ysb[ind]-yob[ind]))/max(I_min,(double) yob[ind])));
      }
   }
-//
   if (NDIM>1){
-  //  real *xsb=x_sbuf[band][YDIR][XDIR][ZDIR][l],*xob=x_oldbuf[band][YDIR][XDIR][ZDIR][l];
 #pragma acc parallel loop collapse(2) reduction(max:err_max) \
  present(this[:1], xsb[:ny*nz], xob[:ny*nz]) async
     for(int z=z0;z<nz-z1;++z)
@@ -1783,8 +1777,6 @@ double RTS::error(int band,int l,int ZDIR,int XDIR,int YDIR,double I_min)
         err_max=max(err_max,fabs(((double) (xsb[ind]-xob[ind]))/max( I_min,(double)xob[ind])));
       }
   }
-//
-  //real *zsb=z_sbuf[band][YDIR][XDIR][ZDIR][l],*zob=z_oldbuf[band][YDIR][XDIR][ZDIR][l];
 #pragma acc parallel loop reduction(max:err_max) \
  present(this[:1], zsb[:ny*nx], zob[:ny*nx]) async
   for(int ind=0;ind<nx*ny;++ind){
@@ -1811,63 +1803,39 @@ void RTS::readbuf(int band,int l,int ZDIR,int XDIR,int YDIR)
   if(NDIM==3){
     int y0=(YDIR==FWD)?0:ny-1;
     int y = y0*nx*nz;
-    //real * ysb = y_sbuf[band][YDIR][XDIR][ZDIR][l];
-    //real * yrb = y_rbuf[band][YDIR][XDIR][ZDIR][l];
-    //real * yob = y_oldbuf[band][YDIR][XDIR][ZDIR][l];
-//#pragma acc enter data copyin(this[:1], I_n[:nx*ny*nz], yrb[:nx*nz],yob[:nx*nz], ysb[:nx*nz])
 
 #pragma acc parallel loop collapse(2) \
- present(this[:1], I_n[:nx*ny*nz], yrb[:nx*nz]) async(1)
+ present(this[:1], I_n[:nx*ny*nz], yrb[:nx*nz]) 
     for(int x=0;x<nx;++x)
       for(int z=0;z<nz;++z){
         int ob  = x*nz+z;
         I_n[y+x*nz+z]= (double) yrb[z*nx+x];
         yob[ob] = ysb[ob];
        }
-//#pragma acc parallel loop \
-// present(this[:1], yob[:nx*nz], ysb[:nx*nz]) async(2)
-//    for(int i = 0; i < nx*nz; i++)
-//      yob[i] = ysb[i];
   }
 
   if(NDIM>1){
     int x0=(XDIR==RIGHT)?0:nx-1;
     int x = x0*nz;
-    //real * xsb = x_sbuf[band][YDIR][XDIR][ZDIR][l];
-    //real * xrb = x_rbuf[band][YDIR][XDIR][ZDIR][l];
-    //real * xob = x_oldbuf[band][YDIR][XDIR][ZDIR][l];
-//#pragma acc enter data copyin(xrb[:ny*nz],xob[:ny*nz], xsb[:ny*nz])
 #pragma acc parallel loop collapse(2) \
- present(this[:1], I_n[:nx*ny*nz], xrb[:ny*nz]) async(2)
+ present(this[:1], I_n[:nx*ny*nz], xrb[:ny*nz])
     for(int y=0;y<ny;++y)
       for(int z=0;z<nz;++z){
         int ob  = y*nz+z;
         I_n[y*nx*nz+x+z]= (double) xrb[z*ny+y];
         xob[ob] = xsb[ob];
         }
-//#pragma acc parallel loop \
-// present(this[:1], xob[:ny*nz], xsb[:ny*nz]) async(4)
-//    for(int i = 0; i < ny*nz; i++)
-//      xob[i] = xsb[i];
   }
   
   int z0=(ZDIR==UP)?0:nz-1;
-  //real * zsb = z_sbuf[band][YDIR][XDIR][ZDIR][l];
-  //real * zrb = z_rbuf[band][YDIR][XDIR][ZDIR][l];
-  //real * zob = z_oldbuf[band][YDIR][XDIR][ZDIR][l];
-//#pragma acc enter data copyin(zrb[:ny*nx],zob[:ny*nx], zsb[:ny*nx])
 #pragma acc parallel loop collapse(2) \
- present(this[:1], I_n[:nx*ny*nz], zrb[:ny*nx]) async(3)
+ present(this[:1], I_n[:nx*ny*nz], zrb[:ny*nx]) 
   for(int y=0;y<ny;++y)
     for(int x=0;x<nx;++x){
       int ob  = y*nx+x;
       I_n[y*nx*nz+x*nz+z0]= (double) zrb[x*ny+y];
       zob[ob] = zsb[ob]; 
     }
-//#pragma acc parallel loop \
-// present(this[:1], zob[:ny*nx], zsb[:ny*nx]) async(2)
-//  for(int i = 0; i < nx*ny; i++)
-//    zob[i] = zsb[i];
 
 #pragma acc wait
 }
@@ -1878,7 +1846,7 @@ void RTS::writebuf(int band, int l,int ZDIR,int XDIR,int YDIR){
     int y = y0*nx*nz;
     real * ysb = y_sbuf[band][YDIR][XDIR][ZDIR][l];
 #pragma acc parallel loop collapse(2) \
- present(this[:1], I_n[:nx*ny*nz], ysb[:nx*nz]) async(1) 
+ present(this[:1], I_n[:nx*ny*nz], ysb[:nx*nz]) async
     for(int x=0;x<nx;++x)
       for(int z=0;z<nz;++z)
         ysb[z*nx+x]=(real) I_n[y+x*nz+z];
@@ -1889,7 +1857,7 @@ void RTS::writebuf(int band, int l,int ZDIR,int XDIR,int YDIR){
     int x = x0*nz;
     real * xsb = x_sbuf[band][YDIR][XDIR][ZDIR][l];
 #pragma acc parallel loop collapse(2) \
- present(this[:1], I_n[:nx*ny*nz], xsb[:ny*nz]) async(2)
+ present(this[:1], I_n[:nx*ny*nz], xsb[:ny*nz]) async
     for(int y=0;y<ny;++y)
       for(int z=0;z<nz;++z)
         xsb[z*ny+y]=(real) I_n[y*nx*nz+x+z];
@@ -1898,7 +1866,7 @@ void RTS::writebuf(int band, int l,int ZDIR,int XDIR,int YDIR){
   int z0=(ZDIR==UP)?nz-1:0;
   real * zsb = z_sbuf[band][YDIR][XDIR][ZDIR][l];
 #pragma acc parallel loop collapse(2) \
- present(this[:1], I_n[:nx*ny*nz], zsb[:ny*nx]) async(3)
+ present(this[:1], I_n[:nx*ny*nz], zsb[:ny*nx]) async
   for(int y=0;y<ny;++y)
     for(int x=0;x<nx;++x)
       zsb[x*ny+y]=(real) I_n[y*nx*nz+x*nz+z0];
@@ -1917,14 +1885,6 @@ void RTS::exchange(int band,int l,int ZDIR,int XDIR,int YDIR)
   int source_rk;
   real tempxsb[nz];
   real tempzsb[nx];
-/*
-  real * ysb = (real*) ACCH::GetDevicePtr(y_sbuf[band][YDIR][XDIR][ZDIR][l]);
-  real * yrb = (real*) ACCH::GetDevicePtr(y_rbuf[band][YDIR][XDIR][ZDIR][l]);
-  real * xsb = (real*) ACCH::GetDevicePtr(x_sbuf[band][YDIR][XDIR][ZDIR][l]);
-  real * xrb = (real*) ACCH::GetDevicePtr(x_rbuf[band][YDIR][XDIR][ZDIR][l]);
-  real * zsb = (real*) ACCH::GetDevicePtr(z_sbuf[band][YDIR][XDIR][ZDIR][l]);
-  real * zrb = (real*) ACCH::GetDevicePtr(z_rbuf[band][YDIR][XDIR][ZDIR][l]);
-*/
 
   real * ysb = y_sbuf[band][YDIR][XDIR][ZDIR][l];
   real * yrb = y_rbuf[band][YDIR][XDIR][ZDIR][l];
@@ -1935,7 +1895,6 @@ void RTS::exchange(int band,int l,int ZDIR,int XDIR,int YDIR)
 
 #pragma acc data present(this[:1],yrb[:nx*nz], ysb[:nx*nz],xrb[:ny*nz], xsb[:ny*nz],zrb[:ny*nx], zsb[:ny*nx])
 {
-//#pragma acc w
   if (NDIM==3){
     // y-direction
     dest_rk=(YDIR==FWD)?rightr[2]:leftr[2];
@@ -2210,6 +2169,7 @@ void RTS::tauscale_qrad(int band, double DX,double DY,double DZ, double * Ss){
 
   double ttime=MPI_Wtime(),stime=0.0,atime=0.0;
   double idx=1.0/DX,idy=1.0/DY,idz=1.0/DZ;
+  double delta_tau[nz-1];
 
   if(NDIM==1) {
     idx=0.;
@@ -2226,26 +2186,23 @@ void RTS::tauscale_qrad(int band, double DX,double DY,double DZ, double * Ss){
 #pragma acc enter data copyin(this[:1], Fx[:nx*ny*nz], Fy[:nx*ny*nz], Fz[:nx*ny*nz], \
         I_n[:nx*ny*nz], Qt[:ny-yo][:nx-xo][:nz-zo], Ss[:nx*ny*nz], \
         Tau[:nx*ny*nz],kap[:nx*ny*nz], rho[:nx*ny*nz],sbuf[:ny][:nx], rbuf[:ny][:nx])
-       // sbuf[:ny][:nx], rbuf[:ny][:nx],Qtemp[:ny][:nx][:nz][:2])
 
 #pragma acc parallel loop collapse(2) \
- present(this[:1], Tau[:nx*ny*nz], kap[:nx*ny*nz], rho[:nx*ny*nz])  
+ present(this[:1], Tau[:nx*ny*nz], kap[:nx*ny*nz], rho[:nx*ny*nz],sbuf[:ny][:nx], rbuf[:ny][:nx]) \
+ private(delta_tau[:nz-1]) 
   for(int y=0;y<ny;++y){ // loop over RT grid
     for(int x=0;x<nx;++x){
       Tau[y*nx*nz+x*nz+nz-1]=1.0e-12;
+#pragma acc loop vector
+      for(int z=0;z<nz-1;z++){
+        double k0=kap[y*nx*nz+x*nz+z],r0=rho[y*nx*nz+x*nz+z],k_upw=kap[y*nx*nz+x*nz+z+1],r_upw=rho[y*nx*nz+x*nz+z+1];
+        delta_tau[z]=DZ*((k0*r0+k_upw*r_upw)*inv3+(k0*r_upw+k_upw*r0)*inv6);
+       }
 #pragma acc loop seq
       for(int z=nz-2;z>=0;--z){
-        double k0=kap[y*nx*nz+x*nz+z],r0=rho[y*nx*nz+x*nz+z],k_upw=kap[y*nx*nz+x*nz+z+1],r_upw=rho[y*nx*nz+x*nz+z+1];
-        double delta_tau=DZ*((k0*r0+k_upw*r_upw)*inv3+(k0*r_upw+k_upw*r0)*inv6);
-        Tau[y*nx*nz+x*nz+z]=Tau[y*nx*nz+x*nz+z+1]+delta_tau;
+        Tau[y*nx*nz+x*nz+z]=Tau[y*nx*nz+x*nz+z+1]+delta_tau[z];
       }
-    }
-  }
-
-#pragma acc parallel loop collapse(2) \
- present(this[:1], Tau[:nx*ny*nz], sbuf[:ny][:nx], rbuf[:ny][:nx])
-  for(int y=0;y<ny;++y){ // loop over RT grid
-    for(int x=0;x<nx;++x){
+      
       rbuf[y][x]=0.e0;
       sbuf[y][x]=Tau[y*nx*nz+x*nz];
     }
@@ -2323,9 +2280,6 @@ void RTS::tauscale_qrad(int band, double DX,double DY,double DZ, double * Ss){
 
 // 
   double inv_tau_0=1.0e1;
-//present(this[:1], Fx[:nx*ny*nz], Fy[:nx*ny*nz], Fz[:nx*ny*nz], \
-//        I_n[:nx*ny*nz], Qt[:ny-yo][:nx-xo][:nz-zo], Qtemp[:ny][:nx][:nz][:2], \
-//                Tau[:nx*ny*nz])
 #pragma acc parallel loop gang collapse(2) \
 present(this[:1], Fx[:nx*ny*nz], Fy[:nx*ny*nz], Fz[:nx*ny*nz], \
         I_n[:nx*ny*nz], Qt[:ny-yo][:nx-xo][:nz-zo], \
@@ -2401,16 +2355,10 @@ present(this[:1], Fx[:nx*ny*nz], Fy[:nx*ny*nz], Fz[:nx*ny*nz], \
      int col_bnd3 = col_bnd[3];
      int col_bnd0 = col_bnd[0];
      int col_bnd1 = col_bnd[1];
-     //cout << "y col_bnd[2]: " << col_bnd[2] << endl;
-     //cout << "y col_bnd[3]: " << col_bnd[3] << endl;
-     //cout << "x col_bnd[0]: " << col_bnd[0] << endl;
-     //cout << "x col_bnd[1]: " << col_bnd[1] << endl;
 #pragma acc parallel loop gang collapse(2) \
  present(this[:1], Col_out[:Nbands][:col_nz][:col_nvar], \
          J_band[:nx*ny*nz], Ss[:nx*ny*nz], kap[:nx*ny*nz], abn[:nx*ny*nz], \
          sig[:nx*ny*nz], B[:nx*ny*nz], Tau[:nx*ny*nz], Qtemp[:ny][:nx][:nz][:2])
-     //for (int y=col_bnd3;y<=col_bnd2;++y){
-     //  for (int x=col_bnd1;x<=col_bnd0;++x){
      for (int y=yl;y<=yh;++y){
        for (int x=xl;x<=xh;++x){
 #pragma acc loop vector
