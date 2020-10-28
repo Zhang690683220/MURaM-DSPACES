@@ -1049,10 +1049,9 @@ double RTS::wrapper(int rt_upd,GridData &Grid,RunData &Run,const PhysicsData &Ph
  
 
   for (int band=0;band<Nbands;++band){
-    //Fr_mean[band]/=(Grid.gsize[1]*Grid.gsize[2]);
+    Fr_mean[band]/=(Grid.gsize[1]*Grid.gsize[2]);
     F_o+=Fr_mean[band];
   }
-  F_o/=(Grid.gsize[1]*Grid.gsize[2]);
   
   // If I have the band calculate tau5000 reference grid. If I want 5000 A continuum
   // output then switch that on too.
