@@ -46,7 +46,6 @@ GridData::GridData() {
   QH = NULL;
   QMg = NULL;
   QCa = NULL;
-  QCor = NULL;
   QChr = NULL;
 
   // Resistive and Viscous Heating
@@ -113,7 +112,6 @@ GridData::~GridData() {
     ACCH::Free(QH, bufsize*sizeof(double));
     ACCH::Free(QMg, bufsize*sizeof(double));
     ACCH::Free(QCa, bufsize*sizeof(double));
-    ACCH::Free(QCor, bufsize*sizeof(double));
     ACCH::Free(QChr, bufsize*sizeof(double));
 
     ACCH::Free(Qres, bufsize*sizeof(double));
@@ -295,7 +293,6 @@ void GridData::Init(const RunData &Run,const PhysicsData &Physics) {
     QH   = (double*) ACCH::Malloc(bufsize*sizeof(double));
     QMg  = (double*) ACCH::Malloc(bufsize*sizeof(double));
     QCa  = (double*) ACCH::Malloc(bufsize*sizeof(double));
-    QCor = (double*) ACCH::Malloc(bufsize*sizeof(double));
     QChr = (double*) ACCH::Malloc(bufsize*sizeof(double));
   }
     

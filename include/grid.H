@@ -67,7 +67,6 @@ public:
   double* QMg;
   double* QCa;
   double* QChr;
-  double* QCor;
 
   // Resisitive and Viscous Heating
   double* Qres;

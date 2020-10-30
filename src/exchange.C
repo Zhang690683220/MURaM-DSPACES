@@ -280,11 +280,12 @@ void exchange_B(GridData& Grid) {
 
       bfsz_max = (bfsz_max>bfsz ? bfsz_max : bfsz);
 
-      sndbuf_l = new double[bfsz_max];
-      recbuf_l = new double[bfsz_max];
-      sndbuf_r = new double[bfsz_max];
-      recbuf_r = new double[bfsz_max];
     }
+      
+    sndbuf_l = new double[bfsz_max];
+    recbuf_l = new double[bfsz_max];
+    sndbuf_r = new double[bfsz_max];
+    recbuf_r = new double[bfsz_max];
     
     ini_flag=0;
   }
@@ -425,11 +426,12 @@ void exchange_single(const GridData& Grid, double* var) {
 
       bfsz_max = (bfsz_max>bfsz ? bfsz_max : bfsz);
 
-      sndbuf_l = new double[bfsz_max];
-      recbuf_l = new double[bfsz_max];
-      sndbuf_r = new double[bfsz_max];
-      recbuf_r = new double[bfsz_max];
     }
+
+    sndbuf_l = new double[bfsz_max];
+    recbuf_l = new double[bfsz_max];
+    sndbuf_r = new double[bfsz_max];
+    recbuf_r = new double[bfsz_max];
     
     ini_flag=0;
   }
