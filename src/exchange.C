@@ -826,6 +826,7 @@ void exchange_B_acc(GridData& Grid) {
       bfsz = (v1-v0)*Grid.ghosts[d1]*size[d2]*size[d3];
 
       bfsz_max = (bfsz_max>bfsz ? bfsz_max : bfsz);
+    }
 
       sndbuf_l = new double[bfsz_max];
       recbuf_l = new double[bfsz_max];
@@ -835,7 +836,6 @@ void exchange_B_acc(GridData& Grid) {
 #pragma acc enter data create(sndbuf_r[:bfsz_max])
 #pragma acc enter data create(recbuf_l[:bfsz_max])
 #pragma acc enter data create(recbuf_r[:bfsz_max])
-    }
     
     ini_flag=0;
   }
@@ -1021,6 +1021,7 @@ void exchange_single_acc(const GridData& Grid, double* var) {
 
       bfsz_max = (bfsz_max>bfsz ? bfsz_max : bfsz);
 
+    }
       sndbuf_l = new double[bfsz_max];
       recbuf_l = new double[bfsz_max];
       sndbuf_r = new double[bfsz_max];
@@ -1029,7 +1030,6 @@ void exchange_single_acc(const GridData& Grid, double* var) {
 #pragma acc enter data create(sndbuf_r[:bfsz_max])
 #pragma acc enter data create(recbuf_l[:bfsz_max])
 #pragma acc enter data create(recbuf_r[:bfsz_max])
-    }
     
     ini_flag=0;
   }
