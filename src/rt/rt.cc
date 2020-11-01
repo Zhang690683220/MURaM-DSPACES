@@ -743,69 +743,6 @@ double RTS::wrapper(int rt_upd,GridData &Grid,RunData &Run,const PhysicsData &Ph
          B_tab[:Nbands][:NT], kap[:nx*ny*nz], kap_tab[:Nbands][:NT][:Np], \
          Qt[:(ny-yo)][:(nx-xo)][:(nz-zo)],St[:nx*ny*nz], Jt[:nx*ny*nz],z_rbuf[:Nbands][:2][:2][:2][:NMU][:nx*ny]) async
 
-#pragma acc parallel loop \
- present(this[:1], I_band[:nx*ny], I_o[:nx*ny])
-  for(int i = 0; i < nx*ny; i++) {
-    I_band[i] = 0.0;
-    I_o[i] = 0.0;
-  }
-
-  double DX=Grid.dx[1],DZ=Grid.dx[0],DY=Grid.dx[2];
-  int cont_bin = Physics.rt[i_rt_iout];
-
-  const double Temp_TR = Physics.rt[i_rt_tr_tem];
-  const double Pres_TR = Physics.rt[i_rt_tr_pre];
-
-  need_I = 0;
-  // Do i need to plot? Should I calculate I_o?
-  if (Run.NeedsSlice())
-    need_I = 1;
-
-  if((Run.iteration%rt_upd)&&(dt_rad>0)){
-    // if cont_bin = 2 and need_I = 1 we want bolometric intensity
-    if (cont_bin == 2){
-    for (int band=Nbands-1;band>=0;--band){
-      get_Tau_and_Iout(Grid, Run, Physics,DZ,B_tab[band],kap_tab[band],I_band,need_I);
-#pragma acc parallel loop collapse(2) \
- present(this[:1], I_o[:nx*ny], I_band[:nx*ny])
-      for (int y=0;y<ny;y++)
-        for (int x=0;x<nx;x++)
-          I_o[y*nx+x] +=I_band[y*nx+x];
-      }
-    }
-    // If cont_bin = 0 and need_I = 1 we want the output intensity to be the 0th continuum bin
-    if (cont_bin==0){
-      get_Tau_and_Iout(Grid, Run, Physics,DZ,B_tab[0],kap_tab[0],I_band,need_I);
-#pragma acc parallel loop collapse(2) \
- present(this[:1], I_o[:nx*ny], I_band[:nx*ny])
-      for (int y=0;y<ny;y++)
-        for (int x=0;x<nx;x++)
-          I_o[y*nx+x] +=I_band[y*nx+x];
-    }
-    // if we have the band, we want a tau5000 reference wavelength. If cont_bin=1 and need_I we want
-    // output intensity to be 5000A.
-    
-    if (N5000){
-      int I5000_out = 0;
-      if ((cont_bin==1)&&(need_I==1))
-        I5000_out = 1;
-      
-      get_Tau_and_Iout(Grid, Run, Physics,DZ,B_5000_tab,kap_5000_tab,I_band,I5000_out);
-     
-      if ((cont_bin==1)&&(need_I==1)) {
-#pragma acc parallel loop collapse(2) \
- present(this[:1], I_o[:nx*ny], I_band[:nx*ny])
-        for (int y=0;y<ny;y++)
-          for (int x=0;x<nx;x++)
-            I_o[y*nx+x] += I_band[y*nx+x];
-      }
-    }
-
-    calc_Qtot_and_Tau(Grid, Run, Physics);
-    //ACCH::Free(I_band, nx*ny*sizeof(double));
-    return dt_rad;
-  }
-
 // *****************************************************************
 // *        interpolate opacity and Planck function (B)            *
 // *****************************************************************
@@ -814,6 +751,9 @@ double RTS::wrapper(int rt_upd,GridData &Grid,RunData &Run,const PhysicsData &Ph
 #pragma acc enter data copyin(U[:Grid.bufsize])
   double N = pow(2,NDIM);
 
+  const double Temp_TR = Physics.rt[i_rt_tr_tem];
+  const double Pres_TR = Physics.rt[i_rt_tr_pre];
+
   //ACCH::UpdateGPU(Grid.temp, Grid.bufsize*sizeof(double));
   //ACCH::UpdateGPU(Grid.pres, Grid.bufsize*sizeof(double));
   //ACCH::UpdateGPU(U, Grid.bufsize*sizeof(cState));
@@ -821,7 +761,8 @@ double RTS::wrapper(int rt_upd,GridData &Grid,RunData &Run,const PhysicsData &Ph
  present(this[:1], Grid[:1], Grid.temp[:Grid.bufsize], \
          Grid.pres[:Grid.bufsize], U[:Grid.bufsize], \
          tr_switch[:nx*ny*nz], lgTe[:nx*ny*nz], lgPe[:nx*ny*nz], \
-         rho[:nx*ny*nz], tab_T[:NT], tab_p[:Np], T_ind[:nx*ny*nz], P_ind[:nx*ny*nz]) 
+         rho[:nx*ny*nz], tab_T[:NT], tab_p[:Np], T_ind[:nx*ny*nz], P_ind[:nx*ny*nz], \
+         next[1:2]) 
   for(int y=0;y<ny;++y){
     for(int x=0;x<nx;++x){
       int y0 = y+yl;
@@ -901,9 +842,68 @@ double RTS::wrapper(int rt_upd,GridData &Grid,RunData &Run,const PhysicsData &Ph
 
         T_ind[ind] = l;
         P_ind[ind] = m;
-
       }
     }
+  }
+
+#pragma acc parallel loop \
+ present(this[:1], I_band[:nx*ny], I_o[:nx*ny])
+  for(int i = 0; i < nx*ny; i++) {
+    I_band[i] = 0.0;
+    I_o[i] = 0.0;
+  }
+
+  double DX=Grid.dx[1],DZ=Grid.dx[0],DY=Grid.dx[2];
+  int cont_bin = Physics.rt[i_rt_iout];
+
+  need_I = 0;
+  // Do i need to plot? Should I calculate I_o?
+  if (Run.NeedsSlice())
+    need_I = 1;
+
+  if((Run.iteration%rt_upd)&&(dt_rad>0)){
+    // if cont_bin = 2 and need_I = 1 we want bolometric intensity
+    if (cont_bin == 2){
+    for (int band=Nbands-1;band>=0;--band){
+      get_Tau_and_Iout(Grid, Run, Physics,DZ,B_tab[band],kap_tab[band],I_band,need_I);
+#pragma acc parallel loop collapse(2) \
+ present(this[:1], I_o[:nx*ny], I_band[:nx*ny])
+      for (int y=0;y<ny;y++)
+        for (int x=0;x<nx;x++)
+          I_o[y*nx+x] +=I_band[y*nx+x];
+      }
+    }
+    // If cont_bin = 0 and need_I = 1 we want the output intensity to be the 0th continuum bin
+    if (cont_bin==0){
+      get_Tau_and_Iout(Grid, Run, Physics,DZ,B_tab[0],kap_tab[0],I_band,need_I);
+#pragma acc parallel loop collapse(2) \
+ present(this[:1], I_o[:nx*ny], I_band[:nx*ny])
+      for (int y=0;y<ny;y++)
+        for (int x=0;x<nx;x++)
+          I_o[y*nx+x] +=I_band[y*nx+x];
+    }
+    // if we have the band, we want a tau5000 reference wavelength. If cont_bin=1 and need_I we want
+    // output intensity to be 5000A.
+    
+    if (N5000){
+      int I5000_out = 0;
+      if ((cont_bin==1)&&(need_I==1))
+        I5000_out = 1;
+      
+      get_Tau_and_Iout(Grid, Run, Physics,DZ,B_5000_tab,kap_5000_tab,I_band,I5000_out);
+     
+      if ((cont_bin==1)&&(need_I==1)) {
+#pragma acc parallel loop collapse(2) \
+ present(this[:1], I_o[:nx*ny], I_band[:nx*ny])
+        for (int y=0;y<ny;y++)
+          for (int x=0;x<nx;x++)
+            I_o[y*nx+x] += I_band[y*nx+x];
+      }
+    }
+
+    calc_Qtot_and_Tau(Grid, Run, Physics);
+    //ACCH::Free(I_band, nx*ny*sizeof(double));
+    return dt_rad;
   }
   
   // Begin RT loop, work band by band,
@@ -1984,97 +1984,35 @@ void RTS::get_Tau_and_Iout(GridData &Grid, const RunData &Run, const PhysicsData
   //double ** sbuf = ACCH::Malloc2D<double>(ny, nx);
   //double ** rbuf = ACCH::Malloc2D<double>(ny, nx);
 
-  double N = pow(2,Grid.NDIM);
-
-  const double Temp_TR = Physics.rt[i_rt_tr_tem];
-  const double Pres_TR = Physics.rt[i_rt_tr_pre];
   //ACCH::UpdateGPU(Grid.pres, Grid.bufsize*sizeof(double));
   //ACCH::UpdateGPU(Grid.temp, Grid.bufsize*sizeof(double));
   //ACCH::UpdateGPU(Grid.U, Grid.bufsize*sizeof(cState));
 
 #pragma acc parallel loop gang collapse(2) \
- present(this[:1], Grid[:1], Grid.pres[:Grid.bufsize], Grid.temp[:Grid.bufsize], Grid.U[:Grid.bufsize], \
-         rho[:nx*ny*nz], tab_T[:NT], tab_p[:Np], B_Iout_tab[:NT], kap_Iout_tab[:NT][:Np], \
-	 kap[:nx*ny*nz], B[:nx*ny*nz], invT_tab[:NT], invP_tab[:Np]) \
- copyin(next[1:2])
+ present(this[:1],lgTe[:nx*ny*nz],lgPe[:nx*ny*nz],T_ind[:nx*ny*nz],P_ind[:nx*ny*nz],tr_switch[:nx*ny*nz], B_Iout_tab[:NT], kap_Iout_tab[:NT][:Np], \
+	 kap[:nx*ny*nz], B[:nx*ny*nz],tab_T[:NT], tab_p[:Np], invT_tab[:NT], invP_tab[:Np]) 
   for(int y = 0; y < ny; y++) {
     for(int x = 0; x < nx; x++) {
-      int off0 = (x+xl)*next[1]+(y+yl)*next[2];
-      int off1 = (x+xl)*next[1]+(y+yo+yl)*next[2];
-      int off2 = (x+xo+xl)*next[1]+(y+yl)*next[2];
-      int off3 = (x+xo+yl)*next[1]+(y+yo+yl)*next[2];
+      int xyoff = y*nx*nz + x*nz;
 #pragma acc loop vector
-      for(int z = 0; z < nz; z++) {
-        int inode[]={off0+z+zl,off0+z+zo+zl,off2+z+zl,off2+z+zo+zl,off1+z+zl,off1+z+zo+zl,off3+z+zl,off3+z+zo+zl};
-        double lgP = 0, lgT = 0, rm = 0;
-#pragma acc loop seq
-        for(int l=0;l<N;++l){
-          lgP+=Grid.pres[inode[l]];
-          lgT+=Grid.temp[inode[l]];
-          rm +=Grid.U[inode[l]].d;
-        }
-        lgP /= N;
-        lgT /= N;
-        rm  /= N;
+      for(int z=0;z<nz;++z){
+        int ind = xyoff + z;
 
-        //disbale RT if Temp > Temp_TR above the photosphere
-        double pswitch  = min(max(lgP-Pres_TR,0.0),1.0);
-        double tswitch  = min(max(Temp_TR-lgT,0.0),1.0);
-        double trswitch = max(pswitch,tswitch);
+        int l = T_ind[ind];
+        int m = P_ind[ind];
 
-        lgP          = log(lgP);
-        lgT          = log(lgT);
-        rho[y*nx*nz+x*nz+z] = rm;
-
-        lgT = min(max(lgT, (double) tab_T[0]),(double) tab_T[NT-1]);
-        lgP = min(max(lgP, (double) tab_p[0]),(double) tab_p[Np-1]);
-
-        int l=0;
-        int m=0;
-        if(lgT<tab_T[0])
-          l=0;
-        else if(lgT>tab_T[NT-1])
-          l=NT-2;
-        else {
-#pragma acc loop seq 
-        for (int li=0; li<=NT-2; li++){
-            int lflag = 0;
-            if ((lgT >= tab_T[li]) && (lgT <= tab_T[li+1])){
-              lflag = lflag+1;
-            if(lflag==1)
-              l = li;
-            }
-          }
-        }
-
-        if(lgP<tab_p[0])
-          m=0;
-        else if(lgP>tab_p[Np-1])
-          m=Np-2;
-        else {
-#pragma acc loop seq 
-        for (int mi=0; mi<=Np-2; mi++){
-            int mflag = 0;
-            if ((lgP >= tab_p[mi]) && (lgP <= tab_p[mi+1]))
-              mflag = mflag+1;
-            if(mflag==1)
-              m = mi;
-          }
-        }
-
-        double xt = (lgT-tab_T[l])*invT_tab[l];
-        double xp = (lgP-tab_p[m])*invP_tab[m];
+        double xt = (lgTe[ind]-tab_T[l])*invT_tab[l];
+        double xp = (lgPe[ind]-tab_p[m])*invP_tab[m];
 
         // Interpolate for kappa and B
-        B[y*nx*nz+x*nz+z]=exp(xt*B_Iout_tab[l+1]+(1.-xt)*B_Iout_tab[l]);
+        B[ind]=exp(xt*B_Iout_tab[l+1]+(1.-xt)*B_Iout_tab[l]);
 
-        kap[y*nx*nz+x*nz+z] = exp(xt*(xp*kap_Iout_tab[l+1][m+1]+(1.-xp)*kap_Iout_tab[l+1][m])+
+        kap[ind] = exp(xt*(xp*kap_Iout_tab[l+1][m+1]+(1.-xp)*kap_Iout_tab[l+1][m])+
                            (1.-xt)*(xp*kap_Iout_tab[l][m+1]+(1.-xp)*kap_Iout_tab[l][m]));
 
-
         // apply tr_switch
-        B[y*nx*nz+x*nz+z]   *= trswitch;
-        kap[y*nx*nz+x*nz+z] *= trswitch;
+        B[ind]   *= tr_switch[ind];
+        kap[ind] *= tr_switch[ind];
 
       }
     }
