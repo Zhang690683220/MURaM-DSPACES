@@ -98,6 +98,18 @@ void Source_Integrate_Tcheck(const RunData& Run, GridData& Grid,
 //#pragma acc update device(dmp[:sz])
   }
 
+#pragma acc data present(Grid[:1], Grid.U[:bufsize], Grid.U0[:bufsize],          \
+  Grid.Res[:bufsize], Grid.Qtot[:bufsize],                       \
+  Grid.Qthin[:bufsize], Grid.QH[:bufsize],                       \
+  Grid.QMg[:bufsize], Grid.QCa[:bufsize],                        \
+  Grid.tvar4[:bufsize], Grid.tvar5[:bufsize],                    \
+  Grid.tvar6[:bufsize], Grid.tvar7[:bufsize],                    \
+  Grid.sflx[:bufsize], Grid.sflx0[:bufsize],                     \
+  Grid.Rflx[:bufsize], Grid.v_amb[:bufsize],                     \
+  Grid.v0_amb[:bufsize], Grid.R_amb[:bufsize],                   \
+  dmp[:sz])
+{
+
 if(need_diagnostics){
 
 #pragma acc parallel loop collapse(2) gang                       \
@@ -235,18 +247,26 @@ if(need_diagnostics){
     }
 
     if(ambipolar){
-      #pragma ivdep
+      //#pragma ivdep
 #pragma acc loop vector private(node) 
       for(i=i_beg;i<=i_end;i++){
         node = off0+i;
         Grid.v_amb[node] = Grid.v0_amb[node]+wdt*Grid.R_amb[node];
-        Grid.R_amb[node].x = 0;
-        Grid.R_amb[node].y = 0;
-        Grid.R_amb[node].z = 0;
         vv = Grid.v_amb[node].abs();
         s  = ambvel_max/max(ambvel_max,vv);
         Grid.v_amb[node] *= s;
       }
+#ifdef _OPENACC
+     #pragma acc loop vector private(node) 
+      for(i=i_beg;i<=i_end;i++){
+        node = off0+i;
+        Grid.R_amb[node].x = 0;
+        Grid.R_amb[node].y = 0;
+        Grid.R_amb[node].z = 0;
+      }
+#else
+      memset(&Grid.R_amb[off0+i_beg],0.0,(i_end-i_beg+1)*sizeof(Vector));
+#endif
     }
 
     // Tcheck - catch extreme values before they cause problems
@@ -408,19 +428,27 @@ if(need_diagnostics){
     }
 
     if(ambipolar){
-      #pragma ivdep
+      //#pragma ivdep
 #pragma acc loop vector private(node) 
       for(i=i_beg;i<=i_end;i++){
         node = off0+i;
         Grid.v_amb[node] = Grid.v0_amb[node]+wdt*Grid.R_amb[node];
-        Grid.R_amb[node].x = 0;
-        Grid.R_amb[node].y = 0;
-        Grid.R_amb[node].z = 0;
         vv = Grid.v_amb[node].abs();
         s  = ambvel_max/max(ambvel_max,vv);
         Grid.v_amb[node] *= s;
       }
-    }
+#ifdef _OPENACC
+     #pragma acc loop vector private(node) 
+      for(i=i_beg;i<=i_end;i++){
+        node = off0+i;
+        Grid.R_amb[node].x = 0;
+        Grid.R_amb[node].y = 0;
+        Grid.R_amb[node].z = 0;
+      }
+#else
+      memset(&Grid.R_amb[off0+i_beg],0.0,(i_end-i_beg+1)*sizeof(Vector));
+#endif
+     }
 
     // Tcheck - catch extreme values before they cause problems
     #pragma ivdep
@@ -448,6 +476,7 @@ if(need_diagnostics){
   } // end loop
 
 } //end if
+} //end data
 
 }
 

@@ -1095,7 +1095,7 @@ void RTS::calc_Qtot_and_Tau(GridData &Grid, const RunData &Run, const PhysicsDat
 // * from Qrad                                                     *
 // *****************************************************************
   dt_rad=0.0;
-  double _dt_rad = 0.0;
+  double temp_rad = 0.0;
   double qsum=0.0;
 
   //ACCH::UpdateGPU(Grid.Tau, Grid.bufsize*sizeof(double));
@@ -1107,12 +1107,12 @@ void RTS::calc_Qtot_and_Tau(GridData &Grid, const RunData &Run, const PhysicsDat
   present(this[:1], Grid[:1], Grid.Tau[:Grid.bufsize], Tau[:nx*ny*nz], \
           Grid.Jtot[:Grid.bufsize], Jt[:nx*ny*nz], Grid.Stot[:Grid.bufsize], \
 	  St[:nx*ny*nz], tr_switch[:nx*ny*nz], U[:Grid.bufsize], Qt[:ny-yo][:nx-xo][:nz-zo], Grid.Qtot[:Grid.bufsize]) \
-  copyin(next[1:2]) reduction(+:qsum) reduction(max:_dt_rad)
+  copyin(next[1:2]) reduction(+:qsum)
   for(int y = yo; y < ny; y++)
     for(int x = xo; x < nx; x++) {
       int off0 = (x+xl)*next[1]+(y+yl)*next[2];
       int xyoff = y*nx*nz + x*nz;
-#pragma acc loop vector reduction(+:qsum) reduction(max:dt_rad)
+#pragma acc loop vector reduction(+:qsum)
       for(int z = zo; z < nz; z++) {
         int node = off0+z+zl;
 	Grid.Tau[node] = tau(z, x, y);
@@ -1123,12 +1123,12 @@ void RTS::calc_Qtot_and_Tau(GridData &Grid, const RunData &Run, const PhysicsDat
 	scale = scale/(scale + tau_min)*tr_switch[ind];
 	double Qt_step = Qt[y-yo][x-xo][z-zo]*scale;
 	double inv_dt = fabs(Qt_step)/U[node].e;
-	_dt_rad = max(_dt_rad, inv_dt);
+	temp_rad = max(temp_rad, inv_dt);
 	Grid.Qtot[node] = Qt_step;
 	qsum += Qt_step;
       }
     }
-  dt_rad = _dt_rad;
+  dt_rad = temp_rad;
   //ACCH::UpdateCPU(Grid.Tau, Grid.bufsize*sizeof(double));
   //ACCH::UpdateCPU(Grid.Jtot, Grid.bufsize*sizeof(double));
   //ACCH::UpdateCPU(Grid.Stot, Grid.bufsize*sizeof(double));
