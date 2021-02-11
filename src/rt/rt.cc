@@ -914,7 +914,7 @@ double RTS::wrapper(int rt_upd,GridData &Grid,RunData &Run,const PhysicsData &Ph
     Jt[i] = 0.0;
   }
 #pragma acc parallel loop collapse(3) \
- present(this[:1], Qt[:(ny-yo)*(nx-xo)*(nz-zo)])
+ present(this[:1], Qt[:(ny-yo)][:(nx-xo)][:(nz-zo)])
   for(int y = 0; y < ny-yo; y++)
     for(int x = 0; x < nx-xo; x++)
       for(int z = 0; z < nz-zo; z++) {
@@ -1841,10 +1841,15 @@ void RTS::readbuf(int band,int l,int ZDIR,int XDIR,int YDIR)
 }
 
 void RTS::writebuf(int band, int l,int ZDIR,int XDIR,int YDIR){
-  if (NDIM==3){
+
+   real * ysb = y_sbuf[band][YDIR][XDIR][ZDIR][l];
+   real * xsb = x_sbuf[band][YDIR][XDIR][ZDIR][l];
+   real * zsb = z_sbuf[band][YDIR][XDIR][ZDIR][l];
+#pragma acc data present(this[:1], I_n[:nx*ny*nz], ysb[:nx*nz],xsb[:ny*nz],zsb[:ny*nx])
+{
+   if (NDIM==3){
     int y0=(YDIR==FWD)?ny-1:0;
     int y = y0*nx*nz;
-    real * ysb = y_sbuf[band][YDIR][XDIR][ZDIR][l];
 #pragma acc parallel loop collapse(2) \
  present(this[:1], I_n[:nx*ny*nz], ysb[:nx*nz]) async
     for(int x=0;x<nx;++x)
@@ -1855,7 +1860,6 @@ void RTS::writebuf(int band, int l,int ZDIR,int XDIR,int YDIR){
   if (NDIM>1){
     int x0=(XDIR==RIGHT)?nx-1:0;
     int x = x0*nz;
-    real * xsb = x_sbuf[band][YDIR][XDIR][ZDIR][l];
 #pragma acc parallel loop collapse(2) \
  present(this[:1], I_n[:nx*ny*nz], xsb[:ny*nz]) async
     for(int y=0;y<ny;++y)
@@ -1864,12 +1868,12 @@ void RTS::writebuf(int band, int l,int ZDIR,int XDIR,int YDIR){
   }
 
   int z0=(ZDIR==UP)?nz-1:0;
-  real * zsb = z_sbuf[band][YDIR][XDIR][ZDIR][l];
 #pragma acc parallel loop collapse(2) \
  present(this[:1], I_n[:nx*ny*nz], zsb[:ny*nx]) async
   for(int y=0;y<ny;++y)
     for(int x=0;x<nx;++x)
       zsb[x*ny+y]=(real) I_n[y*nx*nz+x*nz+z0];
+}
 #pragma acc wait
 }
 
