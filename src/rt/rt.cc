@@ -1262,7 +1262,7 @@ if (ix || iz) {
       int b1inustr = b1*inustr11;
 #pragma acc parallel loop collapse(2) async independent deviceptr(dIn1,dCf1,dCf2)
       for(int b2 = 0; b2 < bound2; b2++) {
-        for(int b3 = 0; b3 < bound3; b3=b3++) {
+        for(int b3 = 0; b3 < bound3; b3++) {
 #pragma acc cache(dIn1[b1str-constoff:str21],dCf1[b1inustr:inustr21],dCf2[b1inustr:inustr21])
           int b2i = b2_i + b2*step2;
           int b3i = b3_i + b3*step3;
