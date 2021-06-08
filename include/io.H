@@ -9,7 +9,7 @@ extern void BackupSolution(const RunData&, const GridData&, const PhysicsData&);
 extern void RestoreSolution(RunData&, GridData&, const PhysicsData&);
 extern void OutputDerivatives(const RunData&, const GridData&, const PhysicsData&);
 extern void RestoreDerivatives(RunData&, GridData&, const PhysicsData&);
-extern void IO_Init(const GridData&);
+extern void IO_Init(const GridData&, const RunData&);
 extern void IO_Finalize();
 
 extern void Iout(const RunData&, const GridData&, const PhysicsData&, RTS*);

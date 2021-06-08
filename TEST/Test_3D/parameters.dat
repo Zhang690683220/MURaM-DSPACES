@@ -29,6 +29,8 @@ kap_name = ../../RUNDIR/kappa_grey.dat
 # Optional IO parameters
 path_3D = 3D/ 
 path_2D = 2D/ 
+use_dspaces_io = 0
+dspaces_terminate = 0
 
 # Other Outputs, save 3D cubes of
 #             Tem Pre  ne rhoi amb Qrt Tau Jtot Stot Qcor QH QMg QCa QCro

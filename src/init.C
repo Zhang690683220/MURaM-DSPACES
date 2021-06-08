@@ -60,6 +60,9 @@ int Initialize(RunData& Run,GridData& Grid,
     getvar(&Run.DEM,"DEM","int",datafile);
     getvar(&Run.diag_output,"diag_output","int[11]",datafile);
 
+    getvar(&Run.use_dspaces_io, "use_dspaces_io", "int", datafile);
+    getvar(&Run.dspaces_terminate, "dspaces_terminate", "int", datafile);
+
     getvar_s(&Grid.NDIM,"NDIM","int",datafile);
 
     if( Grid.NDIM==3 ) {
@@ -259,7 +262,7 @@ int Initialize(RunData& Run,GridData& Grid,
 
   MPI_Bcast(&mode,1,MPI_INT,0,MPI_COMM_WORLD);
 
-  IO_Init(Grid);
+  IO_Init(Grid, Run);
 
   return mode;
 }

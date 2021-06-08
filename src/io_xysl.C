@@ -11,6 +11,8 @@
 #include "rt/rt.h"
 #include "eos.H"
 #include "limit_va.H"
+// dataspaces header
+#include "dspaces.h"
 
 using namespace std;
 
@@ -23,6 +25,12 @@ int nblocks,blsz;
 MPI_Datatype io_subarray;
 MPI_Info io_info;
 MPI_Comm io_xy_comm,io_z_comm,io_comm;
+
+// dataspaces vars
+int ds_io = 0;
+int ds_terminate = 0;
+dspaces_client_t ndcl = dspaces_CLIENT_NULL;
+uint64_t *lb, *ub;
 
 extern void WriteBackupFile(const char*,const int,const double);
 extern void ReadBackupFile(const char*,const int,int*,double*);
@@ -45,7 +53,7 @@ void WriteHeaderFile(const GridData& Grid,const RunData& Run) {
   fclose(fh);
 }
 
-void IO_Init(const GridData& Grid) {
+void IO_Init(const GridData& Grid, const RunData& Run) {
   int i;
   int gsz[3]; int lsz[3]; int str[3];
 
@@ -71,6 +79,20 @@ void IO_Init(const GridData& Grid) {
   // make sure MPI IO errors leed to program termination
   MPI_File_set_errhandler(MPI_FILE_NULL,MPI_ERRORS_ARE_FATAL); 
 
+  if(Run.use_dspaces_io) {
+    ds_io = 1;
+    if(Run.dspaces_terminate) {
+      ds_terminate = 1;
+    }
+    lb = (uint64_t*) malloc(3*sizeof(uint64_t));
+    ub = (uint64_t*) malloc(3*sizeof(uint64_t));
+    for(int ii=0; ii<3; ii++) {
+      lb[ii] = str[ii];
+      ub[ii] = str[ii]+lsz[ii]-1;
+    }
+    dspaces_init(xy_rank, &ndcl);
+  }
+
   if ( Grid.gsize[2]%blocksize == 0 ){
     nblocks = Grid.gsize[2]/blocksize;
     blsz    = blocksize;
@@ -92,6 +114,14 @@ void IO_Finalize() {
   MPI_Comm_free(&io_comm);
   MPI_Comm_free(&io_xy_comm);
   MPI_Comm_free(&io_z_comm);
+  if(ds_io) {
+    free(lb);
+    free(ub);
+    if(ds_terminate) {
+      dspaces_kill(ndcl);
+    }
+    dspaces_fini(ndcl);
+  }
 }
 ////////////////////// Output /////////////////////////////////
 void OutputSolution(const RunData& Run,const GridData& Grid,const PhysicsData& Physics)
@@ -681,6 +711,18 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
 	  MPI_File_write_all(mfh,iobuf_glo,gsize,MPI_FLOAT,MPI_STATUS_IGNORE);
 	  MPI_File_close(&mfh);
 	}
+
+  if(ds_io == 1) {
+    char ds_var_name[128];
+    sprintf(ds_var_name, "%s%s", Run.path_3D,eos_names[var]);
+    int ret = dspaces_put(ndcl, ds_var_name, Run.globiter, sizeof(float), 3, lb, ub, iobuf_glo);
+    if(ret != 0) {
+      cout << "Error Writing " << ds_var_name << "Version: " << Run.globiter
+      << "to DataSpaces Server. Aborting ... " << endl;
+      MPI_Abort(MPI_COMM_WORLD,1);
+    }
+  }
+
       }
     }
   }

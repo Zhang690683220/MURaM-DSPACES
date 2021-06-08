@@ -33,6 +33,9 @@ public:
   char eos_name[128];
   char kap_name[128];
 
+  int use_dspaces_io; //boolean switch for DataSpaces IO
+  int dspaces_terminate; // send terminate signal to staging server in IO finalization
+
   int diagnostics;
   int need_diagnostics;
 
