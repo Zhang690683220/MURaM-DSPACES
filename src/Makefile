@@ -38,13 +38,48 @@ OBJS = ACCH.o \
        boundary_pdmp_1_fftw3.o \
        solver.o \
        eos_init.o \
-       cons_to_prim.o 
+       cons_to_prim.o
+
+DSOBJS = ACCH.o \
+       io_xysl.o \
+       slice_write.o \
+       slice_write_rebin.o \
+       Iout.o \
+       Qthin.o\
+       tau_slice.o \
+       xy_slice.o \
+       yz_slice.o \
+       xz_slice.o \
+       corona_emission_dem_xyz.o \
+       comm_split.o \
+       grid.o \
+       init.o \
+       run.o \
+       physics.o \
+       analysis_light.o \
+       analysis_hmean_Corona.o \
+       dfparser.o \
+       Adjust_Valf_Max.o \
+       Add_Sources_Integrate_SR.o \
+       mhdres_SR.o \
+       tvdlimit_SR.o \
+       clean_divB.o \
+       exchange.o \
+       potential_sd_fftw3.o \
+       potential_sd_fftw3_par.o \
+       boundary_pdmp_1_fftw3.o \
+       eos_init.o \
+       cons_to_prim.o \
+       ds_data_reader.o
 
 all:
 	@list='$(SUBDIRS)' ; for subdir in $$list ; do $(MAKE) all -C   $$subdir ; done
 	$(MAKE) $(OBJS) $(HEADERS)
 	@echo "Linking $(PROGRAM) ..."
 	$(LD) -o $(PROGRAM) $(OBJS) $(LIBS) $(LDFLAGS)
+       $(MAKE) $(DSOBJS) $(HEADERS)
+       @echo "Linking $(DSREADER) ..."
+	$(LD) -o $(DSREADER) $(DSOBJS) $(LIBS)  $(LDFLAGS)
 	@echo "done"
 
 clean:

@@ -5,6 +5,7 @@ FFTW3_HOME = /glade/u/apps/dav/opt/fftw-mpi/3.3.8/openmpi/4.0.5/nvhpc/20.11
 
 # output name
 PROGRAM = mhd3d.x
+DSREADER = ds_reader.x
 
 # Optimization option
 OPT = -O0 -g  -fast -acc -ta=tesla:cc70 -Minfo=accel -std=c++11
