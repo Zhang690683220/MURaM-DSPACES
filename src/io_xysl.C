@@ -752,6 +752,8 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
     if(Run.verbose >0) {
       cout << "MPI Output (EOS) in " << mpi_io_time << " seconds" << endl;
       cout << "DataSpaces Output (EOS) in " << ds_io_time << " seconds" << endl;
+      cout << "Total MPI IO in " << mpi_io_total_time << " seconds" << endl;
+      cout << "Total DataSpaces IO in " << ds_io_total_time << " seconds" << endl;
     } 
   }
   
