@@ -77,8 +77,8 @@ all:
 	$(MAKE) $(OBJS) $(HEADERS)
 	@echo "Linking $(PROGRAM) ..."
 	$(LD) -o $(PROGRAM) $(OBJS) $(LIBS) $(LDFLAGS)
-       $(MAKE) $(DSOBJS) $(HEADERS)
-       @echo "Linking $(DSREADER) ..."
+	$(MAKE) $(DSOBJS) $(HEADERS)
+	@echo "Linking $(DSREADER) ..."
 	$(LD) -o $(DSREADER) $(DSOBJS) $(LIBS)  $(LDFLAGS)
 	@echo "done"
 
