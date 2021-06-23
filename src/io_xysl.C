@@ -32,7 +32,7 @@ int ds_terminate = 0;
 dspaces_client_t ndcl = dspaces_CLIENT_NULL;
 uint64_t *lb, *ub;
 
-double clock, ds_io_time;
+static double clock, ds_io_time;
 
 extern void WriteBackupFile(const char*,const int,const double);
 extern void ReadBackupFile(const char*,const int,int*,double*);

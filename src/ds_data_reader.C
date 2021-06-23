@@ -24,7 +24,7 @@ static int ds_terminate = 0;
 static dspaces_client_t ndcl = dspaces_CLIENT_NULL;
 static uint64_t *lb, *ub;
 
-double clock, ds_io_time;
+static double clock, ds_io_time;
 
 int ds_IO_Init(const GridData& Grid, const RunData& Run) {
     int i;
