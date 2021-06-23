@@ -32,7 +32,7 @@ int ds_terminate = 0;
 dspaces_client_t ndcl = dspaces_CLIENT_NULL;
 uint64_t *lb, *ub;
 
-static double clk, ds_io_time;
+static double clk, ds_io_time, ds_io_total_time;
 
 extern void WriteBackupFile(const char*,const int,const double);
 extern void ReadBackupFile(const char*,const int,int*,double*);
@@ -83,7 +83,7 @@ void IO_Init(const GridData& Grid, const RunData& Run) {
 
   if(Run.use_dspaces_io) {
     ds_io = 1;
-    ds_io_time = 0.0;
+    ds_io_total_time = 0.0;
     if(Run.dspaces_terminate) {
       ds_terminate = 1;
     }
@@ -118,6 +118,9 @@ void IO_Finalize() {
   MPI_Comm_free(&io_xy_comm);
   MPI_Comm_free(&io_z_comm);
   if(ds_io) {
+    if(xy_rank == 0) {
+      cout << "Total DataSpaces IO in " << ds_io_time << " seconds" << endl;
+    }
     free(lb);
     free(ub);
     if(ds_terminate) {
@@ -675,6 +678,10 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
   for(v2=0;v2<v2_max;v2++)
     if (zcol_rank == v2) iobuf_glo = (float*)malloc(gsize*sizeof(float));
 
+  if(ds_io == 1) {
+    ds_io_time = 0.0;
+  }
+
   for(v1=0;v1<v1_max;v1++){
     for(v2=0;v2<v2_max;v2++){
       var = var_index[v1*v2_max + v2];
@@ -726,6 +733,7 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
       MPI_Abort(MPI_COMM_WORLD,1);
     }
     ds_io_time += MPI_Wtime() - clk;
+    ds_io_total_time += ds_io_time;
   }
 
       }
