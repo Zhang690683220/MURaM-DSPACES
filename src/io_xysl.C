@@ -727,7 +727,6 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
 	  MPI_File_write_all(mfh,iobuf_glo,gsize,MPI_FLOAT,MPI_STATUS_IGNORE);
 	  MPI_File_close(&mfh);
     mpi_io_time += MPI_Wtime() - clk;
-    mpi_io_total_time += mpi_io_time;
 	}
 
   if(ds_io == 1) {
@@ -741,7 +740,6 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
       MPI_Abort(MPI_COMM_WORLD,1);
     }
     ds_io_time += MPI_Wtime() - clk;
-    ds_io_total_time += ds_io_time;
   }
 
       }
@@ -749,11 +747,11 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
   }
 
   if(xy_rank == 0) {
+    ds_io_total_time += ds_io_time;
+    mpi_io_total_time += mpi_io_time;
     if(Run.verbose >0) {
       cout << "MPI Output (EOS) in " << mpi_io_time << " seconds" << endl;
       cout << "DataSpaces Output (EOS) in " << ds_io_time << " seconds" << endl;
-      cout << "Total MPI IO in " << mpi_io_total_time << " seconds" << endl;
-      cout << "Total DataSpaces IO in " << ds_io_total_time << " seconds" << endl;
     } 
   }
   
