@@ -32,7 +32,7 @@ int ds_terminate = 0;
 dspaces_client_t ndcl = dspaces_CLIENT_NULL;
 uint64_t *lb, *ub;
 
-static double clk, ds_io_time, ds_io_total_time;
+static double clk, ds_io_time, ds_io_total_time, mpi_io_time, mpi_io_total_time;
 
 extern void WriteBackupFile(const char*,const int,const double);
 extern void ReadBackupFile(const char*,const int,int*,double*);
@@ -81,6 +81,8 @@ void IO_Init(const GridData& Grid, const RunData& Run) {
   // make sure MPI IO errors leed to program termination
   MPI_File_set_errhandler(MPI_FILE_NULL,MPI_ERRORS_ARE_FATAL); 
 
+  mpi_io_total_time = 0.0;
+
   if(Run.use_dspaces_io) {
     ds_io = 1;
     ds_io_total_time = 0.0;
@@ -119,7 +121,9 @@ void IO_Finalize() {
   MPI_Comm_free(&io_z_comm);
   if(ds_io) {
     if(xy_rank == 0) {
-      cout << "Total DataSpaces IO in " << ds_io_time << " seconds" << endl;
+      cout << "**** IO SUMMARY *********************" << endl;
+      cout << "Total MPI IO in " << mpi_io_total_time << " seconds" << endl;
+      cout << "Total DataSpaces IO in " << ds_io_total_time << " seconds" << endl;
     }
     free(lb);
     free(ub);
@@ -678,6 +682,7 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
   for(v2=0;v2<v2_max;v2++)
     if (zcol_rank == v2) iobuf_glo = (float*)malloc(gsize*sizeof(float));
 
+  mpi_io_time = 0.0;
   if(ds_io == 1) {
     ds_io_time = 0.0;
   }
@@ -714,12 +719,15 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
 			   fh);
 	  if(xy_rank == 0) fclose(fh);
 	} else {
+    clk = MPI_Wtime();
 	  MPI_File_open(io_xy_comm,filename,MPI_MODE_CREATE | MPI_MODE_WRONLY,
 			io_info,&mfh);
 	  MPI_File_set_view(mfh,0,MPI_FLOAT,io_subarray,(char *) "native",
 			    io_info);
 	  MPI_File_write_all(mfh,iobuf_glo,gsize,MPI_FLOAT,MPI_STATUS_IGNORE);
 	  MPI_File_close(&mfh);
+    mpi_io_time += MPI_Wtime() - clk;
+    mpi_io_total_time += mpi_io_time;
 	}
 
   if(ds_io == 1) {
