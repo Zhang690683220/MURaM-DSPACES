@@ -750,6 +750,7 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
 
   if(xy_rank == 0) {
     if(Run.verbose >0) {
+      cout << "MPI Output (EOS) in " << mpi_io_time << " seconds" << endl;
       cout << "DataSpaces Output (EOS) in " << ds_io_time << " seconds" << endl;
     } 
   }
