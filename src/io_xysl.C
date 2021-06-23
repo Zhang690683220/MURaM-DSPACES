@@ -32,7 +32,7 @@ int ds_terminate = 0;
 dspaces_client_t ndcl = dspaces_CLIENT_NULL;
 uint64_t *lb, *ub;
 
-static double clock, ds_io_time;
+static double clk, ds_io_time;
 
 extern void WriteBackupFile(const char*,const int,const double);
 extern void ReadBackupFile(const char*,const int,int*,double*);
@@ -718,14 +718,14 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
   if(ds_io == 1) {
     char ds_var_name[128];
     sprintf(ds_var_name, "%s%s", Run.path_3D,eos_names[var]);
-    clock = MPI_Wtime();
+    clk = MPI_Wtime();
     int ret = dspaces_put(ndcl, ds_var_name, Run.globiter, sizeof(float), 3, lb, ub, iobuf_glo);
     if(ret != 0) {
       cout << "Error Writing " << ds_var_name << "Version: " << Run.globiter
       << "to DataSpaces Server. Aborting ... " << endl;
       MPI_Abort(MPI_COMM_WORLD,1);
     }
-    ds_io_time += MPI_Wtime() - clock;
+    ds_io_time += MPI_Wtime() - clk;
   }
 
       }

@@ -24,7 +24,7 @@ static int ds_terminate = 0;
 static dspaces_client_t ndcl = dspaces_CLIENT_NULL;
 static uint64_t *lb, *ub;
 
-static double clock, ds_io_time;
+static double clk, ds_io_time;
 
 int ds_IO_Init(const GridData& Grid, const RunData& Run) {
     int i;
@@ -245,7 +245,7 @@ void eos_ds_read(const RunData& Run, const GridData& Grid, const PhysicsData& Ph
                     std::cout << "Read " << ds_var_name
                             << " Version:" << Run.globiter <<std::endl;
                 }
-                clock = MPI_Wtime();
+                clk = MPI_Wtime();
                 int ret = dspaces_get(ndcl, ds_var_name, Run.globiter, 
                                         sizeof(float), 3, lb, ub, iobuf_glo, -1);
                 if(ret != 0) {
@@ -253,7 +253,7 @@ void eos_ds_read(const RunData& Run, const GridData& Grid, const PhysicsData& Ph
                             << "to DataSpaces Server. Aborting ... " << std::endl;
                 MPI_Abort(MPI_COMM_WORLD,1);
                 }
-                ds_io_time += MPI_Wtime() - clock;
+                ds_io_time += MPI_Wtime() - clk;
 
                 if(xy_rank == 0) {
                     std::cout << ds_var_name << " Version:" << Run.globiter << "Data: " <<std::endl;
