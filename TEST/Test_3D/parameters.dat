@@ -5,7 +5,7 @@ gxmax   = 6.144e8 6.144e8 6.144e8 | Right corner
 gsize   = 192 64 64 | Global size
 pardim  = 1 1 1 | Parallel dimensions
 periods = 0 1 1 | Periodic boundaries
-procs   = 2 1 1 | Core layout
+procs   = 4 1 1 | Core layout
 
 # Run parameters
 #
@@ -29,7 +29,7 @@ kap_name = ../../RUNDIR/kappa_grey.dat
 # Optional IO parameters
 path_3D = 3D/ 
 path_2D = 2D/ 
-use_dspaces_io = 0
+use_dspaces_io = 1
 dspaces_terminate = 0
 
 # Other Outputs, save 3D cubes of

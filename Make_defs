@@ -1,6 +1,6 @@
-MURaM_HOME_DIR = /glade/scratch/cmille73/muram_sing/MURaM_main
+MURaM_HOME_DIR = /glade/u/home/bz186/muram_sing/MURaM_main
 #FFTW3_HOME = /opt/nvidia/hpc_sdk/Linux_x86_64/20.11/cuda/10.2/bin:/usr/local/fftw/bin/
-FFTW3_HOME = /glade/u/apps/dav/opt/fftw-mpi/3.3.8/openmpi/4.0.5/nvhpc/20.11
+FFTW3_HOME = /glade/u/apps/dav/opt/fftw-mpi/3.3.9/openmpi/4.1.0/nvhpc/21.3
 #FFTW3_HOME = /usr/local/fftw/
 
 # output name
@@ -8,7 +8,8 @@ PROGRAM = mhd3d.x
 DSREADER = ds_reader.x
 
 # Optimization option
-OPT = -O0 -g  -fast -acc -ta=tesla:cc70 -Minfo=accel -std=c++11
+OPT = -O0 -g -std=c++11
+#OPT = -O0 -g  -fast -acc -ta=tesla:cc70 -Minfo=accel -std=c++11
 #OPT = -O3 -ta=tesla:cc70 -Minfo=accel -DCACHE_SIZE=128
 
 # Debugging option (for development) use -pg -g3
