@@ -96,7 +96,7 @@ void IO_Init(const GridData& Grid, const RunData& Run) {
       lb[ii] = str[ii];
       ub[ii] = str[ii]+lsz[ii]-1;
     }
-    if(Run.dspaces_client_listen_addr) {
+    if(Run.dspaces_maunal_listen_addr) {
       sprintf(listen_addr_str, "%s", Run.dspaces_client_listen_addr);
       dspaces_init(xy_rank, &ndcl, listen_addr_str);
     } else {
