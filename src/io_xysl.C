@@ -84,10 +84,14 @@ void IO_Init(const GridData& Grid, const RunData& Run) {
   mpi_io_total_time = 0.0;
 
   if(Run.use_dspaces_io) {
+    char* listen_addr_str = NULL;
     ds_io = 1;
     ds_io_total_time = 0.0;
     if(Run.dspaces_terminate) {
       ds_terminate = 1;
+    }
+    if(Run.dspaces_client_listen_addr) {
+      listen_addr_str = Run.dspaces_client_listen_addr;
     }
     lb = (uint64_t*) malloc(3*sizeof(uint64_t));
     ub = (uint64_t*) malloc(3*sizeof(uint64_t));
@@ -95,7 +99,7 @@ void IO_Init(const GridData& Grid, const RunData& Run) {
       lb[ii] = str[ii];
       ub[ii] = str[ii]+lsz[ii]-1;
     }
-    dspaces_init(xy_rank, &ndcl);
+    dspaces_init(xy_rank, &ndcl, listen_addr_str);
   }
 
   if ( Grid.gsize[2]%blocksize == 0 ){
