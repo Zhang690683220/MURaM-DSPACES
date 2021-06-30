@@ -35,7 +35,7 @@ public:
 
   int use_dspaces_io; //boolean switch for DataSpaces IO
   int dspaces_terminate; // send terminate signal to staging server in IO finalization
-  int dspaces_maunal_listen_addr; //boolean switch for manual set ds client listen address string
+  int dspaces_manual_listen_addr; //boolean switch for manual set ds client listen address string
   char dspaces_client_listen_addr[128]; //manual set ds client listen address string
 
   int diagnostics;

@@ -62,7 +62,7 @@ int Initialize(RunData& Run,GridData& Grid,
 
     getvar(&Run.use_dspaces_io, "use_dspaces_io", "int", datafile);
     getvar(&Run.dspaces_terminate, "dspaces_terminate", "int", datafile);
-    getvar(&Run.dspaces_maunal_listen_addr, "dspaces_maunal_listen_addr", "int", datafile);
+    getvar(&Run.dspaces_maunal_listen_addr, "dspaces_manual_listen_addr", "int", datafile);
     if(Run.dspaces_maunal_listen_addr) {
       getvar(&Run.dspaces_client_listen_addr, "dspaces_client_listen_addr", "char*", datafile);
     }
