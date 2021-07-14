@@ -12,6 +12,7 @@
 #include "eos.H"
 #include "limit_va.H"
 // dataspaces header
+#include "ACCH.h"
 #include "dspaces.h"
 
 using namespace std;
@@ -106,7 +107,7 @@ void IO_Init(const GridData& Grid, const RunData& Run) {
     lb[2] = Grid.beg[2]-Grid.gbeg[2];
     ub[2] = lb[2] + Grid.lsize[2] - 1;
 
-    MPI_Comm_Rank(io_comm, &io_rank);
+    MPI_Comm_rank(io_comm, &io_rank);
 
     if(Run.dspaces_manual_listen_addr) {
       sprintf(listen_addr_str, "%s", Run.dspaces_client_listen_addr);
