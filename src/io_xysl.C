@@ -1029,7 +1029,7 @@ void eos_output_gpu(const RunData& Run, const GridData& Grid,const PhysicsData& 
   
   for(vi=0; vi<v_max; vi++) {
     var = var_index[vi];
-    dev_ptr = ACCH::GetDevicePtr(eos_vars[var]);
+    dev_ptr = (double*) ACCH::GetDevicePtr(eos_vars[var]);
     
     sprintf(filename,"%s%s.%06d",Run.path_3D,eos_names[var],Run.globiter);
     if(io_rank == 0) {
