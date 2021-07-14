@@ -35,6 +35,9 @@ public:
 
   int use_dspaces_io; //boolean switch for DataSpaces IO
   int dspaces_terminate; // send terminate signal to staging server in IO finalization
+  int dspaces_put_local; //boolean switch for local_put;
+  int dspaces_optimized; // boolean switch for non-collective output
+  int dspaces_gpu; // boolean switch for gpu direct
   int dspaces_manual_listen_addr; //boolean switch for manual set ds client listen address string
   char dspaces_client_listen_addr[128]; //manual set ds client listen address string
 

@@ -147,21 +147,30 @@ void ComputeSolution(RunData& Run,GridData& Grid,const PhysicsData& Physics,RTS 
       
         if(needoutput){
 	  clock=MPI_Wtime();
-          ACCH::UpdateCPU(Grid.Jtot, Grid.bufsize*sizeof(double));
-          ACCH::UpdateCPU(Grid.Qtot, Grid.bufsize*sizeof(double));
-          ACCH::UpdateCPU(Grid.Stot, Grid.bufsize*sizeof(double));
-          ACCH::UpdateCPU(Grid.ne, Grid.bufsize*sizeof(double));
-          ACCH::UpdateCPU(Grid.Qthin, Grid.bufsize*sizeof(double));
-          ACCH::UpdateCPU(Grid.rhoi, Grid.bufsize*sizeof(double));
-          ACCH::UpdateCPU(Grid.amb, Grid.bufsize*sizeof(double));
-          ACCH::UpdateCPU(Grid.Tau, Grid.bufsize*sizeof(double));
-	  ACCH::UpdateCPU(Grid.temp, Grid.bufsize*sizeof(double));
-	  if(Physics.rt_ext[i_ext_cor] == 2) {
-            ACCH::UpdateCPU(Grid.QH, Grid.bufsize*sizeof(double));
-            ACCH::UpdateCPU(Grid.QMg, Grid.bufsize*sizeof(double));
-            ACCH::UpdateCPU(Grid.QCa, Grid.bufsize*sizeof(double));
-	  }
-	  eos_output(Run,Grid,Physics,rts);
+          if(Run.dspaces_gpu) {
+            eos_output_gpu(Run,Grid,Physics,rts);
+          } else {
+            ACCH::UpdateCPU(Grid.Jtot, Grid.bufsize*sizeof(double));
+            ACCH::UpdateCPU(Grid.Qtot, Grid.bufsize*sizeof(double));
+            ACCH::UpdateCPU(Grid.Stot, Grid.bufsize*sizeof(double));
+            ACCH::UpdateCPU(Grid.ne, Grid.bufsize*sizeof(double));
+            ACCH::UpdateCPU(Grid.Qthin, Grid.bufsize*sizeof(double));
+            ACCH::UpdateCPU(Grid.rhoi, Grid.bufsize*sizeof(double));
+            ACCH::UpdateCPU(Grid.amb, Grid.bufsize*sizeof(double));
+            ACCH::UpdateCPU(Grid.Tau, Grid.bufsize*sizeof(double));
+	          ACCH::UpdateCPU(Grid.temp, Grid.bufsize*sizeof(double));
+	          if(Physics.rt_ext[i_ext_cor] == 2) {
+              ACCH::UpdateCPU(Grid.QH, Grid.bufsize*sizeof(double));
+              ACCH::UpdateCPU(Grid.QMg, Grid.bufsize*sizeof(double));
+              ACCH::UpdateCPU(Grid.QCa, Grid.bufsize*sizeof(double));
+	          }
+            if(Run.dspaces_optimized) {
+              eos_output_optimized(Run,Grid,Physics,rts);
+            } else {
+              eos_output(Run,Grid,Physics,rts);
+            }
+          }
+    
 
 	  if (Run.diagnostics){
             ACCH::UpdateCPU(Grid.tvar1, Grid.bufsize*sizeof(double));

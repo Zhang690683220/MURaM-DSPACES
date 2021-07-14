@@ -29,8 +29,11 @@ MPI_Comm io_xy_comm,io_z_comm,io_comm;
 // dataspaces vars
 int ds_io = 0;
 int ds_terminate = 0;
+int ds_put_local = 0;
+int ds_optimized = 0;
 dspaces_client_t ndcl = dspaces_CLIENT_NULL;
 uint64_t *lb, *ub;
+int io_rank; // for print msg
 
 static double clk, ds_io_time, ds_io_total_time, mpi_io_time, mpi_io_total_time;
 
@@ -90,12 +93,21 @@ void IO_Init(const GridData& Grid, const RunData& Run) {
     if(Run.dspaces_terminate) {
       ds_terminate = 1;
     }
+    if(Run.dspaces_put_local) {
+      ds_put_local = 1;
+    }
     lb = (uint64_t*) malloc(3*sizeof(uint64_t));
     ub = (uint64_t*) malloc(3*sizeof(uint64_t));
-    for(int ii=0; ii<3; ii++) {
+    for(int ii=0; ii<2; ii++) {
       lb[ii] = str[ii];
       ub[ii] = str[ii]+lsz[ii]-1;
     }
+    //dspaces io does not need any z-axis collective calls
+    lb[2] = Grid.beg[2]-Grid.gbeg[2];
+    ub[2] = lb[2] + Grid.lsize[2] - 1;
+
+    MPI_Comm_Rank(io_comm, &io_rank);
+
     if(Run.dspaces_manual_listen_addr) {
       sprintf(listen_addr_str, "%s", Run.dspaces_client_listen_addr);
       dspaces_init(xy_rank, &ndcl, listen_addr_str);
@@ -671,7 +683,7 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
   sprintf(eos_names[13],"%s","QxChr");
 
   eos_vars[0] = Grid.temp;
-  eos_vars[1] = Grid.pres;
+  eos_vars[1] = Grid.pres; // no update before eos_output()
   eos_vars[2] = Grid.ne;
   eos_vars[3] = Grid.rhoi;
   eos_vars[4] = Grid.amb;
@@ -740,8 +752,13 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
     char ds_var_name[128];
     sprintf(ds_var_name, "%s%s", Run.path_3D,eos_names[var]);
     clk = MPI_Wtime();
-    int ret = dspaces_put(ndcl, ds_var_name, Run.globiter, sizeof(float), 3, lb, ub, iobuf_glo);
-    if(ret != 0) {
+    int ds_ret = 0;
+    if(ds_put_local) {
+      ds_ret = dspaces_put_local(ndcl, ds_var_name, Run.globiter, sizeof(float), Grid.NDIM, lb, ub, iobuf_glo);
+    } else {
+      ds_ret = dspaces_put(ndcl, ds_var_name, Run.globiter, sizeof(float), Grid.NDIM, lb, ub, iobuf_glo);
+    }
+    if(ds_ret != 0) {
       cout << "Error Writing " << ds_var_name << "Version: " << Run.globiter
       << "to DataSpaces Server. Aborting ... " << endl;
       MPI_Abort(MPI_COMM_WORLD,1);
@@ -765,6 +782,285 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
   free(iobuf_loc); 
   for(v2=0;v2<v2_max;v2++)
     if (zcol_rank == v2) free(iobuf_glo); 
+  
+}
+
+void eos_output_optimized(const RunData& Run, const GridData& Grid,const PhysicsData& Physics, RTS *rts) {
+
+  char filename[128];
+
+  register int i,j,k,loc;
+
+  float* iobuf_loc;
+  //float* iobuf_glo=NULL;
+
+  int sizex=Grid.lend[0]-Grid.lbeg[0]+1;
+  int sizey=Grid.lend[1]-Grid.lbeg[1]+1;
+  int sizez=Grid.lend[2]-Grid.lbeg[2]+1;
+  
+  int lsize=sizex*sizey*sizez; 
+  int gsize=sizex*sizey*Grid.gsize[2];
+    
+  FILE* fh=NULL;
+  MPI_File mfh;
+
+  int v_max, vi, var;
+
+  int max_vars = 14;
+  
+  char eos_names[max_vars][128];
+  double* eos_vars[max_vars];
+
+  //Only write out variables that re allocated based on phyasics configuration
+  int var_init[max_vars];
+  for(var=0;var<max_vars;var++)
+    var_init[var] = 0;
+  
+  var_init[0] = 1;
+  var_init[1] = 1;
+  var_init[2] = 1;
+  var_init[3] = 1;
+  var_init[4] = 1;
+  var_init[5] = 1;
+  var_init[6] = 1;
+  var_init[7] = 1;
+  var_init[8] = 1;
+
+  if(Physics.rt_ext[i_ext_cor] >= 1)
+    var_init[9] = 1;
+  if(Physics.rt_ext[i_ext_cor] == 2){
+    var_init[10] = 1;
+    var_init[11] = 1;
+    var_init[12] = 1;
+    var_init[13] = 1;
+  }
+  
+  int var_index[max_vars];
+
+  int tot_vars = 0;
+  for(var=0;var<max_vars;var++){
+    if((Run.eos_output[var] == 1) && (var_init[var] == 1)){
+      var_index[tot_vars]=var;
+      tot_vars +=1;
+    }
+  }
+      
+  v_max = tot_vars;
+
+  // This is ugly, but for now it works so I will stick with it -- DP 
+  sprintf(eos_names[0],"%s","eosT");
+  sprintf(eos_names[1],"%s","eosP");
+  sprintf(eos_names[2],"%s","eosne");
+  sprintf(eos_names[3],"%s","eosrhoi");
+  sprintf(eos_names[4],"%s","eosamb");
+  sprintf(eos_names[5],"%s","Qtot");
+  sprintf(eos_names[6],"%s","tau");
+  sprintf(eos_names[7],"%s","Jtot");
+  sprintf(eos_names[8],"%s","Stot");
+  sprintf(eos_names[9],"%s","QxCor");
+  sprintf(eos_names[10],"%s","QxH");
+  sprintf(eos_names[11],"%s","QxMg");
+  sprintf(eos_names[12],"%s","QxCa");
+  sprintf(eos_names[13],"%s","QxChr");
+
+  eos_vars[0] = Grid.temp;
+  eos_vars[1] = Grid.pres; // no update before eos_output()
+  eos_vars[2] = Grid.ne;
+  eos_vars[3] = Grid.rhoi;
+  eos_vars[4] = Grid.amb;
+  eos_vars[5] = Grid.Qtot;
+  eos_vars[6] = Grid.Tau;
+  eos_vars[7] = Grid.Jtot;
+  eos_vars[8] = Grid.Stot;
+  eos_vars[9] = Grid.Qthin;
+  eos_vars[10] = Grid.QH;
+  eos_vars[11] = Grid.QMg;
+  eos_vars[12] = Grid.QCa;
+  eos_vars[13] = Grid.QChr;
+ 
+  iobuf_loc = (float*)malloc(lsize*sizeof(float));
+
+  ds_io_time = 0.0;
+  
+  for(vi=0; vi<v_max; vi++) {
+    var = var_index[vi];
+    // convert double to float
+    for(k=0; k<sizez; k++) {
+      for(j=0; j<sizey; j++){
+        for(i=0; i<sizex; i++) {
+          loc = Grid.node(+Grid.ghosts[0],j+Grid.ghosts[1],k+Grid.ghosts[2]);
+          iobuf_loc[i+j*sizex+k*sizex*sizey] = (float) eos_vars[var][loc];
+        }
+      }
+    }
+    
+    sprintf(filename,"%s%s.%06d",Run.path_3D,eos_names[var],Run.globiter);
+    if(io_rank == 0) {
+      std::cout<< "write " << filename << std::endl;
+    }
+
+    char ds_var_name[128];
+    sprintf(ds_var_name, "%s%s", Run.path_3D,eos_names[var]);
+    clk = MPI_Wtime();
+    int ds_ret = 0;
+    if(ds_put_local) {
+      dspaces_put_local(ndcl, ds_var_name, Run.globiter, sizeof(float), Grid.NDIM, lb, ub, iobuf_loc);
+    } else {
+      dspaces_put(ndcl, ds_var_name, Run.globiter, sizeof(float), Grid.NDIM, lb, ub, iobuf_loc);
+    }
+    if(ds_ret != 0) {
+      cout << "Error Writing " << ds_var_name << "Version: " << Run.globiter
+      << "to DataSpaces Server. Aborting ... " << endl;
+      MPI_Abort(MPI_COMM_WORLD,1);
+    }
+    ds_io_time += MPI_Wtime() - clk;
+  }
+  
+  
+  if(io_rank == 0) {
+    ds_io_total_time += ds_io_time;
+    if(Run.verbose >0) {
+      cout << "DataSpaces Output (EOS) in " << ds_io_time << " seconds" << endl;
+    } 
+  }
+  
+  free(iobuf_loc); 
+  
+}
+
+void eos_output_gpu(const RunData& Run, const GridData& Grid,const PhysicsData& Physics, RTS *rts) {
+
+  char filename[128];
+
+  //register int i,j,k,loc;
+
+  //float* iobuf_loc;
+  //float* iobuf_glo=NULL;
+  double* dev_ptr;
+
+  int sizex=Grid.lend[0]-Grid.lbeg[0]+1;
+  int sizey=Grid.lend[1]-Grid.lbeg[1]+1;
+  int sizez=Grid.lend[2]-Grid.lbeg[2]+1;
+  
+  int lsize=sizex*sizey*sizez; 
+  int gsize=sizex*sizey*Grid.gsize[2];
+    
+  FILE* fh=NULL;
+  MPI_File mfh;
+
+  int v_max, vi, var;
+
+  int max_vars = 14;
+  
+  char eos_names[max_vars][128];
+  double* eos_vars[max_vars];
+
+  //Only write out variables that re allocated based on phyasics configuration
+  int var_init[max_vars];
+  for(var=0;var<max_vars;var++)
+    var_init[var] = 0;
+  
+  var_init[0] = 1;
+  var_init[1] = 1;
+  var_init[2] = 1;
+  var_init[3] = 1;
+  var_init[4] = 1;
+  var_init[5] = 1;
+  var_init[6] = 1;
+  var_init[7] = 1;
+  var_init[8] = 1;
+
+  if(Physics.rt_ext[i_ext_cor] >= 1)
+    var_init[9] = 1;
+  if(Physics.rt_ext[i_ext_cor] == 2){
+    var_init[10] = 1;
+    var_init[11] = 1;
+    var_init[12] = 1;
+    var_init[13] = 1;
+  }
+  
+  int var_index[max_vars];
+
+  int tot_vars = 0;
+  for(var=0;var<max_vars;var++){
+    if((Run.eos_output[var] == 1) && (var_init[var] == 1)){
+      var_index[tot_vars]=var;
+      tot_vars +=1;
+    }
+  }
+      
+  v_max = tot_vars;
+
+  // This is ugly, but for now it works so I will stick with it -- DP 
+  sprintf(eos_names[0],"%s","eosT");
+  sprintf(eos_names[1],"%s","eosP");
+  sprintf(eos_names[2],"%s","eosne");
+  sprintf(eos_names[3],"%s","eosrhoi");
+  sprintf(eos_names[4],"%s","eosamb");
+  sprintf(eos_names[5],"%s","Qtot");
+  sprintf(eos_names[6],"%s","tau");
+  sprintf(eos_names[7],"%s","Jtot");
+  sprintf(eos_names[8],"%s","Stot");
+  sprintf(eos_names[9],"%s","QxCor");
+  sprintf(eos_names[10],"%s","QxH");
+  sprintf(eos_names[11],"%s","QxMg");
+  sprintf(eos_names[12],"%s","QxCa");
+  sprintf(eos_names[13],"%s","QxChr");
+
+  eos_vars[0] = Grid.temp;
+  eos_vars[1] = Grid.pres; // no update before eos_output()
+  eos_vars[2] = Grid.ne;
+  eos_vars[3] = Grid.rhoi;
+  eos_vars[4] = Grid.amb;
+  eos_vars[5] = Grid.Qtot;
+  eos_vars[6] = Grid.Tau;
+  eos_vars[7] = Grid.Jtot;
+  eos_vars[8] = Grid.Stot;
+  eos_vars[9] = Grid.Qthin;
+  eos_vars[10] = Grid.QH;
+  eos_vars[11] = Grid.QMg;
+  eos_vars[12] = Grid.QCa;
+  eos_vars[13] = Grid.QChr;
+ 
+  //iobuf_loc = (float*)malloc(lsize*sizeof(float));
+
+  ds_io_time = 0.0;
+  
+  for(vi=0; vi<v_max; vi++) {
+    var = var_index[vi];
+    dev_ptr = ACCH::GetDevicePtr(eos_vars[var]);
+    
+    sprintf(filename,"%s%s.%06d",Run.path_3D,eos_names[var],Run.globiter);
+    if(io_rank == 0) {
+      std::cout<< "write " << filename << std::endl;
+    }
+
+    char ds_var_name[128];
+    sprintf(ds_var_name, "%s%s", Run.path_3D,eos_names[var]);
+    clk = MPI_Wtime();
+    int ds_ret = 0;
+    if(ds_put_local) {
+      dspaces_put_local(ndcl, ds_var_name, Run.globiter, sizeof(float), Grid.NDIM, lb, ub, dev_ptr);
+    } else {
+      dspaces_put(ndcl, ds_var_name, Run.globiter, sizeof(float), Grid.NDIM, lb, ub, dev_ptr);
+    }
+    if(ds_ret != 0) {
+      cout << "Error Writing " << ds_var_name << "Version: " << Run.globiter
+      << "to DataSpaces Server. Aborting ... " << endl;
+      MPI_Abort(MPI_COMM_WORLD,1);
+    }
+    ds_io_time += MPI_Wtime() - clk;
+  }
+  
+  
+  if(io_rank == 0) {
+    ds_io_total_time += ds_io_time;
+    if(Run.verbose >0) {
+      cout << "DataSpaces Output (EOS) in " << ds_io_time << " seconds" << endl;
+    } 
+  }
+  
+  //free(iobuf_loc); 
   
 }
 
