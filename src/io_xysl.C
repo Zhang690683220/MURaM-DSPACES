@@ -801,9 +801,6 @@ void eos_output_optimized(const RunData& Run, const GridData& Grid,const Physics
   
   int lsize=sizex*sizey*sizez; 
   int gsize=sizex*sizey*Grid.gsize[2];
-    
-  FILE* fh=NULL;
-  MPI_File mfh;
 
   int v_max, vi, var;
 
@@ -942,12 +939,6 @@ void eos_output_gpu(const RunData& Run, const GridData& Grid,const PhysicsData& 
   int sizex=Grid.lend[0]-Grid.lbeg[0]+1;
   int sizey=Grid.lend[1]-Grid.lbeg[1]+1;
   int sizez=Grid.lend[2]-Grid.lbeg[2]+1;
-  
-  int lsize=sizex*sizey*sizez; 
-  int gsize=sizex*sizey*Grid.gsize[2];
-    
-  FILE* fh=NULL;
-  MPI_File mfh;
 
   int v_max, vi, var;
 
