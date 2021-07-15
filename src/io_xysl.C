@@ -799,9 +799,9 @@ void eos_output_optimized(const RunData& Run, const GridData& Grid,const Physics
   float* iobuf_loc;
   //float* iobuf_glo=NULL;
 
-  //int sizex=Grid.lend[0]-Grid.lbeg[0]+1;
-  //int sizey=Grid.lend[1]-Grid.lbeg[1]+1;
-  //int sizez=Grid.lend[2]-Grid.lbeg[2]+1;
+  int sizex=Grid.lend[0]-Grid.lbeg[0]+1;
+  int sizey=Grid.lend[1]-Grid.lbeg[1]+1;
+  int sizez=Grid.lend[2]-Grid.lbeg[2]+1;
   
   int lsize=sizex*sizey*sizez; 
   //int gsize=sizex*sizey*Grid.gsize[2];
