@@ -23,7 +23,7 @@ static MPI_Comm io_xy_comm,io_z_comm,io_comm;
 static int ds_terminate = 0;
 static dspaces_client_t ndcl = dspaces_CLIENT_NULL;
 static uint64_t *lb, *ub, *op_lb, *op_ub;
-int io_rank; // for print msg for optimized IO
+static int io_rank; // for print msg for optimized IO
 
 static double clk, ds_io_time;
 
