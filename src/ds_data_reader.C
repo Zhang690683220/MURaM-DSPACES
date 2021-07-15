@@ -853,7 +853,7 @@ int main(int argc, char* argv[]) {
             eos_ds_read(Run,Grid,Physics);
             if(Run.dspaces_optimized) {
                 eos_ds_read_optimized(Run,GridOp,Physics);
-                int res = eos_compare(Grid, GridOp);
+                int res = eos_compare(Grid, GridOp, Run, Physics);
             }
             /*
             if(Run.diagnostics) {
