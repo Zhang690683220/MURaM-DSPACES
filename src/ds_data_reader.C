@@ -469,7 +469,7 @@ int eos_compare(const GridData& Grid1, const GridData& Grid2, const RunData& Run
     int v_max, vi, var;
     int max_vars = 14;
     char eos_names[max_vars][128];
-    double* eos_vars1[max_vars], eos_vars2[max_vars];
+    double* eos_vars1[max_vars], *eos_vars2[max_vars];
 
     //Only Read in variables that re allocated based on phyasics configuration
     int var_init[max_vars];
