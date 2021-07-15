@@ -99,21 +99,25 @@ void IO_Init(const GridData& Grid, const RunData& Run) {
     }
     lb = (uint64_t*) malloc(3*sizeof(uint64_t));
     ub = (uint64_t*) malloc(3*sizeof(uint64_t));
-    for(int ii=0; ii<2; ii++) {
+    for(int ii=0; ii<3; ii++) {
       lb[ii] = str[ii];
       ub[ii] = str[ii]+lsz[ii]-1;
     }
-    //dspaces io does not need any z-axis collective calls
-    lb[2] = Grid.beg[2]-Grid.gbeg[2];
-    ub[2] = lb[2] + Grid.lsize[2] - 1;
-
-    MPI_Comm_rank(io_comm, &io_rank);
+    
+    int dspaces_rank = xy_rank;
+    if(Run.dspaces_optimized) {
+      MPI_Comm_rank(io_comm, &io_rank);
+      dspaces_rank = io_rank;
+      //dspaces io does not need any z-axis collective calls
+      lb[2] = Grid.beg[2]-Grid.gbeg[2];
+      ub[2] = lb[2] + Grid.lsize[2] - 1;
+    }
 
     if(Run.dspaces_manual_listen_addr) {
       sprintf(listen_addr_str, "%s", Run.dspaces_client_listen_addr);
-      dspaces_init(xy_rank, &ndcl, listen_addr_str);
+      dspaces_init(dspaces_rank, &ndcl, listen_addr_str);
     } else {
-      dspaces_init(xy_rank, &ndcl, NULL);
+      dspaces_init(dspaces_rank, &ndcl, NULL);
     }
     
   }

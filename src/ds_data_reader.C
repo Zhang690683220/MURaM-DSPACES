@@ -22,7 +22,8 @@ static MPI_Comm io_xy_comm,io_z_comm,io_comm;
 
 static int ds_terminate = 0;
 static dspaces_client_t ndcl = dspaces_CLIENT_NULL;
-static uint64_t *lb, *ub;
+static uint64_t *lb, *ub, *op_lb, *op_ub;
+int io_rank; // for print msg for optimized IO
 
 static double clk, ds_io_time;
 
@@ -54,7 +55,23 @@ int ds_IO_Init(const GridData& Grid, const RunData& Run) {
             lb[ii] = str[ii];
             ub[ii] = str[ii]+lsz[ii]-1;
         }
-        dspaces_init(xy_rank, &ndcl);
+
+        int dspaces_rank = xy_rank;
+
+        if(Run.dspaces_optimized) {
+            MPI_Comm_rank(io_comm, &io_rank);
+            dspaces_rank = io_rank;
+            op_lb = (uint64_t*) malloc(3*sizeof(uint64_t));
+            op_ub = (uint64_t*) malloc(3*sizeof(uint64_t));
+            for(int ii=0; ii<2; ii++) {
+                op_lb[ii] = str[ii];
+                op_ub[ii] = str[ii]+lsz[ii]-1;
+            }
+            op_lb[2] = Grid.beg[2]-Grid.gbeg[2];
+            op_ub[2] = op_lb[2] + Grid.lsize[2] - 1;
+        }
+
+        dspaces_init(dspaces_rank, &ndcl);
     } else {
         return -1;
     }
@@ -249,12 +266,13 @@ void eos_ds_read(const RunData& Run, const GridData& Grid, const PhysicsData& Ph
                 int ret = dspaces_get(ndcl, ds_var_name, Run.globiter, 
                                         sizeof(float), 3, lb, ub, iobuf_glo, -1);
                 if(ret != 0) {
-                    std::cout << "Error Writing " << ds_var_name << "Version: " << Run.globiter
+                    std::cout << "Error Reading " << ds_var_name << "Version: " << Run.globiter
                             << "to DataSpaces Server. Aborting ... " << std::endl;
                 MPI_Abort(MPI_COMM_WORLD,1);
                 }
                 ds_io_time += MPI_Wtime() - clk;
 
+                /*
                 if(xy_rank == 0) {
                     std::cout << ds_var_name << " Version:" << Run.globiter << "Data: " <<std::endl;
                     int format =0 ;
@@ -270,6 +288,7 @@ void eos_ds_read(const RunData& Run, const GridData& Grid, const PhysicsData& Ph
                         }
                     }
                 }
+                */
             }
         }
 
@@ -300,6 +319,259 @@ void eos_ds_read(const RunData& Run, const GridData& Grid, const PhysicsData& Ph
         }
     }
     
+}
+
+void eos_ds_read_optimized(const RunData& Run, const GridData& Grid, const PhysicsData& Physics) {
+
+    char ds_var_name[128];
+
+    register int i,j,k,loc;
+
+    float* iobuf_loc;
+    //float* iobuf_glo=NULL;
+
+    int sizex=Grid.lend[0]-Grid.lbeg[0]+1;
+    int sizey=Grid.lend[1]-Grid.lbeg[1]+1;
+    int sizez=Grid.lend[2]-Grid.lbeg[2]+1;
+
+    int lsize=sizex*sizey*sizez; 
+    int gsize=sizex*sizey*Grid.gsize[2];
+
+    int v_max, vi, var;
+    int max_vars = 14;
+    char eos_names[max_vars][128];
+    double* eos_vars[max_vars];
+
+    //Only Read in variables that re allocated based on phyasics configuration
+    int var_init[max_vars];
+    for(var=0;var<max_vars;var++) {
+        var_init[var] = 0;
+    }
+  
+    var_init[0] = 1;
+    var_init[1] = 1;
+    var_init[2] = 1;
+    var_init[3] = 1;
+    var_init[4] = 1;
+    var_init[5] = 1;
+    var_init[6] = 1;
+    var_init[7] = 1;
+    var_init[8] = 1;
+
+    if(Physics.rt_ext[i_ext_cor] >= 1) {
+        var_init[9] = 1;
+    }
+    if(Physics.rt_ext[i_ext_cor] == 2) {
+        var_init[10] = 1;
+        var_init[11] = 1;
+        var_init[12] = 1;
+        var_init[13] = 1;
+    }
+
+    int var_index[max_vars];
+
+    int tot_vars = 0;
+    for(var=0;var<max_vars;var++) {
+        if((Run.eos_output[var] == 1) && (var_init[var] == 1)) {
+            var_index[tot_vars]=var;
+            tot_vars +=1;
+        }
+    }
+      
+    v_max = tot_vars;
+
+    // This is ugly, but for now it works so I will stick with it -- DP 
+    sprintf(eos_names[0],"%s","eosT");
+    sprintf(eos_names[1],"%s","eosP");
+    sprintf(eos_names[2],"%s","eosne");
+    sprintf(eos_names[3],"%s","eosrhoi");
+    sprintf(eos_names[4],"%s","eosamb");
+    sprintf(eos_names[5],"%s","Qtot");
+    sprintf(eos_names[6],"%s","tau");
+    sprintf(eos_names[7],"%s","Jtot");
+    sprintf(eos_names[8],"%s","Stot");
+    sprintf(eos_names[9],"%s","QxCor");
+    sprintf(eos_names[10],"%s","QxH");
+    sprintf(eos_names[11],"%s","QxMg");
+    sprintf(eos_names[12],"%s","QxCa");
+    sprintf(eos_names[13],"%s","QxChr");
+
+    eos_vars[0] = Grid.temp;
+    eos_vars[1] = Grid.pres;
+    eos_vars[2] = Grid.ne;
+    eos_vars[3] = Grid.rhoi;
+    eos_vars[4] = Grid.amb;
+    eos_vars[5] = Grid.Qtot;
+    eos_vars[6] = Grid.Tau;
+    eos_vars[7] = Grid.Jtot;
+    eos_vars[8] = Grid.Stot;
+    eos_vars[9] = Grid.Qthin;
+    eos_vars[10] = Grid.QH;
+    eos_vars[11] = Grid.QMg;
+    eos_vars[12] = Grid.QCa;
+    eos_vars[13] = Grid.QChr;
+
+    iobuf_loc = (float*)malloc(lsize*sizeof(float));
+    
+    for(vi=0; vi<v_max; vi++) {
+        var = var_index[vi];
+        sprintf(ds_var_name, "%s%s", Run.path_3D,eos_names[var]);
+        if(io_rank == 0) {
+            std::cout << "Read " << ds_var_name
+                    << " Version:" << Run.globiter <<std::endl;
+        }
+        clk = MPI_Wtime();
+        int ret = dspaces_get(ndcl, ds_var_name, Run.globiter, 
+                                sizeof(float), Grid.NDIM, lb, ub, iobuf_loc, -1);
+        if(ret != 0) {
+            std::cout << "Error Reading" << ds_var_name << "Version: " << Run.globiter
+                    << "to DataSpaces Server. Aborting ... " << std::endl;
+            MPI_Abort(MPI_COMM_WORLD,1);
+        }
+
+        for(k=0; k<sizez; k++) {
+            for(j=0; j<sizey; j++) {
+                for(i=0; i<sizex; i++) {
+                    loc=Grid.node(i+Grid.ghosts[0],j+Grid.ghosts[1],k+Grid.ghosts[2]);
+                    eos_vars[var][loc] = (double) iobuf_loc[i+j*sizex+k*sizex*sizey];
+                }
+            }
+        }
+
+    }
+
+
+    if(io_rank == 0) {
+        if(Run.verbose >0) {
+            cout << "DataSpaces Output (EOS) in " << ds_io_time << " seconds" << endl;
+        } 
+    }
+
+    free(iobuf_loc); 
+    
+}
+
+int eos_compare(GridData& Grid1, GridData& Grid2){
+    char ds_var_name[128];
+    register int i,j,k,loc;
+
+    int sizex=Grid.lend[0]-Grid.lbeg[0]+1;
+    int sizey=Grid.lend[1]-Grid.lbeg[1]+1;
+    int sizez=Grid.lend[2]-Grid.lbeg[2]+1;
+
+    int v_max, vi, var;
+    int max_vars = 14;
+    char eos_names[max_vars][128];
+    double* eos_vars[max_vars];
+
+    //Only Read in variables that re allocated based on phyasics configuration
+    int var_init[max_vars];
+    for(var=0;var<max_vars;var++) {
+        var_init[var] = 0;
+    }
+  
+    var_init[0] = 1;
+    var_init[1] = 1;
+    var_init[2] = 1;
+    var_init[3] = 1;
+    var_init[4] = 1;
+    var_init[5] = 1;
+    var_init[6] = 1;
+    var_init[7] = 1;
+    var_init[8] = 1;
+
+    if(Physics.rt_ext[i_ext_cor] >= 1) {
+        var_init[9] = 1;
+    }
+    if(Physics.rt_ext[i_ext_cor] == 2) {
+        var_init[10] = 1;
+        var_init[11] = 1;
+        var_init[12] = 1;
+        var_init[13] = 1;
+    }
+
+    int var_index[max_vars];
+
+    int tot_vars = 0;
+    for(var=0;var<max_vars;var++) {
+        if((Run.eos_output[var] == 1) && (var_init[var] == 1)) {
+            var_index[tot_vars]=var;
+            tot_vars +=1;
+        }
+    }
+      
+    v_max = tot_vars;
+
+    // This is ugly, but for now it works so I will stick with it -- DP 
+    sprintf(eos_names[0],"%s","eosT");
+    sprintf(eos_names[1],"%s","eosP");
+    sprintf(eos_names[2],"%s","eosne");
+    sprintf(eos_names[3],"%s","eosrhoi");
+    sprintf(eos_names[4],"%s","eosamb");
+    sprintf(eos_names[5],"%s","Qtot");
+    sprintf(eos_names[6],"%s","tau");
+    sprintf(eos_names[7],"%s","Jtot");
+    sprintf(eos_names[8],"%s","Stot");
+    sprintf(eos_names[9],"%s","QxCor");
+    sprintf(eos_names[10],"%s","QxH");
+    sprintf(eos_names[11],"%s","QxMg");
+    sprintf(eos_names[12],"%s","QxCa");
+    sprintf(eos_names[13],"%s","QxChr");
+
+    eos_vars1[0] = Grid1.temp;
+    eos_vars1[1] = Grid1.pres;
+    eos_vars1[2] = Grid1.ne;
+    eos_vars1[3] = Grid1.rhoi;
+    eos_vars1[4] = Grid1.amb;
+    eos_vars1[5] = Grid1.Qtot;
+    eos_vars1[6] = Grid1.Tau;
+    eos_vars1[7] = Grid1.Jtot;
+    eos_vars1[8] = Grid1.Stot;
+    eos_vars1[9] = Grid1.Qthin;
+    eos_vars1[10] = Grid1.QH;
+    eos_vars1[11] = Grid1.QMg;
+    eos_vars1[12] = Grid1.QCa;
+    eos_vars1[13] = Grid1.QChr;
+
+    eos_vars2[0] = Grid2.temp;
+    eos_vars2[1] = Grid2.pres;
+    eos_vars2[2] = Grid2.ne;
+    eos_vars2[3] = Grid2.rhoi;
+    eos_vars2[4] = Grid2.amb;
+    eos_vars2[5] = Grid2.Qtot;
+    eos_vars2[6] = Grid2.Tau;
+    eos_vars2[7] = Grid2.Jtot;
+    eos_vars2[8] = Grid2.Stot;
+    eos_vars2[9] = Grid2.Qthin;
+    eos_vars2[10] = Grid2.QH;
+    eos_vars2[11] = Grid2.QMg;
+    eos_vars2[12] = Grid2.QCa;
+    eos_vars2[13] = Grid2.QChr;
+
+    for(vi=0; vi<v_max; vi++) {
+        var = var_index[vi];
+        sprintf(ds_var_name, "%s%s", Run.path_3D,eos_names[var]);
+        if(io_rank == 0) {
+            std::cout << "Comparing " << ds_var_name
+                    << " Version:" << Run.globiter <<std::endl;
+        }
+
+        for(k=0; k<sizez; k++) {
+            for(j=0; j<sizey; j++) {
+                for(i=0; i<sizex; i++) {
+                    loc=Grid1.node(i+Grid1.ghosts[0],j+Grid1.ghosts[1],k+Grid1.ghosts[2]);
+                    if(eos_vars1[var][loc]!=eos_vars2[var][loc]) {
+                        std::cout << "Not same!!!! " << ds_var_name
+                            << " Version:" << Run.globiter <<std::endl;
+                        MPI_Abort(MPI_COMM_WORLD,1);
+                    }   
+                }
+            }
+        }
+    }
+    std::cout << "Comparison Succeed!!!! " <<std::endl;
+
+    return 0;
 }
 
 int Initialize(RunData& Run,GridData& Grid,
@@ -547,7 +819,7 @@ int Initialize(RunData& Run,GridData& Grid,
 int main(int argc, char* argv[]) {
 
     RunData Run;
-    GridData Grid;
+    GridData Grid, GridOp;
     PhysicsData Physics;
 
     MPI_Init(&argc,&argv);
@@ -555,6 +827,13 @@ int main(int argc, char* argv[]) {
     if(Initialize(Run, Grid, Physics) != 0) {
         std::cout<<"Init failed. Aborting ... "<<std::endl;
         MPI_Abort(MPI_COMM_WORLD,1);
+    }
+
+    if(Run.dspaces_optimized) {
+        if(Initialize(Run, GridOp, Physics) != 0) {
+            std::cout<<"GridOp Init failed. Aborting ... "<<std::endl;
+            MPI_Abort(MPI_COMM_WORLD,1);
+        }
     }
 
     while(Run.IsValid()) {
@@ -565,6 +844,10 @@ int main(int argc, char* argv[]) {
 
         if(needread) {
             eos_ds_read(Run,Grid,Physics);
+            if(Run.dspaces_optimized) {
+                eos_ds_read_optimized(Run,GridOp,Physics);
+                int res = eos_compare(Grid, GridOp);
+            }
             /*
             if(Run.diagnostics) {
                 diag_output();
