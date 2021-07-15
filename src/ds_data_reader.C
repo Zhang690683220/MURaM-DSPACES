@@ -45,6 +45,7 @@ int ds_IO_Init(const GridData& Grid, const RunData& Run) {
     str[2] = 0;
 
     if(Run.use_dspaces_io) {
+        char listen_addr_str[128];
         ds_io_time = 0.0;
         if(Run.dspaces_terminate) {
             ds_terminate = 1;
@@ -71,7 +72,12 @@ int ds_IO_Init(const GridData& Grid, const RunData& Run) {
             op_ub[2] = op_lb[2] + Grid.lsize[2] - 1;
         }
 
-        dspaces_init(dspaces_rank, &ndcl);
+        if(Run.dspaces_manual_listen_addr) {
+            sprintf(listen_addr_str, "%s", Run.dspaces_client_listen_addr);
+            dspaces_init(dspaces_rank, &ndcl, listen_addr_str);
+        } else {
+            dspaces_init(dspaces_rank, &ndcl, NULL);
+        }
     } else {
         return -1;
     }
@@ -451,18 +457,19 @@ void eos_ds_read_optimized(const RunData& Run, const GridData& Grid, const Physi
     
 }
 
-int eos_compare(GridData& Grid1, GridData& Grid2){
+int eos_compare(const GridData& Grid1, const GridData& Grid2, const RunData& Run,
+                const PhysicsData& Physics) {
     char ds_var_name[128];
     register int i,j,k,loc;
 
-    int sizex=Grid.lend[0]-Grid.lbeg[0]+1;
-    int sizey=Grid.lend[1]-Grid.lbeg[1]+1;
-    int sizez=Grid.lend[2]-Grid.lbeg[2]+1;
+    int sizex=Grid1.lend[0]-Grid1.lbeg[0]+1;
+    int sizey=Grid1.lend[1]-Grid1.lbeg[1]+1;
+    int sizez=Grid1.lend[2]-Grid1.lbeg[2]+1;
 
     int v_max, vi, var;
     int max_vars = 14;
     char eos_names[max_vars][128];
-    double* eos_vars[max_vars];
+    double* eos_vars1[max_vars], eos_vars2[max_vars];
 
     //Only Read in variables that re allocated based on phyasics configuration
     int var_init[max_vars];
