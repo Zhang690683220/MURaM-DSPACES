@@ -32,7 +32,7 @@ int ds_io = 0;
 int ds_terminate = 0;
 int ds_put_local = 0;
 int ds_optimized = 0;
-dspaces_client_t ndcl = dspaces_CLIENT_NULL;
+dspaces_client_t ds_client = dspaces_CLIENT_NULL;
 uint64_t *lb, *ub;
 int io_rank; // for print msg
 
@@ -115,9 +115,9 @@ void IO_Init(const GridData& Grid, const RunData& Run) {
 
     if(Run.dspaces_manual_listen_addr) {
       sprintf(listen_addr_str, "%s", Run.dspaces_client_listen_addr);
-      dspaces_init(dspaces_rank, &ndcl, listen_addr_str);
+      dspaces_init(dspaces_rank, &ds_client, listen_addr_str);
     } else {
-      dspaces_init(dspaces_rank, &ndcl, NULL);
+      dspaces_init(dspaces_rank, &ds_client, NULL);
     }
     
   }
@@ -152,9 +152,9 @@ void IO_Finalize() {
     free(lb);
     free(ub);
     if(ds_terminate) {
-      dspaces_kill(ndcl);
+      dspaces_kill(ds_client);
     }
-    dspaces_fini(ndcl);
+    dspaces_fini(ds_client);
   }
 }
 ////////////////////// Output /////////////////////////////////
@@ -759,9 +759,9 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
     clk = MPI_Wtime();
     int ds_ret = 0;
     if(ds_put_local) {
-      ds_ret = dspaces_put_local(ndcl, ds_var_name, Run.globiter, sizeof(float), Grid.NDIM, lb, ub, iobuf_glo);
+      ds_ret = dspaces_put_local(ds_client, ds_var_name, Run.globiter, sizeof(float), Grid.NDIM, lb, ub, iobuf_glo);
     } else {
-      ds_ret = dspaces_put(ndcl, ds_var_name, Run.globiter, sizeof(float), Grid.NDIM, lb, ub, iobuf_glo);
+      ds_ret = dspaces_put(ds_client, ds_var_name, Run.globiter, sizeof(float), Grid.NDIM, lb, ub, iobuf_glo);
     }
     if(ds_ret != 0) {
       cout << "Error Writing " << ds_var_name << "Version: " << Run.globiter
@@ -906,9 +906,9 @@ void eos_output_optimized(const RunData& Run, const GridData& Grid,const Physics
     clk = MPI_Wtime();
     int ds_ret = 0;
     if(ds_put_local) {
-      dspaces_put_local(ndcl, ds_var_name, Run.globiter, sizeof(float), Grid.NDIM, lb, ub, iobuf_loc);
+      dspaces_put_local(ds_client, ds_var_name, Run.globiter, sizeof(float), Grid.NDIM, lb, ub, iobuf_loc);
     } else {
-      dspaces_put(ndcl, ds_var_name, Run.globiter, sizeof(float), Grid.NDIM, lb, ub, iobuf_loc);
+      dspaces_put(ds_client, ds_var_name, Run.globiter, sizeof(float), Grid.NDIM, lb, ub, iobuf_loc);
     }
     if(ds_ret != 0) {
       cout << "Error Writing " << ds_var_name << "Version: " << Run.globiter
@@ -1036,9 +1036,9 @@ void eos_output_gpu(const RunData& Run, const GridData& Grid,const PhysicsData& 
     clk = MPI_Wtime();
     int ds_ret = 0;
     if(ds_put_local) {
-      dspaces_put_local(ndcl, ds_var_name, Run.globiter, sizeof(float), Grid.NDIM, lb, ub, dev_ptr);
+      dspaces_put_local(ds_client, ds_var_name, Run.globiter, sizeof(float), Grid.NDIM, lb, ub, dev_ptr);
     } else {
-      dspaces_put(ndcl, ds_var_name, Run.globiter, sizeof(float), Grid.NDIM, lb, ub, dev_ptr);
+      dspaces_put(ds_client, ds_var_name, Run.globiter, sizeof(float), Grid.NDIM, lb, ub, dev_ptr);
     }
     if(ds_ret != 0) {
       cout << "Error Writing " << ds_var_name << "Version: " << Run.globiter

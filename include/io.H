@@ -24,3 +24,6 @@ extern void eos_output_optimized(const RunData&,const GridData&,const PhysicsDat
 extern void eos_output_gpu(const RunData&,const GridData&,const PhysicsData&, RTS*);
 extern void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid, 
 		               const PhysicsData& Physics);
+
+// extern var for 2d slices use
+extern dspaces_client_t ds_client;

@@ -21,6 +21,12 @@ using namespace std;
 extern void slice_write_rebin(const GridData&,const int,float*,const int,const int,
                               const int,const int,const int,const int,FILE*);
 
+extern void slice_write_rebin_dspaces(const GridData& Grid,
+           														const int iroot, float* vloc,
+		       														const int nloc,const int nvar,const int n0,
+		       														const int n1,const int sm_x,const int sm_y,
+           														char* filename, const int iter, const int ndim);
+
 inline int imin(int a, int b) { return a < b ? a : b; }
 inline int imax(int a, int b) { return a > b ? a : b; }
 //======================================================================
@@ -100,6 +106,11 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
     cout << "DEM: lgTmin = " << lgTmin <<  " lgTmax = " << lgTmax << ' ' << nslvar  << endl;
 
   FILE* fhandle=NULL;
+
+	static double clk, file_time, dspaces_time;
+	file_time = 0.0;
+	if(Run.use_dspaces_io)
+		dspaces_time = 0.0;
 
   for(d=0;d<Grid.NDIM;d++){
     d1=loop_order[d][0];
@@ -229,10 +240,46 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 	  }
 	
 	  //slice_write(Grid,0,&(io_buf[v*nslvar*localsize]),localsize,nslvar,d2,d3,fhandle);
+		clk = MPI_Wtime();
 	  slice_write_rebin(Grid,0,&(io_buf[v*nslvar*localsize]),localsize,nslvar,d2,d3,rebin[d2],rebin[d3],fhandle);
-	  
+	  file_time += MPI_Wtime() - clk;
+
 	  if(yz_rank == 0)
 	    fclose(fhandle);
+
+		if(Run.use_dspaces_io) {
+			// var name passed to dspaces
+			if(v == 0)
+	      sprintf(filename,"%s%s",Run.path_2D,"corona_emission_adj_fil_x");
+	    if(v == 1)
+	      sprintf(filename,"%s%s",Run.path_2D,"corona_emission_adj_dem_x");
+	    if(v == 2)
+	      sprintf(filename,"%s%s",Run.path_2D,"corona_emission_adj_vlos_x");
+	    if(v == 3)
+	      sprintf(filename,"%s%s",Run.path_2D,"corona_emission_adj_vrms_x");
+
+			// header file to be written by rank 0
+			char header_filename[128];
+			FILE * hfhandle = NULL;
+			if(yz_rank == 0) {
+	      sprintf(header_filename,"%s%s",filename,".header");
+
+				hfhandle=fopen(header_filename, "w");
+				float header[6];            
+	    	header[0] = (float) nslvar;
+	    	header[1] = (float) Grid.gsize[d2]/rebin[d2];
+	    	header[2] = (float) Grid.gsize[d3]/rebin[d3];
+	    	header[3] = (float) Run.time;
+	    	header[4] = (float) lgTmin;
+	    	header[5] = (float) dellgT;
+	    	fwrite(header,sizeof(float),6,hfhandle);
+				fclose(hfhandle);
+			}
+			clk = MPI_Wtime();
+			slice_write_rebin_dspaces(Grid, 0, &(io_buf[v*nslvar*localsize]), localsize, nslvar, d2, d3, rebin[d2],
+																rebin[d3], filename, Run.globiter, 2);
+			dspaces_time += MPI_Wtime() - clk;
+		}
 	}
       }
     }
@@ -282,10 +329,46 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 	  }
 	
 	  //slice_write(Grid,0,&(io_buf[v*nslvar*localsize]),localsize,nslvar,d2,d3,fhandle);
+		clk = MPI_Wtime();
 	  slice_write_rebin(Grid,0,&(io_buf[v*nslvar*localsize]),localsize,nslvar,d2,d3,rebin[d2],rebin[d3],fhandle);
-	  
+	  file_time += MPI_Wtime() - clk;
+
 	  if(xz_rank == 0)
 	    fclose(fhandle);
+
+		if(Run.use_dspaces_io) {
+			// var name passed to dspaces
+			if(v == 0)
+	      sprintf(filename,"%s%s",Run.path_2D,"corona_emission_adj_fil_y");
+	    if(v == 1)
+	      sprintf(filename,"%s%s",Run.path_2D,"corona_emission_adj_dem_y");
+	    if(v == 2)
+	      sprintf(filename,"%s%s",Run.path_2D,"corona_emission_adj_vlos_y");
+	    if(v == 3)
+	      sprintf(filename,"%s%s",Run.path_2D,"corona_emission_adj_vrms_y");
+
+			// header file to be written by rank 0
+			char header_filename[128];
+			FILE * hfhandle = NULL;
+			if(xz_rank == 0) {
+				sprintf(header_filename,"%s%s",filename,".header");
+
+				hfhandle=fopen(header_filename, "w");
+				float header[6];            
+	    	header[0] = (float) nslvar;
+	    	header[1] = (float) Grid.gsize[d2]/rebin[d2];
+	    	header[2] = (float) Grid.gsize[d3]/rebin[d3];
+	    	header[3] = (float) Run.time;
+	    	header[4] = (float) lgTmin;
+	    	header[5] = (float) dellgT;
+	    	fwrite(header,sizeof(float),6,hfhandle);
+				fclose(hfhandle);
+			}
+			clk = MPI_Wtime();
+			slice_write_rebin_dspaces(Grid, 0, &(io_buf[v*nslvar*localsize]), localsize, nslvar, d2, d3, rebin[d2],
+																rebin[d3], filename, Run.globiter, 2);
+			dspaces_time += MPI_Wtime() - clk;
+		}
 	}
       }
     }
@@ -335,10 +418,46 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 	  }
 	
 	  //slice_write(Grid,0,&(io_buf[v*nslvar*localsize]),localsize,nslvar,d2,d3,fhandle);
+		clk = MPI_Wtime();
 	  slice_write_rebin(Grid,0,&(io_buf[v*nslvar*localsize]),localsize,nslvar,d2,d3,rebin[d2],rebin[d3],fhandle);
-	  
+	  file_time += MPI_Wtime() - clk;
+
 	  if(xy_rank == 0)
 	    fclose(fhandle);
+
+		if(Run.use_dspaces_io) {
+			// var name passed to dspaces
+			if(v == 0)
+	      sprintf(filename,"%s%s",Run.path_2D,"corona_emission_adj_fil_z");
+	    if(v == 1)
+	      sprintf(filename,"%s%s",Run.path_2D,"corona_emission_adj_dem_z");
+	    if(v == 2)
+	      sprintf(filename,"%s%s",Run.path_2D,"corona_emission_adj_vlos_z");
+	    if(v == 3)
+	      sprintf(filename,"%s%s",Run.path_2D,"corona_emission_adj_vrms_z");
+
+			// header file to be written by rank 0
+			char header_filename[128];
+			FILE * hfhandle = NULL;
+			if(xy_rank == 0) {
+				sprintf(header_filename,"%s%s",filename,".header");
+
+				hfhandle=fopen(header_filename, "w");
+				float header[6];            
+	    	header[0] = (float) nslvar;
+	    	header[1] = (float) Grid.gsize[d2]/rebin[d2];
+	    	header[2] = (float) Grid.gsize[d3]/rebin[d3];
+	    	header[3] = (float) Run.time;
+	    	header[4] = (float) lgTmin;
+	    	header[5] = (float) dellgT;
+	    	fwrite(header,sizeof(float),6,hfhandle);
+				fclose(hfhandle);
+			}
+			clk = MPI_Wtime();
+			slice_write_rebin_dspaces(Grid, 0, &(io_buf[v*nslvar*localsize]), localsize, nslvar, d2, d3, rebin[d2],
+																rebin[d3], filename, Run.globiter, 2);
+			dspaces_time += MPI_Wtime() - clk;
+		}
 	}
       }
     }
@@ -349,6 +468,11 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
   }
 
   delete[] tlev;
+
+	if(Run.rank == iroot && Run.verbose >0) {
+		std::cout << "File Output (Corona_XYZ) in " << file_time << " seconds" << std::endl;
+    std::cout << "DataSpaces Output (Corona_XYZ) in " << dspaces_time << " seconds" << std::endl;
+	}
 
 }
 
