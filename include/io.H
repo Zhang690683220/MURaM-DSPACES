@@ -1,3 +1,4 @@
+#include "dspaces.h"
 class RunData;
 class GridData;
 class PhysicsData;
