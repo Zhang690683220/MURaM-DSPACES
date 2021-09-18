@@ -174,8 +174,9 @@ void slice_write_rebin_dspaces(const GridData& Grid,
   }
 
 	int np,i,k,iloc,iglo,v;
-  int lb[2], ub[2], Gb[2], Ge[2], bounds[4];
+  int Gb[2], Ge[2], bounds[4];
   int isz,ksz,ioff,koff;
+  uint64_t lb[2], ub[2];
 
 	int nprocs = Grid.procs[n0]*Grid.procs[n1];
   int slsize = Grid.gsize[n0]*Grid.gsize[n1];
