@@ -18,10 +18,10 @@ using namespace std;
 //extern void slice_write(const GridData&,const int,float*,int,int,const int,
 //			const int,FILE*);
 
-extern void slice_write_rebin(const GridData&,const int,float*,const int,const int,
+extern double slice_write_rebin(const GridData&,const int,float*,const int,const int,
                               const int,const int,const int,const int,FILE*);
 
-extern void slice_write_rebin_dspaces(const GridData& Grid,
+extern double slice_write_rebin_dspaces(const GridData& Grid,
            														const int iroot, float* vloc,
 		       														const int nloc,const int nvar,const int n0,
 		       														const int n1,const int sm_x,const int sm_y,
@@ -107,10 +107,13 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 
   FILE* fhandle=NULL;
 
-	static double clk, file_time, dspaces_time;
+	static double clk, file_API_time, dspaces_API_time, file_time, dspaces_time;
 	file_time = 0.0;
-	if(Run.use_dspaces_io)
+	file_API_time = 0.0;
+	if(Run.use_dspaces_io) {
 		dspaces_time = 0.0;
+		dspaces_API_time = 0.0;
+	}
 
   for(d=0;d<Grid.NDIM;d++){
     d1=loop_order[d][0];
@@ -241,7 +244,7 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 	
 	  //slice_write(Grid,0,&(io_buf[v*nslvar*localsize]),localsize,nslvar,d2,d3,fhandle);
 		clk = MPI_Wtime();
-	  slice_write_rebin(Grid,0,&(io_buf[v*nslvar*localsize]),localsize,nslvar,d2,d3,rebin[d2],rebin[d3],fhandle);
+	  file_API_time += slice_write_rebin(Grid,0,&(io_buf[v*nslvar*localsize]),localsize,nslvar,d2,d3,rebin[d2],rebin[d3],fhandle);
 	  file_time += MPI_Wtime() - clk;
 
 	  if(yz_rank == 0)
@@ -276,7 +279,7 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 				fclose(hfhandle);
 			}
 			clk = MPI_Wtime();
-			slice_write_rebin_dspaces(Grid, 0, &(io_buf[v*nslvar*localsize]), localsize, nslvar, d2, d3, rebin[d2],
+			dspaces_API_time += slice_write_rebin_dspaces(Grid, 0, &(io_buf[v*nslvar*localsize]), localsize, nslvar, d2, d3, rebin[d2],
 																rebin[d3], filename, Run.globiter, 2);
 			dspaces_time += MPI_Wtime() - clk;
 		}
@@ -330,7 +333,7 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 	
 	  //slice_write(Grid,0,&(io_buf[v*nslvar*localsize]),localsize,nslvar,d2,d3,fhandle);
 		clk = MPI_Wtime();
-	  slice_write_rebin(Grid,0,&(io_buf[v*nslvar*localsize]),localsize,nslvar,d2,d3,rebin[d2],rebin[d3],fhandle);
+	  file_API_time += slice_write_rebin(Grid,0,&(io_buf[v*nslvar*localsize]),localsize,nslvar,d2,d3,rebin[d2],rebin[d3],fhandle);
 	  file_time += MPI_Wtime() - clk;
 
 	  if(xz_rank == 0)
@@ -365,7 +368,7 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 				fclose(hfhandle);
 			}
 			clk = MPI_Wtime();
-			slice_write_rebin_dspaces(Grid, 0, &(io_buf[v*nslvar*localsize]), localsize, nslvar, d2, d3, rebin[d2],
+			dspaces_API_time += slice_write_rebin_dspaces(Grid, 0, &(io_buf[v*nslvar*localsize]), localsize, nslvar, d2, d3, rebin[d2],
 																rebin[d3], filename, Run.globiter, 2);
 			dspaces_time += MPI_Wtime() - clk;
 		}
@@ -419,7 +422,7 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 	
 	  //slice_write(Grid,0,&(io_buf[v*nslvar*localsize]),localsize,nslvar,d2,d3,fhandle);
 		clk = MPI_Wtime();
-	  slice_write_rebin(Grid,0,&(io_buf[v*nslvar*localsize]),localsize,nslvar,d2,d3,rebin[d2],rebin[d3],fhandle);
+	  file_API_time += slice_write_rebin(Grid,0,&(io_buf[v*nslvar*localsize]),localsize,nslvar,d2,d3,rebin[d2],rebin[d3],fhandle);
 	  file_time += MPI_Wtime() - clk;
 
 	  if(xy_rank == 0)
@@ -454,7 +457,7 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 				fclose(hfhandle);
 			}
 			clk = MPI_Wtime();
-			slice_write_rebin_dspaces(Grid, 0, &(io_buf[v*nslvar*localsize]), localsize, nslvar, d2, d3, rebin[d2],
+			dspaces_API_time += slice_write_rebin_dspaces(Grid, 0, &(io_buf[v*nslvar*localsize]), localsize, nslvar, d2, d3, rebin[d2],
 																rebin[d3], filename, Run.globiter, 2);
 			dspaces_time += MPI_Wtime() - clk;
 		}

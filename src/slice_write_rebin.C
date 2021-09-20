@@ -10,7 +10,7 @@
 #include "io.H"
 
 //========================================================================
-void slice_write_rebin(const GridData& Grid,const int iroot,float* vloc,
+double slice_write_rebin(const GridData& Grid,const int iroot,float* vloc,
 		       const int nloc,const int nvar,const int n0,
 		       const int n1,const int sm_x,const int sm_y,
 		       FILE* fhandle){
@@ -157,13 +157,15 @@ void slice_write_rebin(const GridData& Grid,const int iroot,float* vloc,
   free(recvcounts);
   free(offsets);
 
-  if(rank == 0) {
-    std::cout << "File IO API Call (Corona_XYZ) in " << file_time << " seconds" << std::endl;
-  }
+  // if(rank == 0) {
+  //   std::cout << "File IO API Call (Corona_XYZ) in " << file_time << " seconds" << std::endl;
+  // }
+
+  return file_time;
 
 }
 
-void slice_write_rebin_dspaces(const GridData& Grid,
+double slice_write_rebin_dspaces(const GridData& Grid,
            const int iroot, float* vloc,
 		       const int nloc,const int nvar,const int n0,
 		       const int n1,const int sm_x,const int sm_y,
@@ -339,7 +341,9 @@ void slice_write_rebin_dspaces(const GridData& Grid,
       ds_time = MPI_Wtime() - clk;
 	  }
   }
-  if(rank == 0) {
-    std::cout << "DSpaces IO API Call (Corona_XYZ) in " << ds_time << " seconds" << std::endl;
-  }
+  // if(rank == 0) {
+  //   std::cout << "DSpaces IO API Call (Corona_XYZ) in " << ds_time << " seconds" << std::endl;
+  // }
+
+  return ds_time;
 }
