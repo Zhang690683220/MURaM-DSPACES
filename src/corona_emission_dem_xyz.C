@@ -473,7 +473,9 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
   delete[] tlev;
 
 	if(Run.rank == iroot && Run.verbose >0) {
+		std::cout << "File Output API CALL (Corona_XYZ) in " << file_API_time << " seconds" << std::endl;
 		std::cout << "File Output (Corona_XYZ) in " << file_time << " seconds" << std::endl;
+		std::cout << "DataSpaces Output API CALL (Corona_XYZ) in " << dspaces_API_time << " seconds" << std::endl;
     std::cout << "DataSpaces Output (Corona_XYZ) in " << dspaces_time << " seconds" << std::endl;
 	}
 
