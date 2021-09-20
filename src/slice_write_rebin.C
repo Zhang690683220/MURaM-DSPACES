@@ -339,4 +339,7 @@ void slice_write_rebin_dspaces(const GridData& Grid,
       ds_time = MPI_Wtime() - clk;
 	  }
   }
+  if(rank == 0) {
+    std::cout << "DSpaces IO API Call (Corona_XYZ) in " << ds_time << " seconds" << std::endl;
+  }
 }

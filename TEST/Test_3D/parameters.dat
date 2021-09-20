@@ -34,6 +34,8 @@ dspaces_terminate = 0
 dspaces_put_local = 0
 dspaces_optimized = 0
 dspaces_gpu = 0
+dspaces_manual_listen_addr = 1
+dspaces_client_listen_addr = verbs://mlx5_1
 
 # Other Outputs, save 3D cubes of
 #             Tem Pre  ne rhoi amb Qrt Tau Jtot Stot Qcor QH QMg QCa QCro
@@ -47,7 +49,7 @@ diagnostics = 1
 diag_output =  0  0  0  0  0  0  0  0   1     1    1
 
 # Save DEM/HAVG/RT_HAVG outputs
-DEM = 0
+DEM = 1
 HAVG = 1 
 RT_HAVG = 0 
 
