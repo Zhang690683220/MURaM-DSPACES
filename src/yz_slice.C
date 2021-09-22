@@ -248,7 +248,7 @@ void yz_slice(const RunData&  Run, const GridData& Grid,
 
   free(iobuf);
 
-  if(Run.rank == iroot && Run.verbose >0) {
+  if(Run.rank == 0 && Run.verbose >0) {
 		std::cout << "File Output (YZ_SLICE) in " << file_time << " seconds" << std::endl;
     std::cout << "DataSpaces Output (YZ_SLICE) in " << dspaces_time << " seconds" << std::endl;
 	}
