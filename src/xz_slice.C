@@ -148,7 +148,9 @@ void xz_slice(const RunData&  Run, const GridData& Grid,
 	  fwrite(header,sizeof(float),4,fhandle);
 	}
 	
+	clk = MPI_Wtime();
 	slice_write(Grid,0,iobuf,localsize,nslvar,2,0,fhandle);
+	file_time += MPI_Wtime() - clk;
 	
 	if(xz_rank == 0) 
 	  fclose(fhandle);
@@ -159,7 +161,9 @@ void xz_slice(const RunData&  Run, const GridData& Grid,
 	  fhandle=fopen(filename,"a");
 	}
 	
+	clk = MPI_Wtime();
 	slice_write(Grid,0,iobuf,localsize,nslvar,2,0,fhandle);
+	file_time += MPI_Wtime() - clk;
 	
 	if(xz_rank == 0){ 
 	  fclose(fhandle);
@@ -236,6 +240,11 @@ void xz_slice(const RunData&  Run, const GridData& Grid,
   }
   
   free(iobuf);
+
+	if(Run.rank == 0 && Run.verbose >0) {
+		std::cout << "File Output (XZ_SLICE) in " << file_time << " seconds" << std::endl;
+    std::cout << "DataSpaces Output (XZ_SLICE) in " << dspaces_time << " seconds" << std::endl;
+	}
 }
 
 

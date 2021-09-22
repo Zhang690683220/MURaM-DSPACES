@@ -147,7 +147,9 @@ void xy_slice(const RunData&  Run, const GridData& Grid,
 	    fwrite(header,sizeof(float),4,fhandle);
 	}
 	
+	clk = MPI_Wtime();
 	slice_write(Grid,0,iobuf,localsize,nslvar,1,0,fhandle);
+	file_time += MPI_Wtime() - clk;
 	
 	if(xy_rank == 0) 
 	  fclose(fhandle);
@@ -158,7 +160,9 @@ void xy_slice(const RunData&  Run, const GridData& Grid,
 	  fhandle=fopen(filename,"a");
 	}
 	
+	clk = MPI_Wtime();
 	slice_write(Grid,0,iobuf,localsize,nslvar,1,0,fhandle);
+	file_time += MPI_Wtime() - clk;
 	
 	if(xy_rank == 0){ 
 	  fclose(fhandle);
