@@ -13,6 +13,11 @@ using namespace std;
 extern void slice_write(const GridData&,const int,float*,int,int,const int,
 			const int,FILE*);
 
+extern void slice_write_dspaces(const GridData& Grid, const int iroot,
+                                float* vloc, int nloc, int nvar,int n0,
+                                int n1, char* filename, const int iter,
+                                const int ndim);
+
 void xy_slice(const RunData&  Run, const GridData& Grid, 
 	      const PhysicsData& Physics) {
 
@@ -34,6 +39,11 @@ void xy_slice(const RunData&  Run, const GridData& Grid,
   static int nslvar;
 
   FILE* fhandle=NULL;
+	static double clk, file_time, dspaces_time;
+	file_time = 0.0;
+	if(Run.use_dspaces_io) {
+		dspaces_time = 0.0;
+	}
 
   //MPI_File fhandle_mpi;
   //int offset;
@@ -183,9 +193,52 @@ void xy_slice(const RunData&  Run, const GridData& Grid,
 	  fptr.close();
 	}
       }
-    }     
+
+	  if(Run.use_dspaces_io) {
+        char ds_var_name[128];
+        sprintf(ds_var_name, "%s%s_%04d", Run.path_2D,"xy_slice",ixpos[nsl]);
+        clk = MPI_Wtime();
+        slice_write_dspaces(Grid, 0, iobuf, localsize, nslvar, 1, 0, ds_var_name, Run.globiter, 2);
+        dspaces_time += MPI_Wtime() - clk;
+        char header_filename[128];
+        if(xy_rank == 0) {
+          sprintf(header_filename, "%s.header", ds_var_name);
+          fstream fptr;
+          int newfile = 0;
+          fptr.open(filename,ios::in);
+          if (!fptr) newfile = 1;
+          fptr.close();
+      
+          fptr.open(filename,ios::out|ios::app);
+          fptr.precision(10);
+          if (newfile) {      
+	    			fptr <<  nslvar << ' ' <<  Grid.gsize[0] << ' ' 
+		 				<< Grid.gsize[1] << endl;
+	    			fptr << Physics.xy_var[0]  << ' ' 
+		 				<< Physics.xy_var[1]  << ' ' 
+		 				<< Physics.xy_var[2]  << ' ' 
+		 				<< Physics.xy_var[3]  << ' ' 
+		 				<< Physics.xy_var[4]  << ' ' 
+		 				<< Physics.xy_var[5]  << ' ' 
+		 				<< Physics.xy_var[6]  << ' ' 
+		 				<< Physics.xy_var[7]  << ' ' 
+		 				<< Physics.xy_var[8]  << ' ' 
+		 				<< Physics.xy_var[9]  << ' ' 
+		 				<< Physics.xy_var[10] << ' ' 
+		 				<< Physics.xy_var[11] << endl;
+	  			}
+          fptr << Run.globiter << ' ' << Run.time << endl;
+          fptr.close(); 
+        }
+      }
+    }   
   }
 
   free(iobuf);
+
+	if(Run.rank == 0 && Run.verbose >0) {
+		std::cout << "File Output (XY_SLICE) in " << file_time << " seconds" << std::endl;
+    std::cout << "DataSpaces Output (XY_SLICE) in " << dspaces_time << " seconds" << std::endl;
+	}
 }
 

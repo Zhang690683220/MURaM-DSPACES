@@ -204,46 +204,48 @@ void yz_slice(const RunData&  Run, const GridData& Grid,
       fptr.close(); 
     }
       }
+
+      if(Run.use_dspaces_io) {
+        char ds_var_name[128];
+        sprintf(ds_var_name, "%s%s_%04d", Run.path_2D,"yz_slice",ixpos[nsl]);
+        clk = MPI_Wtime();
+        slice_write_dspaces(Grid, 0, iobuf, localsize, nslvar, 1, 2, ds_var_name, Run.globiter, 2);
+        dspaces_time += MPI_Wtime() - clk;
+        char header_filename[128];
+        if(yz_rank == 0) {
+          sprintf(header_filename, "%s.header", ds_var_name);
+          fstream fptr;
+          int newfile = 0;
+          fptr.open(filename,ios::in);
+          if (!fptr) newfile = 1;
+          fptr.close();
+      
+          fptr.open(filename,ios::out|ios::app);
+          fptr.precision(10);
+          if (newfile) {      
+            fptr <<  nslvar << ' ' <<  Grid.gsize[2] << ' ' 
+            << Grid.gsize[1] << endl;
+            fptr << Physics.yz_var[0]  << ' ' 
+            << Physics.yz_var[1]  << ' ' 
+            << Physics.yz_var[2]  << ' ' 
+            << Physics.yz_var[3]  << ' ' 
+            << Physics.yz_var[4]  << ' ' 
+            << Physics.yz_var[5]  << ' ' 
+            << Physics.yz_var[6]  << ' ' 
+            << Physics.yz_var[7]  << ' ' 
+            << Physics.yz_var[8]  << ' ' 
+            << Physics.yz_var[9]  << ' ' 
+            << Physics.yz_var[10] << ' ' 
+            << Physics.yz_var[11] << ' '
+            << Physics.yz_var[12] << endl;
+          }
+          fptr << Run.globiter << ' ' << Run.time << endl;
+          fptr.close(); 
+        }
+      }
     }
 
-    if(Run.use_dspaces_io) {
-      char ds_var_name[128];
-      sprintf(ds_var_name, "%s%s_%04d", Run.path_2D,"yz_slice",ixpos[nsl]);
-      clk = MPI_Wtime();
-      slice_write_dspaces(Grid, 0, iobuf, localsize, nslvar, 1, 2, ds_var_name, Run.globiter, 2);
-      dspaces_time += MPI_Wtime() - clk;
-      char header_filename[128];
-      if(yz_rank == 0) {
-        sprintf(header_filename, "%s.header", ds_var_name);
-        fstream fptr;
-        int newfile = 0;
-        fptr.open(filename,ios::in);
-        if (!fptr) newfile = 1;
-        fptr.close();
-      
-        fptr.open(filename,ios::out|ios::app);
-        fptr.precision(10);
-        if (newfile) {      
-          fptr <<  nslvar << ' ' <<  Grid.gsize[2] << ' ' 
-          << Grid.gsize[1] << endl;
-          fptr << Physics.yz_var[0]  << ' ' 
-          << Physics.yz_var[1]  << ' ' 
-          << Physics.yz_var[2]  << ' ' 
-          << Physics.yz_var[3]  << ' ' 
-          << Physics.yz_var[4]  << ' ' 
-          << Physics.yz_var[5]  << ' ' 
-          << Physics.yz_var[6]  << ' ' 
-          << Physics.yz_var[7]  << ' ' 
-          << Physics.yz_var[8]  << ' ' 
-          << Physics.yz_var[9]  << ' ' 
-          << Physics.yz_var[10] << ' ' 
-          << Physics.yz_var[11] << ' '
-          << Physics.yz_var[12] << endl;
-        }
-        fptr << Run.globiter << ' ' << Run.time << endl;
-        fptr.close(); 
-      }
-    }     
+         
   }
 
   free(iobuf);
