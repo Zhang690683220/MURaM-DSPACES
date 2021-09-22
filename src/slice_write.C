@@ -4,6 +4,7 @@
 #include "grid.H"
 #include "run.H"
 #include "comm_split.H"
+#include "io.H"
 
 //========================================================================
 void slice_write(const GridData& Grid,const int iroot,float* vloc,int nloc,
@@ -119,5 +120,52 @@ void slice_write(const GridData& Grid,const int iroot,float* vloc,int nloc,
   free(proc_bounds);
   free(recvcounts);
   free(offsets);
+
+}
+
+void slice_write_dspaces(const GridData& Grid, const int iroot,
+                          float* vloc, int nloc, int nvar,int n0,
+                          int n1, char* filename, const int iter,
+                          const int ndim)
+{
+  double clk;
+  double ds_time = 0;
+
+  MPI_Comm comm=MPI_COMM_NULL;
+  int rank=-1;
+
+  if ( (n0 == 2) and (n1 == 0)){
+    comm = XZ_COMM; rank = xz_rank;
+  } else if ( (n0 == 1) and (n1 == 0)){
+    comm = XY_COMM; rank = xy_rank;
+  } else if ( (n0 == 1) and (n1 == 2)){
+    comm = YZ_COMM; rank = yz_rank;
+  } else {
+    cout << "slice_write: mode unknown " << n0 << ' ' << n1 << endl;
+    MPI_Abort(MPI_COMM_WORLD,1);
+  }
+
+  int v;
+
+  uint64_t lb[2], ub[2];
+  char ds_var_name[128];
+  int localsize = nloc;
+
+  if(rank == iroot) {
+		std::cout << "dspaces output " << nvar << " slices [0-" << nvar-1
+		<< "]" << std::endl;
+	}
+
+  lb[0] = Grid.beg[n0] - Grid.gbeg[n0];
+	lb[1] = Grid.beg[n1] - Grid.gbeg[n1];
+	ub[0] = lb[0] + Grid.lsize[n0] - 1;
+	ub[1] = lb[1] + Grid.lsize[n1] - 1;
+
+  for(v=0; v<nvar; v++) {
+    sprintf(ds_var_name, "%s_%d", filename, v);
+    clk = MPI_Wtime();
+		dspaces_put(ds_client, ds_var_name, iter, sizeof(float), ndim, lb, ub, &vloc[v*localsize]);
+    ds_time = MPI_Wtime() - clk;
+	}
 
 }

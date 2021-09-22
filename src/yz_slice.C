@@ -14,6 +14,11 @@ using namespace std;
 extern void slice_write(const GridData&,const int,float*,int,int,const int,
             const int,FILE*);
 
+extern void slice_write_dspaces(const GridData& Grid, const int iroot,
+                                float* vloc, int nloc, int nvar,int n0,
+                                int n1, char* filename, const int iter,
+                                const int ndim);
+
 //======================================================================
 void yz_slice(const RunData&  Run, const GridData& Grid, 
           const PhysicsData& Physics,RTS *rts) {
@@ -36,6 +41,11 @@ void yz_slice(const RunData&  Run, const GridData& Grid,
   static int nslvar;
 
   FILE* fhandle=NULL;
+  static double clk, file_time, dspaces_time;
+	file_time = 0.0;
+	if(Run.use_dspaces_io) {
+		dspaces_time = 0.0;
+	}
 
   //MPI_File fhandle_mpi;
   //int offset;
@@ -142,18 +152,23 @@ void yz_slice(const RunData&  Run, const GridData& Grid,
       fwrite(header,sizeof(float),4,fhandle);
     }
     
+    clk = MPI_Wtime();
     slice_write(Grid,0,iobuf,localsize,nslvar,1,2,fhandle);
-    
+    file_time += MPI_Wtime() - clk;
+
     if(yz_rank == 0)
       fclose(fhandle);
     
       } else {
+    // collective means write all iterations into the same file
     if(yz_rank == 0) { 
       sprintf(filename,"%s_%04d.dat","yz_slice",ixpos[nsl]);
       fhandle=fopen(filename,"a");
     }
     
+    clk = MPI_Wtime();
     slice_write(Grid,0,iobuf,localsize,nslvar,1,2,fhandle);
+    file_time += MPI_Wtime() - clk;
     
     if(yz_rank == 0){
       fclose(fhandle);
@@ -189,9 +204,53 @@ void yz_slice(const RunData&  Run, const GridData& Grid,
       fptr.close(); 
     }
       }
+    }
+
+    if(Run.use_dspaces_io) {
+      char ds_var_name[128];
+      sprintf(ds_var_name, "%s%s_%04d", Run.path_2D,"yz_slice",ixpos[nsl]);
+      clk = MPI_Wtime();
+      slice_write_dspaces(Grid, 0, iobuf, localsize, nslvar, 1, 2, ds_var_name, Run.globiter, 2);
+      dspaces_time += MPI_Wtime() - clk;
+      char header_filename[128];
+      if(yz_rank == 0) {
+        sprintf(header_filename, "%s.header", ds_var_name);
+        fstream fptr;
+        int newfile = 0;
+        fptr.open(filename,ios::in);
+        if (!fptr) newfile = 1;
+        fptr.close();
+      
+        fptr.open(filename,ios::out|ios::app);
+        fptr.precision(10);
+        if (newfile) {      
+          fptr <<  nslvar << ' ' <<  Grid.gsize[2] << ' ' 
+          << Grid.gsize[1] << endl;
+          fptr << Physics.yz_var[0]  << ' ' 
+          << Physics.yz_var[1]  << ' ' 
+          << Physics.yz_var[2]  << ' ' 
+          << Physics.yz_var[3]  << ' ' 
+          << Physics.yz_var[4]  << ' ' 
+          << Physics.yz_var[5]  << ' ' 
+          << Physics.yz_var[6]  << ' ' 
+          << Physics.yz_var[7]  << ' ' 
+          << Physics.yz_var[8]  << ' ' 
+          << Physics.yz_var[9]  << ' ' 
+          << Physics.yz_var[10] << ' ' 
+          << Physics.yz_var[11] << ' '
+          << Physics.yz_var[12] << endl;
+        }
+        fptr << Run.globiter << ' ' << Run.time << endl;
+        fptr.close(); 
+      }
     }     
   }
 
   free(iobuf);
+
+  if(Run.rank == iroot && Run.verbose >0) {
+		std::cout << "File Output (YZ_SLICE) in " << file_time << " seconds" << std::endl;
+    std::cout << "DataSpaces Output (YZ_SLICE) in " << dspaces_time << " seconds" << std::endl;
+	}
 }
 
