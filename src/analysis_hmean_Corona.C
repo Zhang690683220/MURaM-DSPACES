@@ -8,6 +8,7 @@
 #include "rt/rt.h"
 #include "comm_split.H"
 #include "limit_va.H"
+#include "io.H"
 
 using namespace std;
 
@@ -45,6 +46,12 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
     w1[v]   = 8./(12.*Grid.dx[v]);
     w2[v]   =-1./(12.*Grid.dx[v]);
   }
+
+  static double clk, file_time, dspaces_time;
+	file_time = 0.0;
+	if(Run.use_dspaces_io) {
+		dspaces_time = 0.0;
+	}
 
   char filename[128];
 
@@ -233,6 +240,7 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
     }
 
     sprintf(filename,"%s%s.%06d",Run.path_2D,"hmean1D",Run.globiter);
+    clk = MPI_Wtime();
     MPI_File_open(XCOL_COMM,filename,MPI_MODE_CREATE | MPI_MODE_WRONLY,
 		  MPI_INFO_NULL,&fhandle_mpi);
 
@@ -252,7 +260,42 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
     MPI_File_write_all(fhandle_mpi,iobuf,nvar*Grid.lsize[0],MPI_FLOAT,
 		       MPI_STATUS_IGNORE);
       
-    MPI_File_close(&fhandle_mpi);    
+    MPI_File_close(&fhandle_mpi);
+
+    file_time += MPI_Wtime() - clk;
+
+    if(Run.use_dspaces_io) {
+      // write 50 vars separately
+      char ds_var_name[128];
+      uint64_t lb[1], ub[1];
+      lb[0] = Grid.beg[0]-Grid.gbeg[0];
+      ub[0] = lb[0] + Grid.lsize[0] - 1;
+      for(int v=0; v<nvar; v++) {
+        sprintf(ds_var_name, "%s%s_%d", Run.path_2D, "hmean1D", v);
+        clk = MPI_Wtime();
+        dspaces_put(ds_client, ds_var_name, Ru.globiter, sizeof(float), 1, lb, ub, &iobuf[v*Grid.lsize[0]]);
+        dspaces_time += MPI_Wtime() - clk;
+      }
+      char header_name[128];
+      FILE * hfhandle = NULL;
+      if( xcol_rank == 0 ){
+        sprintf(header_name, "%s%s.header", Run.path_2D, "hmean1D");
+        hfhandle=fopen(header_filename, "w");
+        float header[4];            
+        header[0] = (float) nvar;
+        header[1] = (float) Grid.gsize[0];
+        header[2] = (float) 1.0;      
+        header[3] = (float) Run.time;
+        fwrite(header, sizeof(float), 4, hfhandle);
+        fclose(hfhandle);
+      }
+    }
+
+    if(xcol_rank == 0 && Run.verbose >0) {
+      std::cout << "File Output (ANALYSIS_VP) in " << file_time << " seconds" << std::endl;
+      std::cout << "DataSpaces Output (ANALYSIS_VP) in " << dspaces_time << " seconds" << std::endl;
+    }
+
   }
   
   delete[] loc;
