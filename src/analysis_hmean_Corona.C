@@ -273,14 +273,14 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
       for(int v=0; v<nvar; v++) {
         sprintf(ds_var_name, "%s%s_%d", Run.path_2D, "hmean1D", v);
         clk = MPI_Wtime();
-        dspaces_put(ds_client, ds_var_name, Ru.globiter, sizeof(float), 1, lb, ub, &iobuf[v*Grid.lsize[0]]);
+        dspaces_put(ds_client, ds_var_name, Run.globiter, sizeof(float), 1, lb, ub, &iobuf[v*Grid.lsize[0]]);
         dspaces_time += MPI_Wtime() - clk;
       }
       char header_name[128];
       FILE * hfhandle = NULL;
       if( xcol_rank == 0 ){
         sprintf(header_name, "%s%s.header", Run.path_2D, "hmean1D");
-        hfhandle=fopen(header_filename, "w");
+        hfhandle=fopen(header_name, "w");
         float header[4];            
         header[0] = (float) nvar;
         header[1] = (float) Grid.gsize[0];
