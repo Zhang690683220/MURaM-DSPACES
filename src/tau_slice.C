@@ -211,7 +211,9 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
 	  fwrite(header,sizeof(float),4,fhandle);
 	}
 	
+	clk = MPI_Wtime();
 	slice_write(Grid,0,&(iosum[0]),localsize,nslvar,1,2,fhandle);
+	file_time += MPI_Wtime() - clk;
 	
 	if(yz_rank == 0)
 	  fclose(fhandle);
@@ -222,7 +224,9 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
 	  fhandle=fopen(filename,"a");
 	}
 	
+	clk = MPI_Wtime();
 	slice_write(Grid,0,&(iosum[0]),localsize,nslvar,1,2,fhandle);
+	file_time += MPI_Wtime() - clk;
 	
 	if(yz_rank == 0){ 
 	  fclose(fhandle);
