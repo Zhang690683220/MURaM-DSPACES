@@ -16,6 +16,11 @@ typedef double realtype;
 extern void slice_write(const GridData&,const int,float*,int,int,const int,
 			const int,FILE*);
 
+extern void slice_write_dspaces(const GridData& Grid, const int iroot,
+                                float* vloc, int nloc, int nvar,int n0,
+                                int n1, char* filename, const int iter,
+                                const int ndim);
+
 //======================================================================
 void tau_slice(const RunData&  Run, const GridData& Grid, 
 	      const PhysicsData& Physics,RTS *rts) {
