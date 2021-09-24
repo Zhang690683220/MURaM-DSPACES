@@ -44,6 +44,11 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
   static int nslvar;
 
   FILE* fhandle=NULL;
+	static double clk, file_time, dspaces_time;
+	file_time = 0.0;
+	if(Run.use_dspaces_io) {
+		dspaces_time = 0.0;
+	}
 
   //MPI_File fhandle_mpi;
   //int offset;
@@ -249,10 +254,57 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
 	  fptr.close();
 	}
       }
+
+		if(Run.use_dspaces_io) {
+        char ds_var_name[128];
+				if(tau_lev[nsl] >= 1e-3)
+        	sprintf(ds_var_name, "%s%s_%.3f", Run.path_2D,"tau_slice",tau_lev[nsl]);
+				else
+					sprintf(ds_var_name, "%s%s_%.6f", Run.path_2D,"tau_slice",tau_lev[nsl]);
+        clk = MPI_Wtime();
+        slice_write_dspaces(Grid, 0, &(iosum[0]), localsize, nslvar, 1, 2, ds_var_name, Run.globiter, 2);
+        dspaces_time += MPI_Wtime() - clk;
+        char header_filename[128];
+        if(yz_rank == 0) {
+          sprintf(header_filename, "%s.header", ds_var_name);
+          fstream fptr;
+          int newfile = 0;
+          fptr.open(filename,ios::in);
+          if (!fptr) newfile = 1;
+          fptr.close();
+      
+          fptr.open(filename,ios::out|ios::app);
+          fptr.precision(10);
+          if (newfile) {      
+	    			fptr <<  nslvar << ' ' <<  Grid.gsize[1] << ' ' 
+		 				<< Grid.gsize[2] << endl;
+	    			fptr << Physics.tau_var[0]  << ' ' 
+		 				<< Physics.tau_var[1]  << ' ' 
+		 				<< Physics.tau_var[2]  << ' ' 
+		 				<< Physics.tau_var[3]  << ' ' 
+		 				<< Physics.tau_var[4]  << ' ' 
+		 				<< Physics.tau_var[5]  << ' ' 
+		 				<< Physics.tau_var[6]  << ' ' 
+		 				<< Physics.tau_var[7]  << ' ' 
+		 				<< Physics.tau_var[8]  << ' ' 
+		 				<< Physics.tau_var[9]  << ' ' 
+		 				<< Physics.tau_var[10] << ' '
+		 				<< Physics.tau_var[11] << endl;
+	  			}
+          fptr << Run.globiter << ' ' << Run.time << endl;
+          fptr.close(); 
+        }
+      }
+
     }
   }
 
   free(iobuf);
   free(iosum);
+
+	if(Run.rank == 0 && Run.verbose >0) {
+		std::cout << "File Output (TAU_SLICE) in " << file_time << " seconds" << std::endl;
+    std::cout << "DataSpaces Output (TAU_SLICE) in " << dspaces_time << " seconds" << std::endl;
+	}
 }
 
