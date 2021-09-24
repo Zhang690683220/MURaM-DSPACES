@@ -36,7 +36,11 @@ dspaces_client_t ds_client = dspaces_CLIENT_NULL;
 uint64_t *lb, *ub;
 int io_rank; // for print msg
 
-static double clk, ds_io_time, ds_io_total_time, mpi_io_time, mpi_io_total_time;
+static double clk, ds_eos_time, ds_eos_total_time,
+              ds_diag_time, ds_diag_total_time,
+              mpi_eos_time, mpi_eos_total_time,
+              mpi_diag_time, mpi_diag_total_time,
+              ds_total_time, mpi_total_time;
 
 extern void WriteBackupFile(const char*,const int,const double);
 extern void ReadBackupFile(const char*,const int,int*,double*);
@@ -85,12 +89,16 @@ void IO_Init(const GridData& Grid, const RunData& Run) {
   // make sure MPI IO errors leed to program termination
   MPI_File_set_errhandler(MPI_FILE_NULL,MPI_ERRORS_ARE_FATAL); 
 
-  mpi_io_total_time = 0.0;
+  mpi_eos_total_time = 0.0;
+  mpi_diag_total_time = 0.0;
+  mpi_total_time = 0.0;
 
   if(Run.use_dspaces_io) {
     char listen_addr_str[128];
     ds_io = 1;
-    ds_io_total_time = 0.0;
+    ds_eos_total_time = 0.0;
+    ds_diag_total_time = 0.0;
+    ds_total_time = 0.0;
     if(Run.dspaces_terminate) {
       ds_terminate = 1;
     }
@@ -144,10 +152,16 @@ void IO_Finalize() {
   MPI_Comm_free(&io_xy_comm);
   MPI_Comm_free(&io_z_comm);
   if(ds_io) {
+    mpi_total_time = mpi_eos_total_time + mpi_diag_total_time;
+    ds_total_time = ds_eos_total_time + ds_diag_total_time;
     if(xy_rank == 0) {
       cout << "**** IO SUMMARY *********************" << endl;
-      cout << "Total MPI IO in " << mpi_io_total_time << " seconds" << endl;
-      cout << "Total DataSpaces IO in " << ds_io_total_time << " seconds" << endl;
+      cout << "Total MPI IO (EOS) in " << mpi_eos_total_time << " seconds" << endl;
+      cout << "Total DataSpaces (EOS) IO in " << ds_eos_total_time << " seconds" << endl;
+      cout << "Total MPI IO (DIAG) in " << mpi_diag_total_time << " seconds" << endl;
+      cout << "Total DataSpaces (DIAG) IO in " << ds_diag_total_time << " seconds" << endl;
+      cout << "Total MPI IO in " << mpi_total_time << " seconds" << endl;
+      cout << "Total DataSpacesIO in " << ds_total_time << " seconds" << endl;
     }
     free(lb);
     free(ub);
@@ -585,20 +599,43 @@ void diag_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phy
 			   fh);
 	  if(xy_rank == 0) fclose(fh);
 	} else {
+    clk = MPI_Wtime();
 	  MPI_File_open(io_xy_comm,filename,MPI_MODE_CREATE | MPI_MODE_WRONLY,
 			io_info,&mfh);
 	  MPI_File_set_view(mfh,0,MPI_FLOAT,io_subarray,(char *) "native",
 			    io_info);
 	  MPI_File_write_all(mfh,iobuf_glo,gsize,MPI_FLOAT,MPI_STATUS_IGNORE);
 	  MPI_File_close(&mfh);
+    mpi_diag_time += MPI_Wtime() -clk;
 	}
+
+  if(ds_io == 1) {
+    char ds_var_name[128];
+    sprintf(ds_var_name, "%s%s", Run.path_3D, diag_names[var]);
+    clk = MPI_Wtime();
+    int ds_ret = 0;
+    ds_ret = dspaces_put(ds_client, ds_var_name, Run.globiter, sizeof(float), Grid.NDIM, lb, ub, iobuf_glo);
+    if(ds_ret != 0) {
+      cout << "Error Writing " << ds_var_name << "Version: " << Run.globiter
+      << "to DataSpaces Server. Aborting ... " << endl;
+      MPI_Abort(MPI_COMM_WORLD,1);
+    }
+    ds_diag_time += MPI_Wtime() - clk;
+  }
       }
     }
   }
   
   free(iobuf_loc); 
   for(v2=0;v2<v2_max;v2++)
-    if (zcol_rank == v2) free(iobuf_glo); 
+    if (zcol_rank == v2) free(iobuf_glo);
+
+  ds_diag_total_time += ds_diag_time;
+  mpi_diag_total_time += mpi_diag_time;
+  if(xy_rank == 0 && Run.verbose >0) {
+    cout << "MPI Output (DIAG) in " << mpi_diag_time << " seconds" << endl;
+    cout << "DataSpaces Output (DIAG) in " << ds_diag_time << " seconds" << endl;
+  } 
   
 }
 
@@ -706,9 +743,9 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
   for(v2=0;v2<v2_max;v2++)
     if (zcol_rank == v2) iobuf_glo = (float*)malloc(gsize*sizeof(float));
 
-  mpi_io_time = 0.0;
+  mpi_eos_time = 0.0;
   if(ds_io == 1) {
-    ds_io_time = 0.0;
+    ds_eos_time = 0.0;
   }
 
   for(v1=0;v1<v1_max;v1++){
@@ -750,7 +787,7 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
 			    io_info);
 	  MPI_File_write_all(mfh,iobuf_glo,gsize,MPI_FLOAT,MPI_STATUS_IGNORE);
 	  MPI_File_close(&mfh);
-    mpi_io_time += MPI_Wtime() - clk;
+    mpi_eos_time += MPI_Wtime() - clk;
 	}
 
   if(ds_io == 1) {
@@ -768,21 +805,21 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
       << "to DataSpaces Server. Aborting ... " << endl;
       MPI_Abort(MPI_COMM_WORLD,1);
     }
-    ds_io_time += MPI_Wtime() - clk;
+    ds_eos_time += MPI_Wtime() - clk;
   }
 
       }
     }
   }
 
-  if(xy_rank == 0) {
-    ds_io_total_time += ds_io_time;
-    mpi_io_total_time += mpi_io_time;
-    if(Run.verbose >0) {
-      cout << "MPI Output (EOS) in " << mpi_io_time << " seconds" << endl;
-      cout << "DataSpaces Output (EOS) in " << ds_io_time << " seconds" << endl;
-    } 
-  }
+  
+  ds_eos_total_time += ds_eos_time;
+  mpi_eos_total_time += mpi_eos_time;
+  if(xy_rank == 0 && Run.verbose >0) {
+    cout << "MPI Output (EOS) in " << mpi_eos_time << " seconds" << endl;
+    cout << "DataSpaces Output (EOS) in " << ds_eos_time << " seconds" << endl;
+  } 
+  
   
   free(iobuf_loc); 
   for(v2=0;v2<v2_max;v2++)
@@ -882,7 +919,7 @@ void eos_output_optimized(const RunData& Run, const GridData& Grid,const Physics
  
   iobuf_loc = (float*)malloc(lsize*sizeof(float));
 
-  ds_io_time = 0.0;
+  ds_eos_time = 0.0;
   
   for(vi=0; vi<v_max; vi++) {
     var = var_index[vi];
@@ -915,14 +952,14 @@ void eos_output_optimized(const RunData& Run, const GridData& Grid,const Physics
       << "to DataSpaces Server. Aborting ... " << endl;
       MPI_Abort(MPI_COMM_WORLD,1);
     }
-    ds_io_time += MPI_Wtime() - clk;
+    ds_eos_time += MPI_Wtime() - clk;
   }
   
   
   if(io_rank == 0) {
-    ds_io_total_time += ds_io_time;
+    ds_eos_total_time += ds_eos_time;
     if(Run.verbose >0) {
-      cout << "DataSpaces Output (EOS) in " << ds_io_time << " seconds" << endl;
+      cout << "DataSpaces Output (EOS) in " << ds_eos_time << " seconds" << endl;
     } 
   }
   
@@ -1020,7 +1057,7 @@ void eos_output_gpu(const RunData& Run, const GridData& Grid,const PhysicsData& 
  
   //iobuf_loc = (float*)malloc(lsize*sizeof(float));
 
-  ds_io_time = 0.0;
+  ds_eos_time = 0.0;
   
   for(vi=0; vi<v_max; vi++) {
     var = var_index[vi];
@@ -1045,14 +1082,14 @@ void eos_output_gpu(const RunData& Run, const GridData& Grid,const PhysicsData& 
       << "to DataSpaces Server. Aborting ... " << endl;
       MPI_Abort(MPI_COMM_WORLD,1);
     }
-    ds_io_time += MPI_Wtime() - clk;
+    ds_eos_time += MPI_Wtime() - clk;
   }
   
   
   if(io_rank == 0) {
-    ds_io_total_time += ds_io_time;
+    ds_eos_total_time += ds_eos_time;
     if(Run.verbose >0) {
-      cout << "DataSpaces Output (EOS) in " << ds_io_time << " seconds" << endl;
+      cout << "DataSpaces Output (EOS) in " << ds_eos_time << " seconds" << endl;
     } 
   }
   
