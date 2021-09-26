@@ -123,7 +123,7 @@ void slice_write(const GridData& Grid,const int iroot,float* vloc,int nloc,
 
 }
 
-void slice_write_dspaces(const GridData& Grid, const int iroot,
+dspaces_put_req_t* slice_write_dspaces(const GridData& Grid, const int iroot,
                           float* vloc, int nloc, int nvar,int n0,
                           int n1, char* filename, const int iter,
                           const int ndim)
@@ -161,11 +161,17 @@ void slice_write_dspaces(const GridData& Grid, const int iroot,
 	ub[0] = lb[0] + Grid.lsize[n0] - 1;
 	ub[1] = lb[1] + Grid.lsize[n1] - 1;
 
+  // use dspaces_iput for nvars inside one buffer with different offset
+  dspaces_put_req_t* dspaces_put_req_list = dspaces_put_req_t* malloc(nvar*sizeof(dspaces_put_req_t));
+
   for(v=0; v<nvar; v++) {
     sprintf(ds_var_name, "%s_%d", filename, v);
     clk = MPI_Wtime();
-		dspaces_iput(ds_client, ds_var_name, iter, sizeof(float), ndim, lb, ub, &vloc[v*localsize]);
+		dspaces_put_req_list[v] = dspaces_iput(ds_client, ds_var_name, iter, sizeof(float),
+                                           ndim, lb, ub, &vloc[v*localsize]);
     ds_time = MPI_Wtime() - clk;
 	}
+
+  return dspaces_put_req_list;
 
 }

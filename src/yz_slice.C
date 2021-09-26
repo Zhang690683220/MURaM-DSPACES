@@ -41,10 +41,13 @@ void yz_slice(const RunData&  Run, const GridData& Grid,
   static int nslvar;
 
   FILE* fhandle=NULL;
-  static double clk, file_time, dspaces_time;
+  static double clk, file_time, dspaces_time, dspaces_wait_time;
 	file_time = 0.0;
+  dspaces_put_req_t* dspaces_put_req_list;
 	if(Run.use_dspaces_io) {
 		dspaces_time = 0.0;
+    dspaces_wait_time = 0.0;
+    dspaces_put_req_list = dspaces_PUT_NULL;
 	}
 
   //MPI_File fhandle_mpi;
@@ -78,6 +81,16 @@ void yz_slice(const RunData&  Run, const GridData& Grid,
     if ( (Grid.beg[0] <= ixpos[nsl]+Grid.gbeg[0] ) and 
          (Grid.end[0] >= ixpos[nsl]+Grid.gbeg[0] )){
 
+      // check dspaces_iput() except for the first iter
+      if(Run.use_dspaces_io && nsl > 0) {
+        for(int i=0; i<nslvar; i++) {
+          dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
+        }
+        dspaces_wait_time += MPI_Wtime() - clk;
+        free(dspaces_put_req_list);
+      }
+
+      // update iobuf values
       for (j=jbeg; j<=jend; j++)
         for (k=kbeg; k<=kend; k++){
           ind  = j-jbeg + (k-kbeg)*Grid.lsize[1];
@@ -209,7 +222,8 @@ void yz_slice(const RunData&  Run, const GridData& Grid,
         char ds_var_name[128];
         sprintf(ds_var_name, "%s%s_%04d", Run.path_2D,"yz_slice",ixpos[nsl]);
         clk = MPI_Wtime();
-        slice_write_dspaces(Grid, 0, iobuf, localsize, nslvar, 1, 2, ds_var_name, Run.globiter, 2);
+        dspaces_put_req_list = slice_write_dspaces(Grid, 0, iobuf, localsize, nslvar, 1, 2, ds_var_name,
+                                                   Run.globiter, 2);
         dspaces_time += MPI_Wtime() - clk;
         char header_filename[128];
         if(yz_rank == 0) {
@@ -242,17 +256,28 @@ void yz_slice(const RunData&  Run, const GridData& Grid,
           fptr << Run.globiter << ' ' << Run.time << endl;
           fptr.close(); 
         }
+        clk = MPI_Wtime();
       }
     }
 
          
   }
 
+  // check if put finish for the last dspaces_iput() before iobuf free
+  if(Run.use_dspaces_io) {
+    for(int i=0; i<nslvar; i++) {
+      dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
+    }
+    dspaces_wait_time += MPI_Wtime() - clk;
+    free(dspaces_put_req_list);
+  }
   free(iobuf);
 
   if(Run.rank == 0 && Run.verbose >0) {
 		std::cout << "File Output (YZ_SLICE) in " << file_time << " seconds" << std::endl;
-    std::cout << "DataSpaces Output (YZ_SLICE) in " << dspaces_time << " seconds" << std::endl;
+    std::cout << "DataSpaces API Call (YZ_SLICE) in " << dspaces_time << " seconds" << std::endl;
+    std::cout << "DataSpaces Wait (YZ_SLICE) in " << dspaces_wait_time << " seconds" << std::endl;
+    std::cout << "DataSpaces Output (YZ_SLICE) in " << dspaces_time+dspaces_time << " seconds" << std::endl;
 	}
 }
 
