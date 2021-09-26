@@ -162,7 +162,7 @@ dspaces_put_req_t* slice_write_dspaces(const GridData& Grid, const int iroot,
 	ub[1] = lb[1] + Grid.lsize[n1] - 1;
 
   // use dspaces_iput for nvars inside one buffer with different offset
-  dspaces_put_req_t* dspaces_put_req_list = dspaces_put_req_t* malloc(nvar*sizeof(dspaces_put_req_t));
+  dspaces_put_req_t* dspaces_put_req_list = (dspaces_put_req_t*) malloc(nvar*sizeof(dspaces_put_req_t));
 
   for(v=0; v<nvar; v++) {
     sprintf(ds_var_name, "%s_%d", filename, v);
