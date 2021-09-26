@@ -614,7 +614,7 @@ void diag_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phy
     sprintf(ds_var_name, "%s%s", Run.path_3D, diag_names[var]);
     clk = MPI_Wtime();
     int ds_ret = 0;
-    ds_ret = dspaces_iput(ds_client, ds_var_name, Run.globiter, sizeof(float), Grid.NDIM, lb, ub, iobuf_glo);
+    dspaces_iput(ds_client, ds_var_name, Run.globiter, sizeof(float), Grid.NDIM, lb, ub, iobuf_glo);
     if(ds_ret != 0) {
       cout << "Error Writing " << ds_var_name << "Version: " << Run.globiter
       << "to DataSpaces Server. Aborting ... " << endl;
@@ -798,7 +798,7 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
     if(ds_put_local) {
       ds_ret = dspaces_put_local(ds_client, ds_var_name, Run.globiter, sizeof(float), Grid.NDIM, lb, ub, iobuf_glo);
     } else {
-      ds_ret = dspaces_iput(ds_client, ds_var_name, Run.globiter, sizeof(float), Grid.NDIM, lb, ub, iobuf_glo);
+      dspaces_iput(ds_client, ds_var_name, Run.globiter, sizeof(float), Grid.NDIM, lb, ub, iobuf_glo);
     }
     if(ds_ret != 0) {
       cout << "Error Writing " << ds_var_name << "Version: " << Run.globiter
