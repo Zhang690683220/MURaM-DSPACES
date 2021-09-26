@@ -265,12 +265,15 @@ void yz_slice(const RunData&  Run, const GridData& Grid,
   }
 
   // check if put finish for the last dspaces_iput() before iobuf free
-  if(Run.use_dspaces_io) {
-    for(int i=0; i<nslvar; i++) {
-      dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
+  if ( (Grid.beg[0] <= ixpos[nsl]+Grid.gbeg[0] ) and 
+         (Grid.end[0] >= ixpos[nsl]+Grid.gbeg[0] )){
+    if(Run.use_dspaces_io) {
+      for(int i=0; i<nslvar; i++) {
+        dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
+      }
+      dspaces_wait_time += MPI_Wtime() - clk;
+      free(dspaces_put_req_list);
     }
-    dspaces_wait_time += MPI_Wtime() - clk;
-    free(dspaces_put_req_list);
   }
   free(iobuf);
 
@@ -278,7 +281,7 @@ void yz_slice(const RunData&  Run, const GridData& Grid,
 		std::cout << "File Output (YZ_SLICE) in " << file_time << " seconds" << std::endl;
     std::cout << "DataSpaces API Call (YZ_SLICE) in " << dspaces_time << " seconds" << std::endl;
     std::cout << "DataSpaces Wait (YZ_SLICE) in " << dspaces_wait_time << " seconds" << std::endl;
-    std::cout << "DataSpaces Output (YZ_SLICE) in " << dspaces_time+dspaces_time << " seconds" << std::endl;
+    std::cout << "DataSpaces Output (YZ_SLICE) in " << dspaces_time+dspaces_wait_time << " seconds" << std::endl;
 	}
 }
 
