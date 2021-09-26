@@ -15,7 +15,7 @@ using namespace std;
 extern void slice_write(const GridData&,const int,float*,int,int,const int,
             const int,FILE*);
 
-extern void slice_write_dspaces(const GridData& Grid, const int iroot,
+extern dspaces_put_req_t* slice_write_dspaces(const GridData& Grid, const int iroot,
                                 float* vloc, int nloc, int nvar,int n0,
                                 int n1, char* filename, const int iter,
                                 const int ndim);
@@ -48,7 +48,7 @@ void yz_slice(const RunData&  Run, const GridData& Grid,
 	if(Run.use_dspaces_io) {
 		dspaces_time = 0.0;
     dspaces_wait_time = 0.0;
-    dspaces_put_req_list = dspaces_PUT_NULL;
+    dspaces_put_req_list = NULL;
 	}
 
   //MPI_File fhandle_mpi;
