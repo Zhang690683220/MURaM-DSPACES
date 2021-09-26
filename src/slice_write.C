@@ -164,7 +164,7 @@ void slice_write_dspaces(const GridData& Grid, const int iroot,
   for(v=0; v<nvar; v++) {
     sprintf(ds_var_name, "%s_%d", filename, v);
     clk = MPI_Wtime();
-		dspaces_put(ds_client, ds_var_name, iter, sizeof(float), ndim, lb, ub, &vloc[v*localsize]);
+		dspaces_iput(ds_client, ds_var_name, iter, sizeof(float), ndim, lb, ub, &vloc[v*localsize]);
     ds_time = MPI_Wtime() - clk;
 	}
 

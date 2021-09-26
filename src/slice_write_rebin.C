@@ -317,7 +317,7 @@ double slice_write_rebin_dspaces(const GridData& Grid,
 	      }
         sprintf(ds_var_name, "%s_%d", filename, v);
         clk = MPI_Wtime();
-		    dspaces_put(ds_client, ds_var_name, iter, sizeof(float), ndim, lb, ub, iobuf_sm);
+		    dspaces_iput(ds_client, ds_var_name, iter, sizeof(float), ndim, lb, ub, iobuf_sm);
         ds_time += MPI_Wtime() - clk;
       }
       free(iobuf_sm);
@@ -337,7 +337,7 @@ double slice_write_rebin_dspaces(const GridData& Grid,
     for(v=0; v<nvar; v++) {
       sprintf(ds_var_name, "%s_%d", filename, v);
       clk = MPI_Wtime();
-		  dspaces_put(ds_client, ds_var_name, iter, sizeof(float), ndim, lb, ub, &vloc[v*localsize]);
+		  dspaces_iput(ds_client, ds_var_name, iter, sizeof(float), ndim, lb, ub, &vloc[v*localsize]);
       ds_time += MPI_Wtime() - clk;
 	  }
   }
