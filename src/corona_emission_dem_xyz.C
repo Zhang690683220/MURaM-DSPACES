@@ -233,7 +233,7 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
       }
 
 	  // check dspaces_iput() except for the first iter
-	  if(Run.use_dspaces_io && d > 0) {
+	  if(xcol_rank == iroot && Run.use_dspaces_io && d > 0) {
 	  	double dspaces_overlap_time = MPI_Wtime() - clk;
       	clk = MPI_Wtime();
 	  	for(int i=0; i<nslvar; i++) {
@@ -344,7 +344,7 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
       }
 
 	  // check dspaces_iput() except for the first iter
-	  if(Run.use_dspaces_io && d > 0) {
+	  if(ycol_rank == iroot && Run.use_dspaces_io && d > 0) {
 	  	double dspaces_overlap_time = MPI_Wtime() - clk;
       	clk = MPI_Wtime();
 	  	for(int i=0; i<nslvar; i++) {
@@ -455,7 +455,7 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
       }
 
 	  // check dspaces_iput() except for the first iter
-	  if(Run.use_dspaces_io && d > 0) {
+	  if(zcol_rank == iroot && Run.use_dspaces_io && d > 0) {
 	  	double dspaces_overlap_time = MPI_Wtime() - clk;
       	clk = MPI_Wtime();
 	  	for(int i=0; i<nslvar; i++) {
