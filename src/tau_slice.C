@@ -331,7 +331,7 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
   }
 
   free(iobuf);
-  if(Run.use_dspaces_io) {
+  if(xcol_rank == iroot && Run.use_dspaces_io) {
     for(int i=0; i<nslvar; i++) {
       dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
     }
