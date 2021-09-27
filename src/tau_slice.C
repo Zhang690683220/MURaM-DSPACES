@@ -8,6 +8,7 @@
 #include "run.H"
 #include "comm_split.H"
 #include "rt/rt.h"
+#include "io.H"
 
 using namespace std;
 
@@ -16,7 +17,7 @@ typedef double realtype;
 extern void slice_write(const GridData&,const int,float*,int,int,const int,
 			const int,FILE*);
 
-extern void slice_write_dspaces(const GridData& Grid, const int iroot,
+extern dspaces_put_req_t* slice_write_dspaces(const GridData& Grid, const int iroot,
                                 float* vloc, int nloc, int nvar,int n0,
                                 int n1, char* filename, const int iter,
                                 const int ndim);
@@ -49,10 +50,13 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
   static int nslvar;
 
   FILE* fhandle=NULL;
-	static double clk, file_time, dspaces_time;
+	static double clk, file_time, dspaces_time, dspaces_wait_time;
 	file_time = 0.0;
+	dspaces_put_req_t* dspaces_put_req_list;
 	if(Run.use_dspaces_io) {
 		dspaces_time = 0.0;
+    dspaces_wait_time = 0.0;
+    dspaces_put_req_list = NULL;
 	}
 
   //MPI_File fhandle_mpi;
@@ -163,6 +167,22 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
       }
     }
 
+	// check dspaces_iput() except for the first iter
+    if(Run.use_dspaces_io && nsl > 0) {
+	  double dspaces_overlap_time = MPI_Wtime() - clk;
+      clk = MPI_Wtime();
+      for(int i=0; i<nslvar; i++) {
+        dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
+      }
+	  double dspaces_wait_time = MPI_Wtime() - clk;
+	  if(dspaces_wait_time > 1e-6) {
+		dspaces_wait_time += dspaces_wait_time + dspaces_overlap_time;
+	  }
+      
+      free(dspaces_put_req_list);
+    }
+
+	// update iosum values
     MPI_Reduce(iobuf,iosum,nslvar*localsize,MPI_FLOAT,MPI_SUM,iroot,
 		  XCOL_COMM);
 
@@ -271,7 +291,8 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
 				else
 					sprintf(ds_var_name, "%s%s_%.6f", Run.path_2D,"tau_slice",tau_lev[nsl]);
         clk = MPI_Wtime();
-        slice_write_dspaces(Grid, 0, &(iosum[0]), localsize, nslvar, 1, 2, ds_var_name, Run.globiter, 2);
+        dspaces_put_req_list = slice_write_dspaces(Grid, 0, &(iosum[0]), localsize, nslvar, 1, 2,
+													ds_var_name, Run.globiter, 2);
         dspaces_time += MPI_Wtime() - clk;
         char header_filename[128];
         if(yz_rank == 0) {
@@ -303,17 +324,27 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
           fptr << Run.globiter << ' ' << Run.time << endl;
           fptr.close(); 
         }
+		clk = MPI_Wtime();
       }
 
     }
   }
 
   free(iobuf);
+  if(Run.use_dspaces_io) {
+    for(int i=0; i<nslvar; i++) {
+      dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
+    }
+    dspaces_wait_time += MPI_Wtime() - clk;
+    free(dspaces_put_req_list);
+  }
   free(iosum);
 
 	if(Run.rank == 0 && Run.verbose >0) {
 		std::cout << "File Output (TAU_SLICE) in " << file_time << " seconds" << std::endl;
-    std::cout << "DataSpaces Output (TAU_SLICE) in " << dspaces_time << " seconds" << std::endl;
+    std::cout << "DataSpaces API Call (TAU_SLICE) in " << dspaces_time << " seconds" << std::endl;
+    std::cout << "DataSpaces Wait (TAU_SLICE) in " << dspaces_wait_time << " seconds" << std::endl;
+    std::cout << "DataSpaces Output (TAU_SLICE) in " << dspaces_time+dspaces_wait_time << " seconds" << std::endl;
 	}
 }
 

@@ -7,13 +7,14 @@
 #include "grid.H"
 #include "run.H"
 #include "comm_split.H"
+#include "io.H"
 
 using namespace std;
 
 extern void slice_write(const GridData&,const int,float*,int,int,const int,
 			const int,FILE*);
 
-extern void slice_write_dspaces(const GridData& Grid, const int iroot,
+extern dspaces_put_req_t* slice_write_dspaces(const GridData& Grid, const int iroot,
                                 float* vloc, int nloc, int nvar,int n0,
                                 int n1, char* filename, const int iter,
                                 const int ndim);
@@ -39,10 +40,13 @@ void xy_slice(const RunData&  Run, const GridData& Grid,
   static int nslvar;
 
   FILE* fhandle=NULL;
-	static double clk, file_time, dspaces_time;
+	static double clk, file_time, dspaces_time, dspaces_wait_time;
 	file_time = 0.0;
+	dspaces_put_req_t* dspaces_put_req_list;
 	if(Run.use_dspaces_io) {
 		dspaces_time = 0.0;
+    dspaces_wait_time = 0.0;
+    dspaces_put_req_list = NULL;
 	}
 
   //MPI_File fhandle_mpi;
@@ -76,6 +80,15 @@ void xy_slice(const RunData&  Run, const GridData& Grid,
 
     if ( (Grid.beg[2] <= ixpos[nsl]+Grid.gbeg[2] ) and 
          (Grid.end[2] >= ixpos[nsl]+Grid.gbeg[2] )){
+
+	  // check dspaces_iput() except for the first iter
+      if(Run.use_dspaces_io && nsl > 0) {
+        for(int i=0; i<nslvar; i++) {
+          dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
+        }
+        dspaces_wait_time += MPI_Wtime() - clk;
+        free(dspaces_put_req_list);
+      }
 
       for (i=ibeg; i<=iend; i++){
         for (j=jbeg; j<=jend; j++){
@@ -202,7 +215,8 @@ void xy_slice(const RunData&  Run, const GridData& Grid,
         char ds_var_name[128];
         sprintf(ds_var_name, "%s%s_%04d", Run.path_2D,"xy_slice",ixpos[nsl]);
         clk = MPI_Wtime();
-        slice_write_dspaces(Grid, 0, iobuf, localsize, nslvar, 1, 0, ds_var_name, Run.globiter, 2);
+        dspaces_put_req_list = slice_write_dspaces(Grid, 0, iobuf, localsize, nslvar, 1, 0, ds_var_name,
+												 	Run.globiter, 2);
         dspaces_time += MPI_Wtime() - clk;
         char header_filename[128];
         if(xy_rank == 0) {
@@ -234,15 +248,29 @@ void xy_slice(const RunData&  Run, const GridData& Grid,
           fptr << Run.globiter << ' ' << Run.time << endl;
           fptr.close(); 
         }
+		clk = MPI_Wtime();
       }
     }   
   }
 
+  // check if put finish for the last dspaces_iput() before iobuf free
+  if ( (Grid.beg[2] <= ixpos[nsl]+Grid.gbeg[2] ) and 
+         (Grid.end[2] >= ixpos[nsl]+Grid.gbeg[2] )){
+	if(Run.use_dspaces_io) {
+      for(int i=0; i<nslvar; i++) {
+        dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
+      }
+      dspaces_wait_time += MPI_Wtime() - clk;
+      free(dspaces_put_req_list);
+    }
+  }
   free(iobuf);
 
 	if(Run.rank == 0 && Run.verbose >0) {
 		std::cout << "File Output (XY_SLICE) in " << file_time << " seconds" << std::endl;
-    std::cout << "DataSpaces Output (XY_SLICE) in " << dspaces_time << " seconds" << std::endl;
+    std::cout << "DataSpaces API Call (XY_SLICE) in " << dspaces_time << " seconds" << std::endl;
+    std::cout << "DataSpaces Wait (XY_SLICE) in " << dspaces_wait_time << " seconds" << std::endl;
+    std::cout << "DataSpaces Output (XY_SLICE) in " << dspaces_time+dspaces_wait_time << " seconds" << std::endl;
 	}
 }
 

@@ -165,7 +165,7 @@ double slice_write_rebin(const GridData& Grid,const int iroot,float* vloc,
 
 }
 
-double slice_write_rebin_dspaces(const GridData& Grid,
+dspaces_put_req_t* slice_write_rebin_dspaces(const GridData& Grid,
            const int iroot, float* vloc,
 		       const int nloc,const int nvar,const int n0,
 		       const int n1,const int sm_x,const int sm_y,
@@ -211,6 +211,9 @@ double slice_write_rebin_dspaces(const GridData& Grid,
   char ds_var_name[128];
 
 	int localsize = nloc;
+
+  // use dspaces_iput for nvars inside one buffer with different offset
+  dspaces_put_req_t* dspaces_put_req_list = (dspaces_put_req_t*) malloc(nvar*sizeof(dspaces_put_req_t));
   
 	if(rank == iroot) {
 		std::cout << "dspaces output " << nvar << " slices [0-" << nvar-1
@@ -317,7 +320,8 @@ double slice_write_rebin_dspaces(const GridData& Grid,
 	      }
         sprintf(ds_var_name, "%s_%d", filename, v);
         clk = MPI_Wtime();
-		    dspaces_iput(ds_client, ds_var_name, iter, sizeof(float), ndim, lb, ub, iobuf_sm);
+		    dspaces_put_req_list[v] = dspaces_iput(ds_client, ds_var_name, iter, sizeof(float),
+                                               ndim, lb, ub, iobuf_sm);
         ds_time += MPI_Wtime() - clk;
       }
       free(iobuf_sm);
@@ -337,7 +341,8 @@ double slice_write_rebin_dspaces(const GridData& Grid,
     for(v=0; v<nvar; v++) {
       sprintf(ds_var_name, "%s_%d", filename, v);
       clk = MPI_Wtime();
-		  dspaces_iput(ds_client, ds_var_name, iter, sizeof(float), ndim, lb, ub, &vloc[v*localsize]);
+		  dspaces_put_req_list[v] = dspaces_iput(ds_client, ds_var_name, iter, sizeof(float),
+                                             ndim, lb, ub, &vloc[v*localsize]);
       ds_time += MPI_Wtime() - clk;
 	  }
   }
@@ -345,5 +350,5 @@ double slice_write_rebin_dspaces(const GridData& Grid,
   //   std::cout << "DSpaces IO API Call (Corona_XYZ) in " << ds_time << " seconds" << std::endl;
   // }
 
-  return ds_time;
+  return dspaces_put_req_list;
 }

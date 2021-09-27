@@ -47,10 +47,13 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
     w2[v]   =-1./(12.*Grid.dx[v]);
   }
 
-  static double clk, file_time, dspaces_time;
+  static double clk, file_time, dspaces_time, dspaces_wait_time;
 	file_time = 0.0;
+	dspaces_put_req_t* dspaces_put_req_list;
 	if(Run.use_dspaces_io) {
 		dspaces_time = 0.0;
+    dspaces_wait_time = 0.0;
+    dspaces_put_req_list = NULL;
 	}
 
   char filename[128];
@@ -273,7 +276,8 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
       for(int v=0; v<nvar; v++) {
         sprintf(ds_var_name, "%s%s_%d", Run.path_2D, "hmean1D", v);
         clk = MPI_Wtime();
-        dspaces_iput(ds_client, ds_var_name, Run.globiter, sizeof(float), 1, lb, ub, &iobuf[v*Grid.lsize[0]]);
+        dspaces_put_req_list = dspaces_iput(ds_client, ds_var_name, Run.globiter, sizeof(float),
+                                            1, lb, ub, &iobuf[v*Grid.lsize[0]]);
         dspaces_time += MPI_Wtime() - clk;
       }
       char header_name[128];
@@ -291,15 +295,27 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
       }
     }
 
-    if(xcol_rank == 0 && Run.verbose >0) {
-      std::cout << "File Output (ANALYSIS_VP) in " << file_time << " seconds" << std::endl;
-      std::cout << "DataSpaces Output (ANALYSIS_VP) in " << dspaces_time << " seconds" << std::endl;
-    }
+    
 
   }
   
   delete[] loc;
   delete[] glo;
+
+  if(yz_rank == 0 && Run.use_dspaces_io) {
+    for(int i=0; i<nvar; i++) {
+      dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
+    }
+    dspaces_wait_time += MPI_Wtime() - clk;
+    free(dspaces_put_req_list);
+  }
   delete[] iobuf;
+
+  if(yz_rank == 0 && xcol_rank == 0 && Run.verbose >0) {
+      std::cout << "File Output (ANALYSIS_VP) in " << file_time << " seconds" << std::endl;
+      std::cout << "DataSpaces API Call (ANALYSIS_VP) in " << dspaces_time << " seconds" << std::endl;
+    std::cout << "DataSpaces Wait (ANALYSIS_VP) in " << dspaces_wait_time << " seconds" << std::endl;
+    std::cout << "DataSpaces Output (ANALYSIS_VP) in " << dspaces_time+dspaces_wait_time << " seconds" << std::endl;
+    }
   
 }
