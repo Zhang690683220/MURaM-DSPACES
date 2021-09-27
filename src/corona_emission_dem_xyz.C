@@ -248,7 +248,7 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 	  if(d == 0) {
 		io_buf = (float*) malloc(nout*nslvar*localsize*sizeof(float));
 	  } else {
-		io_buf = (float*) realloc(nout*nslvar*localsize*sizeof(float));
+		io_buf = (float*) realloc(io_buf,nout*nslvar*localsize*sizeof(float));
 	  }
 	  // update io_buf values
       for(v=0;v<nout*nslvar*localsize;v++)
@@ -359,7 +359,7 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 	  if(d == 0) {
 		io_buf = (float*) malloc(nout*nslvar*localsize*sizeof(float));
 	  } else {
-		io_buf = (float*) realloc(nout*nslvar*localsize*sizeof(float));
+		io_buf = (float*) realloc(io_buf,nout*nslvar*localsize*sizeof(float));
 	  }
 	  // update io_buf values
       for(v=0;v<nout*nslvar*localsize;v++)
@@ -470,7 +470,7 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 	  if(d == 0) {
 		io_buf = (float*) malloc(nout*nslvar*localsize*sizeof(float));
 	  } else {
-		io_buf = (float*) realloc(nout*nslvar*localsize*sizeof(float));
+		io_buf = (float*) realloc(io_buf,nout*nslvar*localsize*sizeof(float));
 	  }
 	  // update io_buf values
       for(v=0;v<nout*nslvar*localsize;v++)
