@@ -553,7 +553,7 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
     // delete[] io_buf;
   }
 
-  if(Run.use_dspaces_io) {
+  if(Run.use_dspaces_io && dspaces_put_req_list != NULL) {
     for(int i=0; i<nslvar; i++) {
       dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
     }
