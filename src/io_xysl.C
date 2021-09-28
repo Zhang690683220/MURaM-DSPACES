@@ -658,8 +658,15 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
     
   FILE* fh=NULL;
   MPI_File mfh;
+  dspaces_put_req_t dspaces_put_req;
+  double dspaces_time, dspaces_wait_time;
+  if(Run.use_dspaces_io) {
+    dspaces_time = 0.0;
+    dspaces_wait_time = 0.0;
+    dspaces_put_req = dspaces_PUT_NULL;
+  }
 
-  int v1_max,v2_max,v1,v2,var;
+  int v_max, v1_max,v2_max,v1,v2,var;
 
   int max_vars = 14;
   
@@ -790,40 +797,82 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
     mpi_eos_time += MPI_Wtime() - clk;
 	}
 
-  if(ds_io == 1) {
-    char ds_var_name[128];
-    sprintf(ds_var_name, "%s%s", Run.path_3D,eos_names[var]);
-    clk = MPI_Wtime();
-    int ds_ret = 0;
-    if(ds_put_local) {
-      ds_ret = dspaces_put_local(ds_client, ds_var_name, Run.globiter, sizeof(float), Grid.NDIM, lb, ub, iobuf_glo);
-    } else {
-      dspaces_iput(ds_client, ds_var_name, Run.globiter, sizeof(float), Grid.NDIM, lb, ub, iobuf_glo);
-    }
-    if(ds_ret != 0) {
-      cout << "Error Writing " << ds_var_name << "Version: " << Run.globiter
-      << "to DataSpaces Server. Aborting ... " << endl;
-      MPI_Abort(MPI_COMM_WORLD,1);
-    }
-    ds_eos_time += MPI_Wtime() - clk;
-  }
+  // if(ds_io == 1) {
+  //   char ds_var_name[128];
+  //   sprintf(ds_var_name, "%s%s", Run.path_3D,eos_names[var]);
+  //   clk = MPI_Wtime();
+  //   int ds_ret = 0;
+  //   if(ds_put_local) {
+  //     ds_ret = dspaces_put_local(ds_client, ds_var_name, Run.globiter, sizeof(float), Grid.NDIM, lb, ub, iobuf_glo);
+  //   } else {
+  //     dspaces_iput(ds_client, ds_var_name, Run.globiter, sizeof(float), Grid.NDIM, lb, ub, iobuf_glo);
+  //   }
+  //   if(ds_ret != 0) {
+  //     cout << "Error Writing " << ds_var_name << "Version: " << Run.globiter
+  //     << "to DataSpaces Server. Aborting ... " << endl;
+  //     MPI_Abort(MPI_COMM_WORLD,1);
+  //   }
+  //   ds_eos_time += MPI_Wtime() - clk;
+  // }
 
       }
     }
   }
 
   
-  ds_eos_total_time += ds_eos_time;
+  // ds_eos_total_time += ds_eos_time;
   mpi_eos_total_time += mpi_eos_time;
   if(xy_rank == 0 && Run.verbose >0) {
     cout << "MPI Output (EOS) in " << mpi_eos_time << " seconds" << endl;
-    cout << "DataSpaces Output (EOS) in " << ds_eos_time << " seconds" << endl;
+    //cout << "DataSpaces Output (EOS) in " << ds_eos_time << " seconds" << endl;
   } 
   
   
-  free(iobuf_loc); 
+  
   for(v2=0;v2<v2_max;v2++)
     if (zcol_rank == v2) free(iobuf_glo); 
+
+  if(Run.use_dspaces_io) {
+    char ds_var_name[128];
+    v_max = tot_vars;
+    for(int vi=0; vi<v_max; vi++) {
+      var = var_index[vi];
+      if(vi>0) {
+        dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
+        dspaces_wait_time += MPI_Wtime() - clk;
+      }
+      for(k=0; k<sizez; k++) {
+        for(j=0; j<sizey; j++){
+          for(i=0; i<sizex; i++) {
+            loc = Grid.node(+Grid.ghosts[0],j+Grid.ghosts[1],k+Grid.ghosts[2]);
+            iobuf_loc[i+j*sizex+k*sizex*sizey] = (float) eos_vars[var][loc];
+          }
+        }
+      }
+      sprintf(filename,"%s%s.%06d",Run.path_3D,eos_names[var],Run.globiter);
+      if(io_rank == 0) {
+        std::cout<< "write " << filename << std::endl;
+      }
+      sprintf(ds_var_name, "%s%s", Run.path_3D,eos_names[var]);
+      clk = MPI_Wtime();
+      dspaces_put_req = dspaces_iput(ds_client, ds_var_name, Run.globiter,
+                                      sizeof(float), Grid.NDIM, lb, ub, iobuf_loc);
+      dspaces_time += MPI_Wtime() - clk;
+      clk = MPI_Wtime();
+    }
+
+    dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
+    dspaces_wait_time += MPI_Wtime() - clk;
+    if(io_rank == 0 && Run.verbose > 0) {
+      std::cout << "DataSpaces API Call (EOS) in " << dspaces_time << " seconds" << std::endl;
+      std::cout << "DataSpaces Wait (EOS) in " << dspaces_wait_time << " seconds" << std::endl;
+      std::cout << "DataSpaces Output (EOS) in " << dspaces_time+dspaces_wait_time << " seconds"
+                << std::endl;
+    }
+    ds_eos_total_time += dspaces_time+dspaces_wait_time;
+  }
+
+  free(iobuf_loc); 
   
 }
 
