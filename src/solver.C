@@ -164,11 +164,7 @@ void ComputeSolution(RunData& Run,GridData& Grid,const PhysicsData& Physics,RTS 
               ACCH::UpdateCPU(Grid.QMg, Grid.bufsize*sizeof(double));
               ACCH::UpdateCPU(Grid.QCa, Grid.bufsize*sizeof(double));
 	          }
-            if(Run.dspaces_optimized) {
-              eos_output_optimized(Run,Grid,Physics,rts);
-            } else {
-              eos_output(Run,Grid,Physics,rts);
-            }
+            eos_output(Run,Grid,Physics,rts);
           }
     
 

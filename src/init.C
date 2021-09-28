@@ -63,7 +63,6 @@ int Initialize(RunData& Run,GridData& Grid,
     getvar(&Run.use_dspaces_io, "use_dspaces_io", "int", datafile);
     getvar(&Run.dspaces_terminate, "dspaces_terminate", "int", datafile);
     getvar(&Run.dspaces_put_local, "dspaces_put_local", "int", datafile);
-    getvar(&Run.dspaces_optimized, "dspaces_optimized", "int", datafile);
     getvar(&Run.dspaces_gpu, "dspaces_gpu", "int", datafile);
     if(Run.dspaces_gpu) {
       Run.dspaces_optimized = 1;
