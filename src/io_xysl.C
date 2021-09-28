@@ -574,6 +574,11 @@ void diag_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phy
   for(v2=0;v2<v2_max;v2++)
     if (zcol_rank == v2) iobuf_glo = (float*)malloc(gsize*sizeof(float));
 
+  mpi_diag_time = 0.0;
+  if(ds_io == 1) {
+    ds_diag_time = 0.0;
+  }
+
   for(v1=0;v1<v1_max;v1++){
     for(v2=0;v2<v2_max;v2++){
       var = var_index[v1*v2_max + v2];
@@ -672,6 +677,7 @@ void diag_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phy
       dspaces_time += MPI_Wtime() - clk;
       clk = MPI_Wtime();
     }
+
     dspaces_check_put(ds_client, dspaces_put_req, 1);
     dspaces_wait_time += MPI_Wtime() - clk;
     if(io_rank == 0 && Run.verbose > 0) {
