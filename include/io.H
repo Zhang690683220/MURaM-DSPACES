@@ -21,7 +21,6 @@ extern void xz_slice(const RunData&, const GridData&, const PhysicsData&);
 
 extern void diag_output(const RunData&,const GridData&,const PhysicsData&, RTS*);
 extern void eos_output(const RunData&,const GridData&,const PhysicsData&, RTS*);
-extern void eos_output_optimized(const RunData&,const GridData&,const PhysicsData&, RTS*);
 extern void eos_output_gpu(const RunData&,const GridData&,const PhysicsData&, RTS*);
 extern void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid, 
 		               const PhysicsData& Physics);
