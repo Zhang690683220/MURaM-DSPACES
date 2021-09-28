@@ -112,14 +112,14 @@ void IO_Init(const GridData& Grid, const RunData& Run) {
       ub[ii] = str[ii]+lsz[ii]-1;
     }
     
-    int dspaces_rank = xy_rank;
-    if(Run.dspaces_optimized) {
+    //int dspaces_rank = xy_rank;
+    //if(Run.dspaces_optimized) {
       MPI_Comm_rank(io_comm, &io_rank);
       dspaces_rank = io_rank;
       //dspaces io does not need any z-axis collective calls
       lb[2] = Grid.beg[2]-Grid.gbeg[2];
       ub[2] = lb[2] + Grid.lsize[2] - 1;
-    }
+    //}
 
     if(Run.dspaces_manual_listen_addr) {
       sprintf(listen_addr_str, "%s", Run.dspaces_client_listen_addr);
