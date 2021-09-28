@@ -523,7 +523,7 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 	}
 	if(Run.use_dspaces_io) {
 	  put_count++;
-	  rank_history = Y_COL
+	  rank_history = Y_COL;
 	  clk = MPI_Wtime();
 	}
       }
