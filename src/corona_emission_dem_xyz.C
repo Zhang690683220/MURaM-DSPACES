@@ -107,8 +107,8 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 
   FILE* fhandle=NULL;
 
-	static double clk, file_time, dspaces_time, dspaces_wait_time;
-	static int put_count;
+	double clk, file_time, dspaces_time, dspaces_wait_time;
+	int put_count;
 	enum rank_group {X_COL, Y_COL, Z_COL};
 	enum rank_group rank_history;
 	file_time = 0.0;

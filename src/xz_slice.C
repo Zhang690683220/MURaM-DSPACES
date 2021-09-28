@@ -41,7 +41,7 @@ void xz_slice(const RunData&  Run, const GridData& Grid,
   static int nslvar;
 
   FILE* fhandle=NULL;
-	static double clk, file_time, dspaces_time, dspaces_wait_time;
+	double clk, file_time, dspaces_time, dspaces_wait_time;
 	file_time = 0.0;
 	dspaces_put_req_t* dspaces_put_req_list;
 	if(Run.use_dspaces_io) {
