@@ -838,7 +838,7 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
     for(int vi=0; vi<v_max; vi++) {
       var = var_index[vi];
       if(vi>0) {
-        dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
+        dspaces_check_put(ds_client, dspaces_put_req, 1);
         dspaces_wait_time += MPI_Wtime() - clk;
       }
       for(k=0; k<sizez; k++) {
@@ -861,7 +861,7 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
       clk = MPI_Wtime();
     }
 
-    dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
+    dspaces_check_put(ds_client, dspaces_put_req_list, 1);
     dspaces_wait_time += MPI_Wtime() - clk;
     if(io_rank == 0 && Run.verbose > 0) {
       std::cout << "DataSpaces API Call (EOS) in " << dspaces_time << " seconds" << std::endl;
