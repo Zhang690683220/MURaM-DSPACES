@@ -223,6 +223,8 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
   MPI_Reduce(loc,glo,bufsz,MPI_DOUBLE,MPI_SUM,0,YZ_COMM);
   
   if(yz_rank==0){ // MPI_Reduce results are only meaningful on rank 0!
+
+    dspaces_put_req_list = (dspaces_put_req_t*) malloc(nvar*sizeof(dspaces_put_req_t));
     
     for(ind=0;ind<bufsz;ind++){
       glo[ind] *=  ihsz;
