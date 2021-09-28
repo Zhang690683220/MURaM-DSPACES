@@ -213,7 +213,9 @@ dspaces_put_req_t* slice_write_rebin_dspaces(const GridData& Grid,
 	int localsize = nloc;
 
   // use dspaces_iput for nvars inside one buffer with different offset
-  dspaces_put_req_t* dspaces_put_req_list = (dspaces_put_req_t*) malloc(nvar*sizeof(dspaces_put_req_t));
+  // if need rebin, only the rank == root have valid dspaces_put_req list
+  dspaces_put_req_t* dspaces_put_req_list = NULL;
+   
   
 	if(rank == iroot) {
 		std::cout << "dspaces output " << nvar << " slices [0-" << nvar-1
@@ -279,6 +281,7 @@ dspaces_put_req_t* slice_write_rebin_dspaces(const GridData& Grid,
 	  ub[1] = (lb[1] + Grid.lsize[n1] - 1) / sm_y; // zoom bbox
 
     if(rank == iroot) {
+      dspaces_put_req_list = (dspaces_put_req_t*) malloc(nvar*sizeof(dspaces_put_req_t));
       for(v=0; v<nvar; v++) {
         // fill the full grid to the iobuf
         for(np=0; np<nprocs; np++){
@@ -332,7 +335,7 @@ dspaces_put_req_t* slice_write_rebin_dspaces(const GridData& Grid,
     free(recvcounts);
     free(offsets);
   } else {
-
+    dspaces_put_req_list = (dspaces_put_req_t*) malloc(nvar*sizeof(dspaces_put_req_t));
     lb[0] = Grid.beg[n0] - Grid.gbeg[n0];
 	  lb[1] = Grid.beg[n1] - Grid.gbeg[n1];
 	  ub[0] = lb[0] + Grid.lsize[n0] - 1;
