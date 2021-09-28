@@ -677,9 +677,10 @@ void diag_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phy
       dspaces_time += MPI_Wtime() - clk;
       clk = MPI_Wtime();
     }
-
+    if(Run.iteration > 0){
     dspaces_check_put(ds_client, dspaces_put_req, 1);
     dspaces_wait_time += MPI_Wtime() - clk;
+    }
     if(io_rank == 0 && Run.verbose > 0) {
       std::cout << "DataSpaces API Call (DIAG) in " << dspaces_time << " seconds" << std::endl;
       std::cout << "DataSpaces Wait (DIAG) in " << dspaces_wait_time << " seconds" << std::endl;
