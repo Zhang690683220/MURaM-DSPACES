@@ -109,6 +109,8 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 
 	static double clk, file_time, dspaces_time, dspaces_wait_time;
 	static int put_count;
+	enum rank_group {X_COL, Y_COL, Z_COL};
+	enum rank_group rank_history;
 	file_time = 0.0;
 	dspaces_put_req_t* dspaces_put_req_list;
 	if(Run.use_dspaces_io) {
@@ -235,17 +237,58 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
       }
 
 	  // check dspaces_iput() except for the first iter
-	  if(xcol_rank == iroot && Run.use_dspaces_io && dspaces_put_req_list != NULL) {
-	  	double dspaces_overlap_time = MPI_Wtime() - clk;
+	  if(Run.use_dspaces_io && put_count > 0) {
+		switch (rank_history)
+		{
+		case X_COL:
+		  if(xcol_rank == iroot) {
+				double dspaces_overlap_time = MPI_Wtime() - clk;
       	clk = MPI_Wtime();
-	  	for(int i=0; i<nslvar; i++) {
-		  dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
-	  	}
-	  	double dspaces_wait_time = MPI_Wtime() - clk;
-	  	if(dspaces_wait_time > 1e-6) {
-		  dspaces_wait_time += dspaces_wait_time + dspaces_overlap_time;
-	  	}
-	  	free(dspaces_put_req_list);
+	  		for(int i=0; i<nslvar; i++) {
+		  	  dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
+	  		}
+	  		double dspaces_wait_time = MPI_Wtime() - clk;
+	  		if(dspaces_wait_time > 1e-6) {
+		  	  dspaces_wait_time += dspaces_wait_time + dspaces_overlap_time;
+	  		}
+	  		free(dspaces_put_req_list);
+		  }
+			break;
+
+		case Y_COL:
+		  if(ycol_rank == iroot) {
+				double dspaces_overlap_time = MPI_Wtime() - clk;
+      	clk = MPI_Wtime();
+	  		for(int i=0; i<nslvar; i++) {
+		  	  dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
+	  		}
+	  		double dspaces_wait_time = MPI_Wtime() - clk;
+	  		if(dspaces_wait_time > 1e-6) {
+		  	  dspaces_wait_time += dspaces_wait_time + dspaces_overlap_time;
+	  		}
+	  		free(dspaces_put_req_list);
+		  }
+			break;
+
+		case Z_COL:
+		  if(zcol_rank == iroot) {
+				double dspaces_overlap_time = MPI_Wtime() - clk;
+      	clk = MPI_Wtime();
+	  		for(int i=0; i<nslvar; i++) {
+		  	  dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
+	  		}
+	  		double dspaces_wait_time = MPI_Wtime() - clk;
+	  		if(dspaces_wait_time > 1e-6) {
+		  	  dspaces_wait_time += dspaces_wait_time + dspaces_overlap_time;
+	  		}
+	  		free(dspaces_put_req_list);
+		  }
+			break;
+		
+		default:
+			break;
+		}
+	  	
 	  }
 	  if(d == 0) {
 		io_buf = (float*) malloc(nout*nslvar*localsize*sizeof(float));
@@ -325,6 +368,7 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 	}
 	if(Run.use_dspaces_io) {
 	  put_count++;
+	  rank_history = X_COL;
 	  clk = MPI_Wtime();
 	}
       }
@@ -348,17 +392,58 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
       }
 
 	  // check dspaces_iput() except for the first iter
-	  if(ycol_rank == iroot && Run.use_dspaces_io && dspaces_put_req_list != NULL) {
-	  	double dspaces_overlap_time = MPI_Wtime() - clk;
+	  if(Run.use_dspaces_io && put_count > 0) {
+		switch (rank_history)
+		{
+		case X_COL:
+		  if(xcol_rank == iroot) {
+				double dspaces_overlap_time = MPI_Wtime() - clk;
       	clk = MPI_Wtime();
-	  	for(int i=0; i<nslvar; i++) {
-		  dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
-	  	}
-	  	double dspaces_wait_time = MPI_Wtime() - clk;
-	  	if(dspaces_wait_time > 1e-6) {
-		  dspaces_wait_time += dspaces_wait_time + dspaces_overlap_time;
-	  	}
-	  	free(dspaces_put_req_list);
+	  		for(int i=0; i<nslvar; i++) {
+		  	  dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
+	  		}
+	  		double dspaces_wait_time = MPI_Wtime() - clk;
+	  		if(dspaces_wait_time > 1e-6) {
+		  	  dspaces_wait_time += dspaces_wait_time + dspaces_overlap_time;
+	  		}
+	  		free(dspaces_put_req_list);
+		  }
+			break;
+
+		case Y_COL:
+		  if(ycol_rank == iroot) {
+				double dspaces_overlap_time = MPI_Wtime() - clk;
+      	clk = MPI_Wtime();
+	  		for(int i=0; i<nslvar; i++) {
+		  	  dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
+	  		}
+	  		double dspaces_wait_time = MPI_Wtime() - clk;
+	  		if(dspaces_wait_time > 1e-6) {
+		  	  dspaces_wait_time += dspaces_wait_time + dspaces_overlap_time;
+	  		}
+	  		free(dspaces_put_req_list);
+		  }
+			break;
+
+		case Z_COL:
+		  if(zcol_rank == iroot) {
+				double dspaces_overlap_time = MPI_Wtime() - clk;
+      	clk = MPI_Wtime();
+	  		for(int i=0; i<nslvar; i++) {
+		  	  dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
+	  		}
+	  		double dspaces_wait_time = MPI_Wtime() - clk;
+	  		if(dspaces_wait_time > 1e-6) {
+		  	  dspaces_wait_time += dspaces_wait_time + dspaces_overlap_time;
+	  		}
+	  		free(dspaces_put_req_list);
+		  }
+			break;
+		
+		default:
+			break;
+		}
+	  	
 	  }
 	  if(d == 0) {
 		io_buf = (float*) malloc(nout*nslvar*localsize*sizeof(float));
@@ -438,6 +523,7 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 	}
 	if(Run.use_dspaces_io) {
 	  put_count++;
+	  rank_history = Y_COL
 	  clk = MPI_Wtime();
 	}
       }
@@ -461,22 +547,58 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
       }
 
 	  // check dspaces_iput() except for the first iter
-	  if(zcol_rank == iroot && Run.use_dspaces_io && dspaces_put_req_list != NULL) {
-	  	double dspaces_overlap_time = MPI_Wtime() - clk;
+	  if(Run.use_dspaces_io && put_count > 0) {
+		switch (rank_history)
+		{
+		case X_COL:
+		  if(xcol_rank == iroot) {
+				double dspaces_overlap_time = MPI_Wtime() - clk;
       	clk = MPI_Wtime();
-	  	for(int i=0; i<nslvar; i++) {
-		  dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
-	  	}
-	  	double dspaces_wait_time = MPI_Wtime() - clk;
-	  	if(dspaces_wait_time > 1e-6) {
-		  dspaces_wait_time += dspaces_wait_time + dspaces_overlap_time;
-	  	}
-	  	free(dspaces_put_req_list);
-	  }
-	  if(d == 0) {
-		io_buf = (float*) malloc(nout*nslvar*localsize*sizeof(float));
-	  } else {
-		io_buf = (float*) realloc(io_buf,nout*nslvar*localsize*sizeof(float));
+	  		for(int i=0; i<nslvar; i++) {
+		  	  dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
+	  		}
+	  		double dspaces_wait_time = MPI_Wtime() - clk;
+	  		if(dspaces_wait_time > 1e-6) {
+		  	  dspaces_wait_time += dspaces_wait_time + dspaces_overlap_time;
+	  		}
+	  		free(dspaces_put_req_list);
+		  }
+			break;
+
+		case Y_COL:
+		  if(ycol_rank == iroot) {
+				double dspaces_overlap_time = MPI_Wtime() - clk;
+      	clk = MPI_Wtime();
+	  		for(int i=0; i<nslvar; i++) {
+		  	  dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
+	  		}
+	  		double dspaces_wait_time = MPI_Wtime() - clk;
+	  		if(dspaces_wait_time > 1e-6) {
+		  	  dspaces_wait_time += dspaces_wait_time + dspaces_overlap_time;
+	  		}
+	  		free(dspaces_put_req_list);
+		  }
+			break;
+
+		case Z_COL:
+		  if(zcol_rank == iroot) {
+				double dspaces_overlap_time = MPI_Wtime() - clk;
+      	clk = MPI_Wtime();
+	  		for(int i=0; i<nslvar; i++) {
+		  	  dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
+	  		}
+	  		double dspaces_wait_time = MPI_Wtime() - clk;
+	  		if(dspaces_wait_time > 1e-6) {
+		  	  dspaces_wait_time += dspaces_wait_time + dspaces_overlap_time;
+	  		}
+	  		free(dspaces_put_req_list);
+		  }
+			break;
+		
+		default:
+			break;
+		}
+	  	
 	  }
 	  // update io_buf values
       for(v=0;v<nout*nslvar*localsize;v++)
@@ -551,6 +673,7 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 	}
 	if(Run.use_dspaces_io) {
 	  put_count++;
+	  rank_history = Z_COL;
 	  clk = MPI_Wtime();
 	}
       }
