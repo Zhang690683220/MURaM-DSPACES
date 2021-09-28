@@ -120,7 +120,6 @@ void IO_Init(const GridData& Grid, const RunData& Run) {
 
     if(Run.dspaces_manual_listen_addr) {
       sprintf(listen_addr_str, "%s", Run.dspaces_client_listen_addr);
-      std::cout<< listen_addr_str <<std::endl;
       dspaces_init(dspaces_rank, &ds_client, listen_addr_str);
     } else {
       dspaces_init(dspaces_rank, &ds_client, NULL);
