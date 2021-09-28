@@ -506,6 +506,11 @@ void diag_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phy
   MPI_File mfh;
   dspaces_put_req_t dspaces_put_req;
   double dspaces_time, dspaces_wait_time;
+  if(Run.use_dspaces_io) {
+    dspaces_time = 0.0;
+    dspaces_wait_time = 0.0;
+    dspaces_put_req = dspaces_PUT_NULL;
+  }
 
   int v_max, v1_max,v2_max,v1,v2,var;
 
