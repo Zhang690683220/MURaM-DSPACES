@@ -117,8 +117,8 @@ void dspaces_log_entry_output(struct log_entry* le, std::string prefix) {
     le->total_wait_time += le->wait_time[i];
     le->total_time += le->time[i];
   }
-  le->avg_api_time = le->api_time / le->iter.size();
-  le->avg_wait_time = le->wait_time / le->iter.size();
+  le->avg_api_time = le->total_api_time / le->iter.size();
+  le->avg_wait_time = le->total_wait_time / le->iter.size();
   le->avg_time = le->total_time / le->iter.size();
   log << "Total, " << le->total_api_time << ", "
       << le->total_wait_time << ", " << le->total_time << std::endl;
@@ -356,7 +356,7 @@ void IO_Init(const GridData& Grid, const RunData& Run) {
 
     // io_log init
     io_dspaces_log = (struct log*) malloc(sizeof(struct log));
-    io_dspaces_log->name = "DATASPACES"
+    io_dspaces_log->name = "DATASPACES";
     io_dspaces_log->eos = NULL;
     io_dspaces_log->diag = NULL;
     io_dspaces_log->tau = NULL;
