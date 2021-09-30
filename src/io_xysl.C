@@ -13,9 +13,14 @@
 #include "limit_va.H"
 // dataspaces header
 #include "ACCH.h"
-#include "dspaces.h"
 
 using namespace std;
+
+struct log *io_file_log, *io_dspaces_log;
+// Number of IO process to be logged
+// 3D: EOS-0, DIAG-1
+// 2D: TAU-2, YZ-3, XY-4, XZ-5, CORONA-6, ANALYZE_VP-7
+const int io_proc_num = 8;
 
 int mpi_io_in     = 1;
 int mpi_io_out    = 1;
@@ -35,6 +40,7 @@ int ds_optimized = 0;
 dspaces_client_t ds_client = dspaces_CLIENT_NULL;
 uint64_t *lb, *ub;
 int io_rank; // for print msg
+std::string io_log_path;
 
 static double clk, ds_eos_time, ds_eos_total_time,
               ds_diag_time, ds_diag_total_time,
@@ -49,6 +55,215 @@ void z_gather_io(const GridData&,const int,float*,int,float*,int);
 void z_scatter_io(const GridData&,const int,float*,int,float*,int);
 void xy_slice_write(const GridData&,const int,float*,int,FILE*);
 void xy_slice_read(const GridData&,const int,float*,int,FILE*);
+
+// double collect_time(const RunData& Run, double time, int iroot, MPI_Comm comm) {
+//   int size;
+//   //MPI_Comm_size(comm, &size);
+//   double result = -1;
+//   MPI_Reduce(&time, &result, 1, MPI_DOUBLE, MPI_SUM, iroot, comm);
+//   if(comm == iroot) {
+//     result /= size;
+//     if(io_rank == 0) {
+//       return result;
+//     } else {
+//       MPI_Send(&result, 1, MPI_DOUBLE, 0, 0, io_comm);
+//     }
+//   } else {
+//     if(io_rank == 0) {
+//       MPI_Recv(&result, 1, MPI_DOUBLE, )
+//     }
+//   }
+
+// }
+
+void log_entry_init(struct log_entry* le, std::string name) {
+  le->name = name;
+  le->iter.clear();
+  le->api_time.clear();
+  le->wait_time.clear();
+  le->time.clear();
+  le->total_api_time = 0.0;
+  le->total_wait_time = 0.0;
+  le->total_time = 0.0;
+  le->avg_api_time = 0.0;
+  le->avg_wait_time = 0.0;
+  le->avg_time = 0.0;
+}
+
+void log_entry_output(struct log_entry* le, std::string prefix) {
+  std::string file_name = prefix + "_" + le->name + ".log";
+  std::ofstream log;
+  log.open(file_name, std::ofstream::out | std::ofstream::trunc);
+  log << "Iteration, Time(s)" << std::endl;
+  for(int i=0; i<le->iter.size(); i++) {
+    std::cout << le->iter[i] << ", " << le->time[i] << std::endl;
+    le->total_time += le->time[i];
+  }
+  le->avg_time = le->total_time / le->iter.size();
+  log << "Total, " << le->total_time << std::endl;
+  log << "Average" << le->avg_time << std::endl;
+  log.close();
+}
+
+void dspaces_log_entry_output(struct log_entry* le, std::string prefix) {
+  std::string file_name = prefix + "_" + le->name + ".log";
+  std::ofstream log;
+  log.open(file_name, std::ofstream::out | std::ofstream::trunc);
+  log << "Iteration, API_Time(s), Wait_Time(s), Time(s)" << std::endl;
+  for(int i=0; i<le->iter.size(); i++) {
+    std::cout << le->iter[i] << ", " << le->api_time[i] << ", "
+              << le->wait_time[i] << ", " << le->time[i] << std::endl;
+    le->total_api_time += le->api_time[i];
+    le->total_wait_time += le->wait_time[i];
+    le->total_time += le->time[i];
+  }
+  le->avg_api_time = le->api_time / le->iter.size();
+  le->avg_wait_time = le->wait_time / le->iter.size();
+  le->avg_time = le->total_time / le->iter.size();
+  log << "Total, " << le->total_api_time << ", "
+      << le->total_wait_time << ", " << le->total_time << std::endl;
+  log << "Average, " << le->avg_api_time << ", "
+      << le->avg_wait_time << ", " << le->avg_time << std::endl;
+  log.close();
+}
+
+void log_output(struct log *io_log, std::string log_path) {
+  // rank consistent with the print message
+  // inside the according IO process 
+  if(io_log->eos != NULL && xy_rank == 0) {
+    log_entry_output(io_log->eos, log_path + io_log->name);
+  }
+
+  if(io_log->diag != NULL && xy_rank == 0) {
+    log_entry_output(io_log->diag, log_path + io_log->name);
+  }
+
+  if(io_log->tau != NULL && io_rank == 0) {
+    log_entry_output(io_log->tau, log_path + io_log->name);
+  }
+
+  if(io_log->yz != NULL && io_rank == 0) {
+    log_entry_output(io_log->yz, log_path + io_log->name);
+  }
+
+  if(io_log->xy != NULL && io_rank == 0) {
+    log_entry_output(io_log->xy, log_path + io_log->name);
+  }
+
+  if(io_log->xz != NULL && io_rank == 0) {
+    log_entry_output(io_log->xz, log_path + io_log->name);
+  }
+
+  if(io_log->corona != NULL && io_rank == 0) {
+    log_entry_output(io_log->corona, log_path + io_log->name);
+  }
+
+  if(io_log->analyze_vp != NULL && yz_rank == 0 && xcol_rank == 0) {
+    log_entry_output(io_log->analyze_vp, log_path + io_log->name);
+  }
+
+}
+
+void dspaces_log_output(struct log *io_log, std::string log_path) {
+  // rank consistent with the print message
+  // inside the according IO process 
+  if(io_log->eos != NULL && io_rank == 0) {
+    dspaces_log_entry_output(io_log->eos, log_path + io_log->name);
+  }
+
+  if(io_log->diag != NULL && io_rank == 0) {
+    dspaces_log_entry_output(io_log->diag, log_path + io_log->name);
+  }
+
+  if(io_log->tau != NULL && io_rank == 0) {
+    dspaces_log_entry_output(io_log->tau, log_path + io_log->name);
+  }
+
+  if(io_log->yz != NULL && io_rank == 0) {
+    dspaces_log_entry_output(io_log->yz, log_path + io_log->name);
+  }
+
+  if(io_log->xy != NULL && io_rank == 0) {
+    dspaces_log_entry_output(io_log->xy, log_path + io_log->name);
+  }
+
+  if(io_log->xz != NULL && io_rank == 0) {
+    dspaces_log_entry_output(io_log->xz, log_path + io_log->name);
+  }
+
+  if(io_log->corona != NULL && io_rank == 0) {
+    dspaces_log_entry_output(io_log->corona, log_path + io_log->name);
+  }
+
+  if(io_log->analyze_vp != NULL && yz_rank == 0 && xcol_rank == 0) {
+    dspaces_log_entry_output(io_log->analyze_vp, log_path + io_log->name);
+  }
+
+}
+
+void log_summary_print(struct log *io_log) {
+  if(io_rank == 0) {
+    std::cout << "********" << io_log->name << "IO SUMMARY ********" << std::endl;
+  }
+  if(xy_rank == 0) {
+    if(io_log->eos != NULL)
+      std::cout << "Total EOS IO in " << io_log->eos->total_time << std::endl;
+    if(io_log->diag != NULL)
+      std::cout << "Total DIAG IO in " << io_log->diag->total_time << std::endl;
+  }
+  if(io_rank == 0) {
+    if(io_log->tau != NULL)
+      std::cout << "Total TAU SLICE IO in " << io_log->tau->total_time << std::endl;
+    if(io_log->yz != NULL)
+      std::cout << "Total YZ SLICE IO in " << io_log->yz->total_time << std::endl;
+    if(io_log->xy != NULL)
+      std::cout << "Total XY SLICE IO in " << io_log->xy->total_time << std::endl;
+    if(io_log->xz != NULL)
+      std::cout << "Total XZ SLICE IO in " << io_log->xz->total_time << std::endl;
+    if(io_log->corona != NULL)
+      std::cout << "Total CORONA_EMISSION IO in " << io_log->corona->total_time << std::endl;
+  }
+  if(yz_rank == 0 && xcol_rank == 0) {
+    if(io_log->analyze_vp != NULL)
+      std::cout << "Total ANALYZE_VP IO in " << io_log->analyze_vp->total_time << std::endl;
+  }
+}
+
+void log_free(struct log *io_log) {
+  if(io_log->eos != NULL) {
+    free(io_log->eos);
+  }
+
+  if(io_log->diag != NULL) {
+    free(io_log->diag);
+  }
+
+  if(io_log->tau != NULL) {
+    free(io_log->tau);
+  }
+
+  if(io_log->yz != NULL) {
+    free(io_log->yz);
+  }
+
+  if(io_log->xy != NULL) {
+    free(io_log->xy);
+  }
+
+  if(io_log->xz != NULL) {
+    free(io_log->xz);
+  }
+
+  if(io_log->corona != NULL) {
+    free(io_log->corona);
+  }
+
+  if(io_log->analyze_vp != NULL) {
+    free(io_log->analyze_vp);
+  }
+
+  free(io_log);
+}
 
 inline int imin(int i, int k){ return i < k ? i : k; }
 
@@ -89,9 +304,23 @@ void IO_Init(const GridData& Grid, const RunData& Run) {
   // make sure MPI IO errors leed to program termination
   MPI_File_set_errhandler(MPI_FILE_NULL,MPI_ERRORS_ARE_FATAL); 
 
-  mpi_eos_total_time = 0.0;
-  mpi_diag_total_time = 0.0;
-  mpi_total_time = 0.0;
+  // io_log init
+  io_log_path = Run.io_log_path;
+  io_file_log = (struct log*) malloc(sizeof(struct log));
+  io_file_log->name = "FILE";
+  io_file_log->eos = NULL;
+  io_file_log->diag = NULL;
+  io_file_log->tau = NULL;
+  io_file_log->yz = NULL;
+  io_file_log->xy = NULL;
+  io_file_log->xz = NULL;
+  io_file_log->corona = NULL;
+  io_file_log->analyze_vp = NULL;
+  
+
+  // mpi_eos_total_time = 0.0;
+  // mpi_diag_total_time = 0.0;
+  // mpi_total_time = 0.0;
 
   if(Run.use_dspaces_io) {
     char listen_addr_str[128];
@@ -124,6 +353,18 @@ void IO_Init(const GridData& Grid, const RunData& Run) {
     } else {
       dspaces_init(dspaces_rank, &ds_client, NULL);
     }
+
+    // io_log init
+    io_dspaces_log = (struct log*) malloc(sizeof(struct log));
+    io_dspaces_log->name = "DATASPACES"
+    io_dspaces_log->eos = NULL;
+    io_dspaces_log->diag = NULL;
+    io_dspaces_log->tau = NULL;
+    io_dspaces_log->yz = NULL;
+    io_dspaces_log->xy = NULL;
+    io_dspaces_log->xz = NULL;
+    io_dspaces_log->corona = NULL;
+    io_dspaces_log->analyze_vp = NULL;
     
   }
 
@@ -143,23 +384,33 @@ void IO_Init(const GridData& Grid, const RunData& Run) {
 }
 
 void IO_Finalize() {
+  // write log
+  log_output(io_file_log, io_log_path);
+  log_summary_print(io_file_log);
+  if(ds_io) {
+    dspaces_log_output(io_dspaces_log, io_log_path);
+    log_summary_print(io_dspaces_log);
+    log_free(io_dspaces_log);
+  }
+  log_free(io_file_log);
+
   MPI_Type_free(&io_subarray);
   MPI_Info_free(&io_info);
   MPI_Comm_free(&io_comm);
   MPI_Comm_free(&io_xy_comm);
   MPI_Comm_free(&io_z_comm);
   if(ds_io) {
-    mpi_total_time = mpi_eos_total_time + mpi_diag_total_time;
-    ds_total_time = ds_eos_total_time + ds_diag_total_time;
-    if(xy_rank == 0) {
-      cout << "**** IO SUMMARY *********************" << endl;
-      cout << "Total MPI IO (EOS) in " << mpi_eos_total_time << " seconds" << endl;
-      cout << "Total DataSpaces (EOS) IO in " << ds_eos_total_time << " seconds" << endl;
-      cout << "Total MPI IO (DIAG) in " << mpi_diag_total_time << " seconds" << endl;
-      cout << "Total DataSpaces (DIAG) IO in " << ds_diag_total_time << " seconds" << endl;
-      cout << "Total MPI IO in " << mpi_total_time << " seconds" << endl;
-      cout << "Total DataSpacesIO in " << ds_total_time << " seconds" << endl;
-    }
+    // mpi_total_time = mpi_eos_total_time + mpi_diag_total_time;
+    // ds_total_time = ds_eos_total_time + ds_diag_total_time;
+    // if(xy_rank == 0) {
+    //   cout << "**** IO SUMMARY *********************" << endl;
+    //   cout << "Total MPI IO (EOS) in " << mpi_eos_total_time << " seconds" << endl;
+    //   cout << "Total DataSpaces (EOS) IO in " << ds_eos_total_time << " seconds" << endl;
+    //   cout << "Total MPI IO (DIAG) in " << mpi_diag_total_time << " seconds" << endl;
+    //   cout << "Total DataSpaces (DIAG) IO in " << ds_diag_total_time << " seconds" << endl;
+    //   cout << "Total MPI IO in " << mpi_total_time << " seconds" << endl;
+    //   cout << "Total DataSpacesIO in " << ds_total_time << " seconds" << endl;
+    // }
     free(lb);
     free(ub);
     if(ds_terminate) {
@@ -485,6 +736,20 @@ void RestoreSolution(RunData& Run,GridData& Grid,const PhysicsData& Physics){
 //////////////////// tvar_output ///////////////////////
 void diag_output(const RunData& Run, const GridData& Grid,const PhysicsData& Physics, RTS *rts) {
 
+  static int ini_flag = 1;
+
+  if(ini_flag == 1) {
+    io_file_log->diag = (struct log_entry*) malloc(sizeof(struct log_entry));
+    log_entry_init(io_file_log->diag, "DIAG");
+
+    if(Run.use_dspaces_io) {
+      io_dspaces_log->diag = (struct log_entry*) malloc(sizeof(struct log_entry));
+      log_entry_init(io_dspaces_log->diag, "DIAG");
+    }
+
+    ini_flag = 0;
+  }
+
   char filename[128];
 
   register int i,j,k,loc;
@@ -502,7 +767,8 @@ void diag_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phy
   FILE* fh=NULL;
   MPI_File mfh;
   dspaces_put_req_t dspaces_put_req;
-  double dspaces_time, dspaces_wait_time;
+  double clk, file_time, dspaces_time, dspaces_wait_time;
+  file_time = 0.0;
   if(Run.use_dspaces_io) {
     dspaces_time = 0.0;
     dspaces_wait_time = 0.0;
@@ -571,10 +837,10 @@ void diag_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phy
   for(v2=0;v2<v2_max;v2++)
     if (zcol_rank == v2) iobuf_glo = (float*)malloc(gsize*sizeof(float));
 
-  mpi_diag_time = 0.0;
-  if(ds_io == 1) {
-    ds_diag_time = 0.0;
-  }
+  // mpi_diag_time = 0.0;
+  // if(ds_io == 1) {
+  //   ds_diag_time = 0.0;
+  // }
 
   for(v1=0;v1<v1_max;v1++){
     for(v2=0;v2<v2_max;v2++){
@@ -595,7 +861,8 @@ void diag_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phy
       if (zcol_rank == v2){
 	sprintf(filename,"%s%s.%06d",Run.path_3D,diag_names[var],Run.globiter);
 	if(xy_rank == 0) cout << "write " << filename << endl;
-	if(mpi_io_out == 0) { 
+	if(mpi_io_out == 0) {
+    clk = MPI_Wtime(); 
 	  if(xy_rank == 0){
 	    fh=fopen(filename,"w");
 	    if(fh == NULL){
@@ -607,6 +874,7 @@ void diag_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phy
 	    xy_slice_write(Grid,0,&(iobuf_glo[k*blsz*sizex*sizey]),sizex*sizey,
 			   fh);
 	  if(xy_rank == 0) fclose(fh);
+    file_time += MPI_Wtime() -clk;
 	} else {
     clk = MPI_Wtime();
 	  MPI_File_open(io_xy_comm,filename,MPI_MODE_CREATE | MPI_MODE_WRONLY,
@@ -615,7 +883,7 @@ void diag_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phy
 			    io_info);
 	  MPI_File_write_all(mfh,iobuf_glo,gsize,MPI_FLOAT,MPI_STATUS_IGNORE);
 	  MPI_File_close(&mfh);
-    mpi_diag_time += MPI_Wtime() -clk;
+    file_time += MPI_Wtime() -clk;
 	}
       }
     }
@@ -624,9 +892,15 @@ void diag_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phy
   for(v2=0;v2<v2_max;v2++)
     if (zcol_rank == v2) free(iobuf_glo);
 
-  mpi_diag_total_time += mpi_diag_time;
-  if(xy_rank == 0 && Run.verbose >0) {
-    cout << "MPI Output (DIAG) in " << mpi_diag_time << " seconds" << endl;
+  
+  // mpi_diag_total_time += mpi_diag_time;
+  if(xy_rank == 0) {
+    io_file_log->diag->iter.push_back(Run.globiter);
+    io_file_log->diag->api_time.push_back(file_time);
+    io_file_log->diag->time.push_back(file_time);
+    if(Run.verbose > 0) {
+      cout << "FILE Output (DIAG) in " << file_time << " seconds" << endl;
+    }
   }
 
   if(Run.use_dspaces_io) {
@@ -661,13 +935,19 @@ void diag_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phy
     dspaces_check_put(ds_client, dspaces_put_req, 1);
     dspaces_wait_time += MPI_Wtime() - clk;
     }
-    if(io_rank == 0 && Run.verbose > 0) {
-      std::cout << "DataSpaces API Call (DIAG) in " << dspaces_time << " seconds" << std::endl;
-      std::cout << "DataSpaces Wait (DIAG) in " << dspaces_wait_time << " seconds" << std::endl;
-      std::cout << "DataSpaces Output (DIAG) in " << dspaces_time+dspaces_wait_time << " seconds"
-                << std::endl;
+    if(io_rank == 0) {
+      io_dspaces_log->diag->iter.push_back(Run.globiter);
+      io_dspaces_log->diag->api_time.push_back(dspaces_time);
+      io_dspaces_log->diag->wait_time.push_back(dspaces_wait_time);
+      io_dspaces_log->diag->time.push_back(dspaces_time+dspaces_wait_time);
+      if(Run.verbose > 0) {
+        std::cout << "DataSpaces API Call (DIAG) in " << dspaces_time << " seconds" << std::endl;
+        std::cout << "DataSpaces Wait (DIAG) in " << dspaces_wait_time << " seconds" << std::endl;
+        std::cout << "DataSpaces Output (DIAG) in " << dspaces_time+dspaces_wait_time << " seconds"
+                  << std::endl;
+      }
     }
-    ds_diag_total_time += dspaces_time+dspaces_wait_time;
+    //ds_diag_total_time += dspaces_time+dspaces_wait_time;
   }
 
   free(iobuf_loc); 
@@ -676,6 +956,20 @@ void diag_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phy
 
 //////////////////// eos_output ///////////////////////
 void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Physics, RTS *rts) {
+
+  static int ini_flag = 1;
+
+  if(ini_flag == 1) {
+    io_file_log->eos = (struct log_entry*) malloc(sizeof(struct log_entry));
+    log_entry_init(io_file_log->eos, "EOS");
+
+    if(Run.use_dspaces_io) {
+      io_dspaces_log->eos = (struct log_entry*) malloc(sizeof(struct log_entry));
+      log_entry_init(io_dspaces_log->eos, "EOS");
+    }
+
+    ini_flag = 0;
+  }
 
   char filename[128];
 
@@ -694,7 +988,8 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
   FILE* fh=NULL;
   MPI_File mfh;
   dspaces_put_req_t dspaces_put_req;
-  double dspaces_time, dspaces_wait_time;
+  double clk, file_time, dspaces_time, dspaces_wait_time;
+  file_time = 0.0;
   if(Run.use_dspaces_io) {
     dspaces_time = 0.0;
     dspaces_wait_time = 0.0;
@@ -785,10 +1080,10 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
   for(v2=0;v2<v2_max;v2++)
     if (zcol_rank == v2) iobuf_glo = (float*)malloc(gsize*sizeof(float));
 
-  mpi_eos_time = 0.0;
-  if(ds_io == 1) {
-    ds_eos_time = 0.0;
-  }
+  // mpi_eos_time = 0.0;
+  // if(ds_io == 1) {
+  //   ds_eos_time = 0.0;
+  // }
 
   for(v1=0;v1<v1_max;v1++){
     for(v2=0;v2<v2_max;v2++){
@@ -809,7 +1104,8 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
       if (zcol_rank == v2){
 	sprintf(filename,"%s%s.%06d",Run.path_3D,eos_names[var],Run.globiter);
 	if(xy_rank == 0) cout << "write " << filename << endl;
-	if(mpi_io_out == 0) { 
+	if(mpi_io_out == 0) {
+    clk = MPI_Wtime();
 	  if(xy_rank == 0){
 	    fh=fopen(filename,"w");
 	    if(fh == NULL){
@@ -821,6 +1117,7 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
 	    xy_slice_write(Grid,0,&(iobuf_glo[k*blsz*sizex*sizey]),sizex*sizey,
 			   fh);
 	  if(xy_rank == 0) fclose(fh);
+    file_time += MPI_Wtime() -clk;
 	} else {
     clk = MPI_Wtime();
 	  MPI_File_open(io_xy_comm,filename,MPI_MODE_CREATE | MPI_MODE_WRONLY,
@@ -829,15 +1126,20 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
 			    io_info);
 	  MPI_File_write_all(mfh,iobuf_glo,gsize,MPI_FLOAT,MPI_STATUS_IGNORE);
 	  MPI_File_close(&mfh);
-    mpi_eos_time += MPI_Wtime() - clk;
+    file_time += MPI_Wtime() - clk;
 	}
       }
     }
   }
 
-  mpi_eos_total_time += mpi_eos_time;
-  if(xy_rank == 0 && Run.verbose >0) {
-    cout << "MPI Output (EOS) in " << mpi_eos_time << " seconds" << endl;
+  //mpi_eos_total_time += mpi_eos_time;
+  if(xy_rank == 0) {
+    io_file_log->eos->iter.push_back(Run.globiter);
+    io_file_log->eos->api_time.push_back(file_time);
+    io_file_log->eos->time.push_back(file_time);
+    if(Run.verbose >0) {
+      cout << "MPI Output (EOS) in " << mpi_eos_time << " seconds" << endl;
+    }
   } 
   
   for(v2=0;v2<v2_max;v2++)
@@ -875,12 +1177,18 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
     dspaces_check_put(ds_client, dspaces_put_req, 1);
     dspaces_wait_time += MPI_Wtime() - clk;
     if(io_rank == 0 && Run.verbose > 0) {
-      std::cout << "DataSpaces API Call (EOS) in " << dspaces_time << " seconds" << std::endl;
-      std::cout << "DataSpaces Wait (EOS) in " << dspaces_wait_time << " seconds" << std::endl;
-      std::cout << "DataSpaces Output (EOS) in " << dspaces_time+dspaces_wait_time << " seconds"
-                << std::endl;
+      io_dspaces_log->eos->iter.push_back(Run.globiter);
+      io_dspaces_log->eos->api_time.push_back(dspaces_time);
+      io_dspaces_log->eos->wait_time.push_back(dspaces_wait_time);
+      io_dspaces_log->eos->time.push_back(dspaces_time+dspaces_wait_time);
+      if(Run.verbose) {
+        std::cout << "DataSpaces API Call (EOS) in " << dspaces_time << " seconds" << std::endl;
+        std::cout << "DataSpaces Wait (EOS) in " << dspaces_wait_time << " seconds" << std::endl;
+        std::cout << "DataSpaces Output (EOS) in " << dspaces_time+dspaces_wait_time << " seconds"
+                  << std::endl;
+      }
     }
-    ds_eos_total_time += dspaces_time+dspaces_wait_time;
+    // ds_eos_total_time += dspaces_time+dspaces_wait_time;
   }
 
   free(iobuf_loc); 

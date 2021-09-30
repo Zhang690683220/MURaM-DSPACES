@@ -1,8 +1,42 @@
+#include <string>
+#include <vector>
 #include "dspaces.h"
+
 class RunData;
 class GridData;
 class PhysicsData;
 class RTS;
+
+// extern var for 2d slices use
+extern dspaces_client_t ds_client;
+
+// struct for IO logs
+struct log_entry {
+  std::string name;
+  std::vector<int> iter;
+  std::vector<double> api_time;
+  std::vector<double> wait_time;
+  std::vector<double> time;
+  double total_api_time;
+  double total_wait_time;
+  double total_time;
+  double avg_api_time;
+  double avg_wait_time;
+  double avg_time;
+};
+
+struct log {
+	std::string name;
+  struct log_entry* eos;
+  struct log_entry* diag;
+  struct log_entry* tau;
+  struct log_entry* yz;
+  struct log_entry* xy;
+  struct log_entry* xz;
+  struct log_entry* corona;
+  struct log_entry* analyze_vp;
+};
+
 
 extern int  HasBackupFile(const char*);
 extern void OutputSolution(const RunData&, const GridData&, const PhysicsData&);
@@ -25,5 +59,3 @@ extern void eos_output_gpu(const RunData&,const GridData&,const PhysicsData&, RT
 extern void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid, 
 		               const PhysicsData& Physics);
 
-// extern var for 2d slices use
-extern dspaces_client_t ds_client;

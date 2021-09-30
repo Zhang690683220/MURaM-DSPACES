@@ -68,6 +68,7 @@ int Initialize(RunData& Run,GridData& Grid,
     if(Run.dspaces_manual_listen_addr) {
       getvar(&Run.dspaces_client_listen_addr, "dspaces_client_listen_addr", "char*", datafile);
     }
+    getvar(&Run.io_log_path, "io_log_path", "char*", datafile);
     getvar_s(&Grid.NDIM,"NDIM","int",datafile);
 
     if( Grid.NDIM==3 ) {
