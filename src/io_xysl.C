@@ -308,7 +308,7 @@ void log_entry_output(struct log_entry* le, char* prefix) {
   }
   le->avg_time = le->total_time / le->total_iters;
   log << "Total, " << le->total_time << std::endl;
-  log << "Average" << le->avg_time << std::endl;
+  log << "Average, " << le->avg_time << std::endl;
   log.close();
 }
 
@@ -573,7 +573,7 @@ void IO_Init(const GridData& Grid, const RunData& Run) {
 
     // io_log init
     io_dspaces_log = (struct log*) malloc(sizeof(struct log));
-    sprintf(io_file_log->name, "DATASPACES");
+    sprintf(io_dspaces_log->name, "DATASPACES");
     io_dspaces_log->eos = NULL;
     io_dspaces_log->diag = NULL;
     io_dspaces_log->tau = NULL;
