@@ -57,7 +57,7 @@ void z_scatter_io(const GridData&,const int,float*,int,float*,int);
 void xy_slice_write(const GridData&,const int,float*,int,FILE*);
 void xy_slice_read(const GridData&,const int,float*,int,FILE*);
 
-enum io_group {XY_ROOT, XZ_ROOT, YZ_ROOT, XCOL_ROOT, YCOL_ROOT, ZCOL_ROOT, ALL_IO_RANK}
+enum io_group {XY_ROOT, XZ_ROOT, YZ_ROOT, XCOL_ROOT, YCOL_ROOT, ZCOL_ROOT, ALL_IO_RANK};
 
 // ALL ranks should call it
 // But return value only valids in proc whose io_rank == 0
