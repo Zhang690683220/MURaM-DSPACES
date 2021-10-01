@@ -46,7 +46,7 @@ struct root_list {
   std::list<int> xcol_root;
   std::list<int> ycol_root;
   std::list<int> zcol_root;
-}
+};
 
 extern int  HasBackupFile(const char*);
 extern void OutputSolution(const RunData&, const GridData&, const PhysicsData&);
