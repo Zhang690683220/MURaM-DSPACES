@@ -12,6 +12,7 @@
 
 using namespace std;
 
+extern total_slice_iters;
 extern struct log *io_file_log, *io_dspaces_log;
 
 void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
@@ -36,10 +37,10 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
     MPI_Type_commit(&x_subarray);
 
     io_file_log->analyze_vp = (struct log_entry*) malloc(sizeof(struct log_entry));
-    log_entry_init(io_file_log->analyze_vp, "ANALYZE_VP");
+    log_entry_init(io_file_log->analyze_vp, "ANALYZE_VP", total_slice_iters);
 		if(Run.use_dspaces_io) {
       io_dspaces_log->analyze_vp = (struct log_entry*) malloc(sizeof(struct log_entry));
-      log_entry_init(io_dspaces_log->analyze_vp, "ANALYZE_VP");
+      log_entry_init(io_dspaces_log->analyze_vp, "ANALYZE_VP", total_slice_iters);
     }
 
     ini_flag = 0;
@@ -323,14 +324,16 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
   delete[] iobuf;
 
   if(yz_rank == 0 && xcol_rank == 0) {
-    io_file_log->analyze_vp->iter.push_back(Run.globiter);
-		io_file_log->analyze_vp->api_time.push_back(file_time);
-		io_file_log->analyze_vp->time.push_back(file_time);
+    io_file_log->analyze_vp->iter[io_file_log->analyze_vp->index] = Run.globiter;
+		io_file_log->analyze_vp->api_time[io_file_log->analyze_vp->index] = file_time;
+		io_file_log->analyze_vp->time[io_file_log->analyze_vp->index] = file_time;
+    io_file_log->analyze_vp->index++ ;
 		if(Run.use_dspaces_io) {
-			io_dspaces_log->analyze_vp->iter.push_back(Run.globiter);
-      io_dspaces_log->analyze_vp->api_time.push_back(dspaces_time);
-      io_dspaces_log->analyze_vp->wait_time.push_back(dspaces_wait_time);
-      io_dspaces_log->analyze_vp->time.push_back(dspaces_time+dspaces_wait_time);
+			io_dspaces_log->analyze_vp->iter[io_dspaces_log->analyze_vp->index] = Run.globiter;
+      io_dspaces_log->analyze_vp->api_time[io_dspaces_log->analyze_vp->index] = dspaces_time;
+      io_dspaces_log->analyze_vp->wait_time[io_dspaces_log->analyze_vp->index] = dspaces_wait_time;
+      io_dspaces_log->analyze_vp->time[io_dspaces_log->analyze_vp->index] = dspaces_time+dspaces_wait_time;
+      io_dspaces_log->analyze_vp->index++ ;
 		}
     if(Run.verbose > 0) {
       std::cout << "File Output (ANALYZE_VP) in " << file_time << " seconds" << std::endl;

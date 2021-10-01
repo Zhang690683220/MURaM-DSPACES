@@ -12,6 +12,7 @@
     
 using namespace std;
 
+extern total_slice_iters;
 extern struct log *io_file_log, *io_dspaces_log;
 
 extern void slice_write(const GridData&,const int,float*,int,int,const int,
@@ -74,11 +75,12 @@ void yz_slice(const RunData&  Run, const GridData& Grid,
     for (v=0;v<13;v++)
       if (Physics.yz_var[v] == 1) nslvar+=1;
 
+    int iters = 
     io_file_log->yz = (struct log_entry*) malloc(sizeof(struct log_entry));
-    log_entry_init(io_file_log->yz, "YZ");
+    log_entry_init(io_file_log->yz, "YZ", total_slice_iters);
 		if(Run.use_dspaces_io) {
       io_dspaces_log->yz = (struct log_entry*) malloc(sizeof(struct log_entry));
-      log_entry_init(io_dspaces_log->yz, "YZ");
+      log_entry_init(io_dspaces_log->yz, "YZ", total_slice_iters);
     }
 
     ini_flag = 0;
@@ -287,14 +289,16 @@ void yz_slice(const RunData&  Run, const GridData& Grid,
   free(iobuf);
 
   if(Run.rank == 0 && Run.verbose >0) {
-    io_file_log->yz->iter.push_back(Run.globiter);
-		io_file_log->yz->api_time.push_back(file_time);
-		io_file_log->yz->time.push_back(file_time);
+    io_file_log->yz->iter[io_file_log->yz->index] = Run.globiter;
+		io_file_log->yz->api_time[io_file_log->yz->index] = file_time;
+		io_file_log->yz->time[io_file_log->yz->index] = file_time;
+    io_file_log->yz->index++;
 		if(Run.use_dspaces_io) {
-			io_dspaces_log->yz->iter.push_back(Run.globiter);
-      io_dspaces_log->yz->api_time.push_back(dspaces_time);
-      io_dspaces_log->yz->wait_time.push_back(dspaces_wait_time);
-      io_dspaces_log->yz->time.push_back(dspaces_time+dspaces_wait_time);
+			io_dspaces_log->yz->iter[io_dspaces_log->yz->index] = Run.globiter;
+      io_dspaces_log->yz->api_time[io_dspaces_log->yz->index] = dspaces_time;
+      io_dspaces_log->yz->wait_time[io_dspaces_log->yz->index] = dspaces_wait_time;
+      io_dspaces_log->yz->time[io_dspaces_log->yz->index] = dspaces_time+dspaces_wait_time;
+      io_dspaces_log->yz->index++;
 		}
     if(Run.verbose > 0) {
 		  std::cout << "File Output (YZ_SLICE) in " << file_time << " seconds" << std::endl;

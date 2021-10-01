@@ -14,11 +14,13 @@ extern dspaces_client_t ds_client;
 // struct for IO logs
 struct log_entry {
   char name[128];
-	std::vector<int> rank_root;
-  std::vector<int> iter;
-  std::vector<double> api_time;
-  std::vector<double> wait_time;
-  std::vector<double> time;
+	int* rank_root;
+	int index;
+	int total_iters;
+  int* iter;
+  double* api_time;
+  double* wait_time;
+  double* time;
   double total_api_time;
   double total_wait_time;
   double total_time;
@@ -69,5 +71,5 @@ extern void eos_output_gpu(const RunData&,const GridData&,const PhysicsData&, RT
 extern void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid, 
 		               const PhysicsData& Physics);
 
-extern void log_entry_init(struct log_entry* le, char* name);
+void log_entry_init(struct log_entry* le, char* name, int iters);
 

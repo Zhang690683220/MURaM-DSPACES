@@ -18,6 +18,7 @@ using namespace std;
 //extern void slice_write(const GridData&,const int,float*,int,int,const int,
 //			const int,FILE*);
 
+extern total_slice_iters;
 extern struct log *io_file_log, *io_dspaces_log;
 
 extern double slice_write_rebin(const GridData&,const int,float*,const int,const int,
@@ -102,10 +103,10 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
       cout << "DEM: Use log(T), log(rho)" << endl;
     }
 	io_file_log->corona = (struct log_entry*) malloc(sizeof(struct log_entry));
-    log_entry_init(io_file_log->corona, "CORONA");
+    log_entry_init(io_file_log->corona, "CORONA", total_slice_iters);
 		if(Run.use_dspaces_io) {
       io_dspaces_log->corona = (struct log_entry*) malloc(sizeof(struct log_entry));
-      log_entry_init(io_dspaces_log->corona, "CORONA");
+      log_entry_init(io_dspaces_log->corona, "CORONA", total_slice_iters);
     }
     ini_flag = 0;
   }
@@ -582,16 +583,16 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
   delete[] tlev;
 
 	if(Run.rank == 0) {
-		io_file_log->corona->iter.push_back(Run.globiter);
-		io_file_log->corona->api_time.push_back(file_time);
-		io_file_log->corona->time.push_back(file_time);
+		io_file_log->corona->iter[io_file_log->corona->index] = Run.globiter;
+		io_file_log->corona->api_time[io_file_log->corona->index] = file_time;
+		io_file_log->corona->time[io_file_log->corona->index] = file_time;
 		if(Run.use_dspaces_io) {
-			io_dspaces_log->corona->iter.push_back(Run.globiter);
-      io_dspaces_log->corona->api_time.push_back(dspaces_time);
-      io_dspaces_log->corona->wait_time.push_back(dspaces_wait_time);
-      io_dspaces_log->corona->time.push_back(dspaces_time+dspaces_wait_time);
+			io_dspaces_log->corona->iter[io_dspaces_log->corona->index] = Run.globiter;
+      io_dspaces_log->corona->api_time[io_dspaces_log->corona->index] = dspaces_time;
+      io_dspaces_log->corona->wait_time[io_dspaces_log->corona->index] = dspaces_wait_time;
+      io_dspaces_log->corona->time[io_dspaces_log->corona->index] = dspaces_time+dspaces_wait_time;
 		}
-		if(Run.verbose) {
+		if(Run.verbose > 0) {
 	  	std::cout << "File Output (Corona_XYZ) in " << file_time << " seconds" << std::endl;
       if(Run.use_dspaces_io) {
 				std::cout << "DataSpaces API Call (Corona_XYZ) in " << dspaces_time

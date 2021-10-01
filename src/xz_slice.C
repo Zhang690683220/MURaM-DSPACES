@@ -11,6 +11,7 @@
 
 using namespace std;
 
+extern total_slice_iters;
 extern struct log *io_file_log, *io_dspaces_log;
 
 extern void slice_write(const GridData&,const int,float*,int,int,const int,
@@ -75,10 +76,10 @@ void xz_slice(const RunData&  Run, const GridData& Grid,
     }
 
 		io_file_log->xz = (struct log_entry*) malloc(sizeof(struct log_entry));
-    log_entry_init(io_file_log->xz, "XZ");
+    log_entry_init(io_file_log->xz, "XZ", total_slice_iters);
 		if(Run.use_dspaces_io) {
       io_dspaces_log->xz = (struct log_entry*) malloc(sizeof(struct log_entry));
-      log_entry_init(io_dspaces_log->xz, "XZ");
+      log_entry_init(io_dspaces_log->xz, "XZ", total_slice_iters);
     }
 
     ini_flag = 0;
@@ -278,14 +279,16 @@ void xz_slice(const RunData&  Run, const GridData& Grid,
   free(iobuf);
 
 	if(Run.rank == 0) {
-		io_file_log->xz->iter.push_back(Run.globiter);
-		io_file_log->xz->api_time.push_back(file_time);
-		io_file_log->xz->time.push_back(file_time);
+		io_file_log->xz->iter[io_file_log->xz->index] = Run.globiter;
+		io_file_log->xz->api_time[io_file_log->xz->index] = file_time;
+		io_file_log->xz->time[io_file_log->xz->index] = file_time;
+		io_file_log->xz->index++;
 		if(Run.use_dspaces_io) {
-			io_dspaces_log->xz->iter.push_back(Run.globiter);
-      io_dspaces_log->xz->api_time.push_back(dspaces_time);
-      io_dspaces_log->xz->wait_time.push_back(dspaces_wait_time);
-      io_dspaces_log->xz->time.push_back(dspaces_time+dspaces_wait_time);
+			io_dspaces_log->xz->iter[io_dspaces_log->xz->index] = Run.globiter;
+      io_dspaces_log->xz->api_time[io_dspaces_log->xz->index] = dspaces_time;
+      io_dspaces_log->xz->wait_time[io_dspaces_log->xz->index] = dspaces_wait_time;
+      io_dspaces_log->xz->time[io_dspaces_log->xz->index] = dspaces_time+dspaces_wait_time;
+			io_dspaces_log->xz->index++;
 		}
 		if(Run.verbose > 0) {
 			std::cout << "File Output (XZ_SLICE) in " << file_time << " seconds" << std::endl;
