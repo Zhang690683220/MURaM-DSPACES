@@ -518,6 +518,7 @@ void IO_Init(const GridData& Grid, const RunData& Run) {
   // collect root rank list to rank 0
   //io_root_rank_list = log_root_collect();
   // io_log init
+  get_total_iters(Run);
   sprintf(io_log_path, "%s", Run.io_log_path);
   io_file_log = (struct log*) malloc(sizeof(struct log));
   sprintf(io_file_log->name, "FILE");
