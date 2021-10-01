@@ -495,7 +495,7 @@ void IO_Init(const GridData& Grid, const RunData& Run) {
   MPI_File_set_errhandler(MPI_FILE_NULL,MPI_ERRORS_ARE_FATAL); 
 
   // collect root rank list to rank 0
-  io_root_rank_list = log_root_collect();
+  //io_root_rank_list = log_root_collect();
   // io_log init
   io_log_path = Run.io_log_path;
   io_file_log = (struct log*) malloc(sizeof(struct log));
