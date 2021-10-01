@@ -69,5 +69,5 @@ extern void eos_output_gpu(const RunData&,const GridData&,const PhysicsData&, RT
 extern void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid, 
 		               const PhysicsData& Physics);
 
-extern void log_entry_init(struct log_entry* le, std::string name);
+extern void log_entry_init(struct log_entry* le, char* name);
 
