@@ -1,5 +1,6 @@
 #include <string>
 #include <vector>
+#include <list>
 #include "dspaces.h"
 
 class RunData;
@@ -13,6 +14,7 @@ extern dspaces_client_t ds_client;
 // struct for IO logs
 struct log_entry {
   std::string name;
+	std::vector<int> rank_root;
   std::vector<int> iter;
   std::vector<double> api_time;
   std::vector<double> wait_time;
@@ -37,6 +39,14 @@ struct log {
   struct log_entry* analyze_vp;
 };
 
+struct root_list {
+  std::list<int> xy_root;
+  std::list<int> xz_root;
+  std::list<int> yz_root;
+  std::list<int> xcol_root;
+  std::list<int> ycol_root;
+  std::list<int> zcol_root;
+}
 
 extern int  HasBackupFile(const char*);
 extern void OutputSolution(const RunData&, const GridData&, const PhysicsData&);
@@ -58,4 +68,6 @@ extern void eos_output(const RunData&,const GridData&,const PhysicsData&, RTS*);
 extern void eos_output_gpu(const RunData&,const GridData&,const PhysicsData&, RTS*);
 extern void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid, 
 		               const PhysicsData& Physics);
+
+extern void log_entry_init(struct log_entry* le, std::string name);
 
