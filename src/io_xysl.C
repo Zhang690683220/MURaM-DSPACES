@@ -300,11 +300,11 @@ void log_entry_output(struct log_entry* le, char* prefix) {
   std::ofstream log;
   log.open(file_name, std::ofstream::out | std::ofstream::trunc);
   log << "Iteration, Time(s)" << std::endl;
-  for(int i=0; i<le->index; i++) {
+  for(int i=0; i<le->total_iters; i++) {
     std::cout << le->iter[i] << ", " << le->time[i] << std::endl;
     le->total_time += le->time[i];
   }
-  le->avg_time = le->total_time / le->index;
+  le->avg_time = le->total_time / le->total_iters;
   log << "Total, " << le->total_time << std::endl;
   log << "Average" << le->avg_time << std::endl;
   log.close();
@@ -316,16 +316,16 @@ void dspaces_log_entry_output(struct log_entry* le, char* prefix) {
   std::ofstream log;
   log.open(file_name, std::ofstream::out | std::ofstream::trunc);
   log << "Iteration, API_Time(s), Wait_Time(s), Time(s)" << std::endl;
-  for(int i=0; i<le->index; i++) {
+  for(int i=0; i<le->total_iters; i++) {
     std::cout << le->iter[i] << ", " << le->api_time[i] << ", "
               << le->wait_time[i] << ", " << le->time[i] << std::endl;
     le->total_api_time += le->api_time[i];
     le->total_wait_time += le->wait_time[i];
     le->total_time += le->time[i];
   }
-  le->avg_api_time = le->total_api_time / le->index;
-  le->avg_wait_time = le->total_wait_time / le->index;
-  le->avg_time = le->total_time / le->index;
+  le->avg_api_time = le->total_api_time / le->total_iters;
+  le->avg_wait_time = le->total_wait_time / le->total_iters;
+  le->avg_time = le->total_time / le->total_iters;
   log << "Total, " << le->total_api_time << ", "
       << le->total_wait_time << ", " << le->total_time << std::endl;
   log << "Average, " << le->avg_api_time << ", "
@@ -413,7 +413,7 @@ void dspaces_log_output(struct log *io_log, char* log_path) {
 
 void log_summary_print(struct log *io_log) {
   if(io_rank == 0) {
-    std::cout << "********" << io_log->name << "IO SUMMARY ********" << std::endl;
+    std::cout << "********" << io_log->name << " IO SUMMARY ********" << std::endl;
   }
   if(xy_rank == 0) {
     if(io_log->eos != NULL)
