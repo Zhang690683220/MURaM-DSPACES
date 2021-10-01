@@ -16,6 +16,7 @@
 
 using namespace std;
 
+struct root_list *io_root_rank_list;
 struct log *io_file_log, *io_dspaces_log;
 // Number of IO process to be logged
 // 3D: EOS-0, DIAG-1
@@ -56,29 +57,217 @@ void z_scatter_io(const GridData&,const int,float*,int,float*,int);
 void xy_slice_write(const GridData&,const int,float*,int,FILE*);
 void xy_slice_read(const GridData&,const int,float*,int,FILE*);
 
-// double collect_time(const RunData& Run, double time, int iroot, MPI_Comm comm) {
-//   int size;
-//   //MPI_Comm_size(comm, &size);
-//   double result = -1;
-//   MPI_Reduce(&time, &result, 1, MPI_DOUBLE, MPI_SUM, iroot, comm);
-//   if(comm == iroot) {
-//     result /= size;
-//     if(io_rank == 0) {
-//       return result;
-//     } else {
-//       MPI_Send(&result, 1, MPI_DOUBLE, 0, 0, io_comm);
-//     }
-//   } else {
-//     if(io_rank == 0) {
-//       MPI_Recv(&result, 1, MPI_DOUBLE, )
-//     }
-//   }
+enum io_group {XY_ROOT, XZ_ROOT, YZ_ROOT, XCOL_ROOT, YCOL_ROOT, ZCOL_ROOT, ALL_IO_RANK}
 
-// }
+// ALL ranks should call it
+// But return value only valids in proc whose io_rank == 0
+double collect_time(double send_time ,enum io_group iog) {
+  using liit = std::list<int>::iterator;
+  double result = 0.0;
+  switch (iog)
+  {
+  case XY_ROOT:
+    // sender
+    if(xy_rank == 0) {
+      MPI_Send(&send_time, 1, MPI_DOUBLE, 0, 1, io_comm);
+    }
+    // receiver
+    if(io_rank == 0) {
+      int i = 0;
+      double * time_buf = (double*) malloc(io_root_rank_list->xy_root.size() * sizeof(double));
+      for(liit it=io_root_rank_list->xy_root.begin(); it !=io_root_rank_list->xy_root.end(); it++){
+        MPI_Recv(&time_buf[i], 1, MPI_DOUBLE, *it, 1, io_comm, MPI_STATUS_IGNORE);
+        result += time_buf[i];
+        i++;
+      }
+      free(time_buf);
+      result /= io_root_rank_list->xy_root.size();
+      return result;
+    }
+    break;
+
+  case XZ_ROOT:
+    // sender
+    if(xz_rank == 0) {
+      MPI_Send(&send_time, 1, MPI_DOUBLE, 0, 1, io_comm);
+    }
+    // receiver
+    if(io_rank == 0) {
+      int i = 0;
+      double * time_buf = (double*) malloc(io_root_rank_list->xz_root.size() * sizeof(double));
+      for(liit it=io_root_rank_list->xz_root.begin(); it !=io_root_rank_list->xz_root.end(); it++){
+        MPI_Recv(&time_buf[i], 1, MPI_DOUBLE, *it, 1, io_comm, MPI_STATUS_IGNORE);
+        result += time_buf[i];
+        i++;
+      }
+      free(time_buf);
+      result /= io_root_rank_list->xz_root.size();
+      return result;
+    }
+    break;
+
+  case YZ_ROOT:
+    // sender
+    if(yz_rank == 0) {
+      MPI_Send(&send_time, 1, MPI_DOUBLE, 0, 1, io_comm);
+    }
+    // receiver
+    if(io_rank == 0) {
+      int i = 0;
+      double * time_buf = (double*) malloc(io_root_rank_list->yz_root.size() * sizeof(double));
+      for(liit it=io_root_rank_list->yz_root.begin(); it !=io_root_rank_list->yz_root.end(); it++){
+        MPI_Recv(&time_buf[i], 1, MPI_DOUBLE, *it, 1, io_comm, MPI_STATUS_IGNORE);
+        result += time_buf[i];
+        i++;
+      }
+      free(time_buf);
+      result /= io_root_rank_list->yz_root.size();
+      return result;
+    }
+    break;
+
+  case XCOL_ROOT:
+    // sender
+    if(xcol_rank == 0) {
+      MPI_Send(&send_time, 1, MPI_DOUBLE, 0, 1, io_comm);
+    }
+    // receiver
+    if(io_rank == 0) {
+      int i = 0;
+      double * time_buf = (double*) malloc(io_root_rank_list->xcol_root.size() * sizeof(double));
+      for(liit it=io_root_rank_list->xcol_root.begin(); it !=io_root_rank_list->xcol_root.end(); it++){
+        MPI_Recv(&time_buf[i], 1, MPI_DOUBLE, *it, 1, io_comm, MPI_STATUS_IGNORE);
+        result += time_buf[i];
+        i++;
+      }
+      free(time_buf);
+      result /= io_root_rank_list->xcol_root.size();
+      return result;
+    }
+    break;
+
+  case YCOL_ROOT:
+    // sender
+    if(ycol_rank == 0) {
+      MPI_Send(&send_time, 1, MPI_DOUBLE, 0, 1, io_comm);
+    }
+    // receiver
+    if(io_rank == 0) {
+      int i = 0;
+      double * time_buf = (double*) malloc(io_root_rank_list->ycol_root.size() * sizeof(double));
+      for(liit it=io_root_rank_list->ycol_root.begin(); it !=io_root_rank_list->ycol_root.end(); it++){
+        MPI_Recv(&time_buf[i], 1, MPI_DOUBLE, *it, 1, io_comm, MPI_STATUS_IGNORE);
+        result += time_buf[i];
+        i++;
+      }
+      free(time_buf);
+      result /= io_root_rank_list->ycol_root.size();
+      return result;
+    }
+    break;
+
+  case ZCOL_ROOT:
+    // sender
+    if(zcol_rank == 0) {
+      MPI_Send(&send_time, 1, MPI_DOUBLE, 0, 1, io_comm);
+    }
+    // receiver
+    if(io_rank == 0) {
+      int i = 0;
+      double * time_buf = (double*) malloc(io_root_rank_list->zcol_root.size() * sizeof(double));
+      for(liit it=io_root_rank_list->zcol_root.begin(); it !=io_root_rank_list->zcol_root.end(); it++){
+        MPI_Recv(&time_buf[i], 1, MPI_DOUBLE, *it, 1, io_comm, MPI_STATUS_IGNORE);
+        result += time_buf[i];
+        i++;
+      }
+      free(time_buf);
+      result /= io_root_rank_list->zcol_root.size();
+      return result;
+    }
+    break;
+
+  case ALL_IO_RANK:
+    int io_rank_size;
+    MPI_Comm_size(io_comm, &io_rank_size);
+    double* time_buf;
+    if(io_rank == 0) {
+      time_buf = (double*) malloc(io_rank_size * sizeof(double));
+    }
+    MPI_Gather(&send_time, 1, MPI_DOUBLE, time_buf, 1, MPI_DOUBLE, 0, io_comm);
+
+    for(int i=0; i<io_rank_size; i++) {
+      result += time_buf[i];
+    }
+
+    result /= io_rank_size;
+    return result;
+    break;
+  
+  default:
+    break;
+  }
+  return -1;
+}
+
+struct root_list* log_root_collect() {
+
+  struct root_list* rl = NULL;
+  
+  int rank[7];
+  int io_rank_size;
+  int* rank_buf = NULL;
+  int bufsize;
+
+  rank[0] = xy_rank;
+  rank[1] = xz_rank;
+  rank[2] = yz_rank;
+  rank[3] = xcol_rank;
+  rank[4] = ycol_rank;
+  rank[5] = zcol_rank;
+  rank[6] = io_rank;
+
+  MPI_Comm_size(io_comm, &io_rank_size);
+  bufsize = io_rank_size * 7;
+  if(io_rank == 0) {
+    rl = (struct root_list*) malloc(sizeof(struct root_list));
+    rank_buf = (int*) malloc(bufsize*sizeof(int));
+    MPI_Gather(rank, 7, MPI_INT, rank_buf, 7, MPI_INT, 0, io_comm);
+    for(int i=0; i<bufsize; i+=7) {
+      if(rank_buf[i+0] == 0) {
+        rl->xy_root.push_back(rank_buf[i+6]);
+      }
+      if(rank_buf[i+1] == 0) {
+        rl->xz_root.push_back(rank_buf[i+6]);
+      }
+      if(rank_buf[i+2] == 0) {
+        rl->yz_root.push_back(rank_buf[i+6]);
+      }
+      if(rank_buf[i+3] == 0) {
+        rl->xcol_root.push_back(rank_buf[i+6]);
+      }
+      if(rank_buf[i+4] == 0) {
+        rl->ycol_root.push_back(rank_buf[i+6]);
+      }
+      if(rank_buf[i+5] == 0) {
+        rl->zcol_root.push_back(rank_buf[i+6]);
+      }
+    }
+    rl->xy_root.sort();
+    rl->xz_root.sort();
+    rl->yz_root.sort();
+    rl->xcol_root.sort();
+    rl->ycol_root.sort();
+    rl->zcol_root.sort();
+  }
+
+  return rl;
+
+}
 
 void log_entry_init(struct log_entry* le, std::string name) {
   le->name = name;
   le->iter.clear();
+  le->rank_root.clear();
   le->api_time.clear();
   le->wait_time.clear();
   le->time.clear();
@@ -285,6 +474,7 @@ void IO_Init(const GridData& Grid, const RunData& Run) {
   MPI_Comm_dup(MPI_COMM_WORLD,&io_comm);
   MPI_Comm_dup(XY_COMM,&io_xy_comm);
   MPI_Comm_dup(ZCOL_COMM,&io_z_comm);
+  MPI_Comm_rank(io_comm, &io_rank);
 
  for (i=0;i<2;i++){
     gsz[i]=Grid.gsize[i];
@@ -304,10 +494,13 @@ void IO_Init(const GridData& Grid, const RunData& Run) {
   // make sure MPI IO errors leed to program termination
   MPI_File_set_errhandler(MPI_FILE_NULL,MPI_ERRORS_ARE_FATAL); 
 
+  // collect root rank list to rank 0
+  io_root_rank_list = log_root_collect();
   // io_log init
   io_log_path = Run.io_log_path;
   io_file_log = (struct log*) malloc(sizeof(struct log));
-  io_file_log->name = "FILE";
+  sprintf(io_file_log->name, "FILE");
+  //io_file_log->name = "FILE";
   io_file_log->eos = NULL;
   io_file_log->diag = NULL;
   io_file_log->tau = NULL;
@@ -340,7 +533,7 @@ void IO_Init(const GridData& Grid, const RunData& Run) {
       lb[ii] = str[ii];
       ub[ii] = str[ii]+lsz[ii]-1;
     }
-    MPI_Comm_rank(io_comm, &io_rank);
+    
     int dspaces_rank = io_rank;
     //dspaces io does not need any z-axis collective calls
     lb[2] = Grid.beg[2]-Grid.gbeg[2];
@@ -356,7 +549,7 @@ void IO_Init(const GridData& Grid, const RunData& Run) {
 
     // io_log init
     io_dspaces_log = (struct log*) malloc(sizeof(struct log));
-    io_dspaces_log->name = "DATASPACES";
+    sprintf(io_file_log->name, "DATASPACES");
     io_dspaces_log->eos = NULL;
     io_dspaces_log->diag = NULL;
     io_dspaces_log->tau = NULL;
