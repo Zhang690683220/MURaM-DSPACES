@@ -266,6 +266,8 @@ struct root_list* log_root_collect() {
 }
 
 void get_total_iters(const RunData& Run) {
+  total_res_iters = 0;
+  total_slice_iters = 0;
   for(int i=Run.globiter; i< Run.maxiter; i++) {
     if(i % Run.resfreq == 0) {
       total_res_iters++;
@@ -301,7 +303,7 @@ void log_entry_output(struct log_entry* le, char* prefix) {
   log.open(file_name, std::ofstream::out | std::ofstream::trunc);
   log << "Iteration, Time(s)" << std::endl;
   for(int i=0; i<le->total_iters; i++) {
-    std::cout << le->iter[i] << ", " << le->time[i] << std::endl;
+    log << le->iter[i] << ", " << le->time[i] << std::endl;
     le->total_time += le->time[i];
   }
   le->avg_time = le->total_time / le->total_iters;
@@ -317,8 +319,8 @@ void dspaces_log_entry_output(struct log_entry* le, char* prefix) {
   log.open(file_name, std::ofstream::out | std::ofstream::trunc);
   log << "Iteration, API_Time(s), Wait_Time(s), Time(s)" << std::endl;
   for(int i=0; i<le->total_iters; i++) {
-    std::cout << le->iter[i] << ", " << le->api_time[i] << ", "
-              << le->wait_time[i] << ", " << le->time[i] << std::endl;
+    log << le->iter[i] << ", " << le->api_time[i] << ", "
+    << le->wait_time[i] << ", " << le->time[i] << std::endl;
     le->total_api_time += le->api_time[i];
     le->total_wait_time += le->wait_time[i];
     le->total_time += le->time[i];
