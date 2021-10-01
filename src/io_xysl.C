@@ -138,7 +138,7 @@ void log_output(struct log *io_log, std::string log_path) {
     log_entry_output(io_log->diag, log_path + io_log->name);
   }
 
-  if(io_log->tau != NULL && io_rank == 0) {
+  if(io_log->tau != NULL && xcol_rank == 0 && yz_rank == 0) {
     log_entry_output(io_log->tau, log_path + io_log->name);
   }
 
@@ -175,7 +175,7 @@ void dspaces_log_output(struct log *io_log, std::string log_path) {
     dspaces_log_entry_output(io_log->diag, log_path + io_log->name);
   }
 
-  if(io_log->tau != NULL && io_rank == 0) {
+  if(io_log->tau != NULL && yz_rank == 0 && xcol_rank == 0) {
     dspaces_log_entry_output(io_log->tau, log_path + io_log->name);
   }
 

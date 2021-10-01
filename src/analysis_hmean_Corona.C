@@ -12,6 +12,8 @@
 
 using namespace std;
 
+extern struct log *io_file_log, *io_dspaces_log;
+
 void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
 		        const PhysicsData& Physics, RTS * rts) {
 
@@ -32,6 +34,13 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
 			     array_of_starts,MPI_ORDER_FORTRAN,
 			     MPI_FLOAT,&x_subarray);
     MPI_Type_commit(&x_subarray);
+
+    io_file_log->analyze_vp = (struct log_entry*) malloc(sizeof(struct log_entry));
+    log_entry_init(io_file_log->analyze_vp, "ANALYZE_VP");
+		if(Run.use_dspaces_io) {
+      io_dspaces_log->analyze_vp = (struct log_entry*) malloc(sizeof(struct log_entry));
+      log_entry_init(io_dspaces_log->analyze_vp, "ANALYZE_VP");
+    }
 
     ini_flag = 0;
   }
@@ -313,11 +322,27 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
   }
   delete[] iobuf;
 
-  if(yz_rank == 0 && xcol_rank == 0 && Run.verbose >0) {
-      std::cout << "File Output (ANALYSIS_VP) in " << file_time << " seconds" << std::endl;
-      std::cout << "DataSpaces API Call (ANALYSIS_VP) in " << dspaces_time << " seconds" << std::endl;
-    std::cout << "DataSpaces Wait (ANALYSIS_VP) in " << dspaces_wait_time << " seconds" << std::endl;
-    std::cout << "DataSpaces Output (ANALYSIS_VP) in " << dspaces_time+dspaces_wait_time << " seconds" << std::endl;
+  if(yz_rank == 0 && xcol_rank == 0) {
+    io_file_log->analyze_vp->iter.push_back(Run.globiter);
+		io_file_log->analyze_vp->api_time.push_back(file_time);
+		io_file_log->analyze_vp->time.push_back(file_time);
+		if(Run.use_dspaces_io) {
+			io_dspaces_log->analyze_vp->iter.push_back(Run.globiter);
+      io_dspaces_log->analyze_vp->api_time.push_back(dspaces_time);
+      io_dspaces_log->analyze_vp->wait_time.push_back(dspaces_wait_time);
+      io_dspaces_log->analyze_vp->time.push_back(dspaces_time+dspaces_wait_time);
+		}
+    if(Run.verbose > 0) {
+      std::cout << "File Output (ANALYZE_VP) in " << file_time << " seconds" << std::endl;
+      if(Run.use_dspaces_io) {
+        std::cout << "DataSpaces API Call (ANALYZE_VP) in " << dspaces_time
+                  << " seconds" << std::endl;
+        std::cout << "DataSpaces Wait (ANALYZE_VP) in " << dspaces_wait_time
+                  << " seconds" << std::endl;
+        std::cout << "DataSpaces Output (ANALYZE_VP) in " << dspaces_time+dspaces_wait_time
+                  << " seconds" << std::endl;
+      }
     }
+  }
   
 }

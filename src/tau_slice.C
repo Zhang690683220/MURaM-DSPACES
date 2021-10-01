@@ -14,6 +14,8 @@ using namespace std;
 
 typedef double realtype;
 
+extern struct log *io_file_log, *io_dspaces_log;
+
 extern void slice_write(const GridData&,const int,float*,int,int,const int,
 			const int,FILE*);
 
@@ -78,6 +80,13 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
     nslvar = 0;
     for (v=0;v<14;v++){
       if (Physics.tau_var[v] == 1) nslvar+=1;
+    }
+
+		io_file_log->tau = (struct log_entry*) malloc(sizeof(struct log_entry));
+    log_entry_init(io_file_log->tau, "TAU");
+		if(Run.use_dspaces_io) {
+      io_dspaces_log->tau = (struct log_entry*) malloc(sizeof(struct log_entry));
+      log_entry_init(io_dspaces_log->tau, "TAU");
     }
 
     ini_flag = 0;
@@ -340,11 +349,27 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
   }
   free(iosum);
 
-	if(Run.rank == 0 && Run.verbose >0) {
-		std::cout << "File Output (TAU_SLICE) in " << file_time << " seconds" << std::endl;
-    std::cout << "DataSpaces API Call (TAU_SLICE) in " << dspaces_time << " seconds" << std::endl;
-    std::cout << "DataSpaces Wait (TAU_SLICE) in " << dspaces_wait_time << " seconds" << std::endl;
-    std::cout << "DataSpaces Output (TAU_SLICE) in " << dspaces_time+dspaces_wait_time << " seconds" << std::endl;
+	if(xcol_rank == 0 && yz_rank == 0) {
+		io_file_log->tau->iter.push_back(Run.globiter);
+		io_file_log->tau->api_time.push_back(file_time);
+		io_file_log->tau->time.push_back(file_time);
+		if(Run.use_dspaces_io) {
+			io_dspaces_log->tau->iter.push_back(Run.globiter);
+      io_dspaces_log->tau->api_time.push_back(dspaces_time);
+      io_dspaces_log->tau->wait_time.push_back(dspaces_wait_time);
+      io_dspaces_log->tau->time.push_back(dspaces_time+dspaces_wait_time);
+		}
+		if(Run.verbose >0) {
+			std::cout << "File Output (TAU_SLICE) in " << file_time << " seconds" << std::endl;
+			if(Run.use_dspaces_io) {
+    		std::cout << "DataSpaces API Call (TAU_SLICE) in " << dspaces_time
+									<< " seconds" << std::endl;
+    		std::cout << "DataSpaces Wait (TAU_SLICE) in " << dspaces_wait_time
+									<< " seconds" << std::endl;
+    		std::cout << "DataSpaces Output (TAU_SLICE) in " << dspaces_time+dspaces_wait_time
+									<< " seconds" << std::endl;
+			}
+		}
 	}
 }
 

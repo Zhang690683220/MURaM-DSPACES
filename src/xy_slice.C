@@ -11,6 +11,8 @@
 
 using namespace std;
 
+extern struct log *io_file_log, *io_dspaces_log;
+
 extern void slice_write(const GridData&,const int,float*,int,int,const int,
 			const int,FILE*);
 
@@ -69,6 +71,13 @@ void xy_slice(const RunData&  Run, const GridData& Grid,
     nslvar = 0;
     for (v=0;v<12;v++){
       if (Physics.xy_var[v] == 1) nslvar+=1;
+    }
+
+		io_file_log->xy = (struct log_entry*) malloc(sizeof(struct log_entry));
+    log_entry_init(io_file_log->xy, "XY");
+		if(Run.use_dspaces_io) {
+      io_dspaces_log->xy = (struct log_entry*) malloc(sizeof(struct log_entry));
+      log_entry_init(io_dspaces_log->xy, "XY");
     }
 
     ini_flag = 0;
@@ -266,11 +275,27 @@ void xy_slice(const RunData&  Run, const GridData& Grid,
   }
   free(iobuf);
 
-	if(Run.rank == 0 && Run.verbose >0) {
-		std::cout << "File Output (XY_SLICE) in " << file_time << " seconds" << std::endl;
-    std::cout << "DataSpaces API Call (XY_SLICE) in " << dspaces_time << " seconds" << std::endl;
-    std::cout << "DataSpaces Wait (XY_SLICE) in " << dspaces_wait_time << " seconds" << std::endl;
-    std::cout << "DataSpaces Output (XY_SLICE) in " << dspaces_time+dspaces_wait_time << " seconds" << std::endl;
+	if(Run.rank == 0) {
+		io_file_log->xy->iter.push_back(Run.globiter);
+		io_file_log->xy->api_time.push_back(file_time);
+		io_file_log->xy->time.push_back(file_time);
+		if(Run.use_dspaces_io) {
+			io_dspaces_log->xy->iter.push_back(Run.globiter);
+      io_dspaces_log->xy->api_time.push_back(dspaces_time);
+      io_dspaces_log->xy->wait_time.push_back(dspaces_wait_time);
+      io_dspaces_log->xy->time.push_back(dspaces_time+dspaces_wait_time);
+		}
+		if(Run.verbose > 0) {
+			std::cout << "File Output (XY_SLICE) in " << file_time << " seconds" << std::endl;
+			if(Run.use_dspaces_io) {
+				std::cout << "DataSpaces API Call (XY_SLICE) in " << dspaces_time
+									<< " seconds" << std::endl;
+    		std::cout << "DataSpaces Wait (XY_SLICE) in " << dspaces_wait_time
+									<< " seconds" << std::endl;
+    		std::cout << "DataSpaces Output (XY_SLICE) in " << dspaces_time+dspaces_wait_time
+									<< " seconds" << std::endl;
+			}
+		}
 	}
 }
 
