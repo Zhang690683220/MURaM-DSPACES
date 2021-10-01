@@ -41,7 +41,7 @@ int ds_optimized = 0;
 dspaces_client_t ds_client = dspaces_CLIENT_NULL;
 uint64_t *lb, *ub;
 int io_rank; // for print msg
-std::string io_log_path;
+char io_log_path[128];
 
 static double clk, ds_eos_time, ds_eos_total_time,
               ds_diag_time, ds_diag_total_time,
@@ -264,8 +264,8 @@ struct root_list* log_root_collect() {
 
 }
 
-void log_entry_init(struct log_entry* le, std::string name) {
-  le->name = name;
+void log_entry_init(struct log_entry* le, char* name) {
+  sprintf(le->name, "%s", name);
   le->iter.clear();
   le->rank_root.clear();
   le->api_time.clear();
@@ -279,8 +279,9 @@ void log_entry_init(struct log_entry* le, std::string name) {
   le->avg_time = 0.0;
 }
 
-void log_entry_output(struct log_entry* le, std::string prefix) {
-  std::string file_name = prefix + "_" + le->name + ".log";
+void log_entry_output(struct log_entry* le, char* prefix) {
+  char file_name[128];
+  sprintf(file_name, "%s_%s.log", prefix, le->name);
   std::ofstream log;
   log.open(file_name, std::ofstream::out | std::ofstream::trunc);
   log << "Iteration, Time(s)" << std::endl;
@@ -294,8 +295,9 @@ void log_entry_output(struct log_entry* le, std::string prefix) {
   log.close();
 }
 
-void dspaces_log_entry_output(struct log_entry* le, std::string prefix) {
-  std::string file_name = prefix + "_" + le->name + ".log";
+void dspaces_log_entry_output(struct log_entry* le, char* prefix) {
+  char file_name[128];
+  sprintf(file_name, "%s_%s.log", prefix, le->name);
   std::ofstream log;
   log.open(file_name, std::ofstream::out | std::ofstream::trunc);
   log << "Iteration, API_Time(s), Wait_Time(s), Time(s)" << std::endl;
@@ -316,76 +318,80 @@ void dspaces_log_entry_output(struct log_entry* le, std::string prefix) {
   log.close();
 }
 
-void log_output(struct log *io_log, std::string log_path) {
+void log_output(struct log *io_log, char* log_path) {
   // rank consistent with the print message
   // inside the according IO process 
+  char fstr[128];
+  sprintf(fstr, "%s%s", log_path, io_log->name);
   if(io_log->eos != NULL && xy_rank == 0) {
-    log_entry_output(io_log->eos, log_path + io_log->name);
+    log_entry_output(io_log->eos, fstr);
   }
 
   if(io_log->diag != NULL && xy_rank == 0) {
-    log_entry_output(io_log->diag, log_path + io_log->name);
+    log_entry_output(io_log->diag, fstr);
   }
 
   if(io_log->tau != NULL && xcol_rank == 0 && yz_rank == 0) {
-    log_entry_output(io_log->tau, log_path + io_log->name);
+    log_entry_output(io_log->tau, fstr);
   }
 
   if(io_log->yz != NULL && io_rank == 0) {
-    log_entry_output(io_log->yz, log_path + io_log->name);
+    log_entry_output(io_log->yz, fstr);
   }
 
   if(io_log->xy != NULL && io_rank == 0) {
-    log_entry_output(io_log->xy, log_path + io_log->name);
+    log_entry_output(io_log->xy, fstr);
   }
 
   if(io_log->xz != NULL && io_rank == 0) {
-    log_entry_output(io_log->xz, log_path + io_log->name);
+    log_entry_output(io_log->xz, fstr);
   }
 
   if(io_log->corona != NULL && io_rank == 0) {
-    log_entry_output(io_log->corona, log_path + io_log->name);
+    log_entry_output(io_log->corona, fstr);
   }
 
   if(io_log->analyze_vp != NULL && yz_rank == 0 && xcol_rank == 0) {
-    log_entry_output(io_log->analyze_vp, log_path + io_log->name);
+    log_entry_output(io_log->analyze_vp, fstr);
   }
 
 }
 
-void dspaces_log_output(struct log *io_log, std::string log_path) {
+void dspaces_log_output(struct log *io_log, char* log_path) {
   // rank consistent with the print message
-  // inside the according IO process 
+  // inside the according IO process
+  char fstr[128];
+  sprintf(fstr, "%s%s", log_path, io_log->name);
   if(io_log->eos != NULL && io_rank == 0) {
-    dspaces_log_entry_output(io_log->eos, log_path + io_log->name);
+    dspaces_log_entry_output(io_log->eos, fstr);
   }
 
   if(io_log->diag != NULL && io_rank == 0) {
-    dspaces_log_entry_output(io_log->diag, log_path + io_log->name);
+    dspaces_log_entry_output(io_log->diag, fstr);
   }
 
   if(io_log->tau != NULL && yz_rank == 0 && xcol_rank == 0) {
-    dspaces_log_entry_output(io_log->tau, log_path + io_log->name);
+    dspaces_log_entry_output(io_log->tau, fstr);
   }
 
   if(io_log->yz != NULL && io_rank == 0) {
-    dspaces_log_entry_output(io_log->yz, log_path + io_log->name);
+    dspaces_log_entry_output(io_log->yz, fstr);
   }
 
   if(io_log->xy != NULL && io_rank == 0) {
-    dspaces_log_entry_output(io_log->xy, log_path + io_log->name);
+    dspaces_log_entry_output(io_log->xy, fstr);
   }
 
   if(io_log->xz != NULL && io_rank == 0) {
-    dspaces_log_entry_output(io_log->xz, log_path + io_log->name);
+    dspaces_log_entry_output(io_log->xz, fstr);
   }
 
   if(io_log->corona != NULL && io_rank == 0) {
-    dspaces_log_entry_output(io_log->corona, log_path + io_log->name);
+    dspaces_log_entry_output(io_log->corona, fstr);
   }
 
   if(io_log->analyze_vp != NULL && yz_rank == 0 && xcol_rank == 0) {
-    dspaces_log_entry_output(io_log->analyze_vp, log_path + io_log->name);
+    dspaces_log_entry_output(io_log->analyze_vp, fstr);
   }
 
 }
@@ -497,7 +503,7 @@ void IO_Init(const GridData& Grid, const RunData& Run) {
   // collect root rank list to rank 0
   //io_root_rank_list = log_root_collect();
   // io_log init
-  io_log_path = Run.io_log_path;
+  sprintf(io_log_path, "%s", Run.io_log_path);
   io_file_log = (struct log*) malloc(sizeof(struct log));
   sprintf(io_file_log->name, "FILE");
   //io_file_log->name = "FILE";

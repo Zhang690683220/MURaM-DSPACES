@@ -13,7 +13,7 @@ extern dspaces_client_t ds_client;
 
 // struct for IO logs
 struct log_entry {
-  std::string name;
+  char name[128];
 	std::vector<int> rank_root;
   std::vector<int> iter;
   std::vector<double> api_time;
