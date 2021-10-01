@@ -300,11 +300,11 @@ void log_entry_output(struct log_entry* le, char* prefix) {
   std::ofstream log;
   log.open(file_name, std::ofstream::out | std::ofstream::trunc);
   log << "Iteration, Time(s)" << std::endl;
-  for(int i=0; i<le->iter.size(); i++) {
+  for(int i=0; i<le->index; i++) {
     std::cout << le->iter[i] << ", " << le->time[i] << std::endl;
     le->total_time += le->time[i];
   }
-  le->avg_time = le->total_time / le->iter.size();
+  le->avg_time = le->total_time / le->index;
   log << "Total, " << le->total_time << std::endl;
   log << "Average" << le->avg_time << std::endl;
   log.close();
@@ -316,16 +316,16 @@ void dspaces_log_entry_output(struct log_entry* le, char* prefix) {
   std::ofstream log;
   log.open(file_name, std::ofstream::out | std::ofstream::trunc);
   log << "Iteration, API_Time(s), Wait_Time(s), Time(s)" << std::endl;
-  for(int i=0; i<le->iter.size(); i++) {
+  for(int i=0; i<le->index; i++) {
     std::cout << le->iter[i] << ", " << le->api_time[i] << ", "
               << le->wait_time[i] << ", " << le->time[i] << std::endl;
     le->total_api_time += le->api_time[i];
     le->total_wait_time += le->wait_time[i];
     le->total_time += le->time[i];
   }
-  le->avg_api_time = le->total_api_time / le->iter.size();
-  le->avg_wait_time = le->total_wait_time / le->iter.size();
-  le->avg_time = le->total_time / le->iter.size();
+  le->avg_api_time = le->total_api_time / le->index;
+  le->avg_wait_time = le->total_wait_time / le->index;
+  le->avg_time = le->total_time / le->index;
   log << "Total, " << le->total_api_time << ", "
       << le->total_wait_time << ", " << le->total_time << std::endl;
   log << "Average, " << le->avg_api_time << ", "
