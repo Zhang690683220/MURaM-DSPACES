@@ -75,7 +75,6 @@ void yz_slice(const RunData&  Run, const GridData& Grid,
     for (v=0;v<13;v++)
       if (Physics.yz_var[v] == 1) nslvar+=1;
 
-    int iters = 
     io_file_log->yz = (struct log_entry*) malloc(sizeof(struct log_entry));
     log_entry_init(io_file_log->yz, "YZ", total_slice_iters);
 		if(Run.use_dspaces_io) {
