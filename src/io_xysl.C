@@ -265,7 +265,7 @@ struct root_list* log_root_collect() {
 
 }
 
-void get_total_iters(RunData& Run) {
+void get_total_iters(const RunData& Run) {
   for(int i=Run.globiter; i< Run.maxiter; i++) {
     if(i % Run.resfreq == 0) {
       total_res_iters++;
