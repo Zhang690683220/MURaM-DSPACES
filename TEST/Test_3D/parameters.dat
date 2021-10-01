@@ -29,6 +29,7 @@ kap_name = ../../RUNDIR/kappa_grey.dat
 # Optional IO parameters
 path_3D = 3D/ 
 path_2D = 2D/ 
+io_log_path = io_log/
 use_dspaces_io = 1
 dspaces_terminate = 0
 dspaces_put_local = 0
