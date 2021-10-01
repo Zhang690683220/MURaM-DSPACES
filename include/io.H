@@ -28,7 +28,7 @@ struct log_entry {
 };
 
 struct log {
-	std::string name;
+	char name[128];
   struct log_entry* eos;
   struct log_entry* diag;
   struct log_entry* tau;
