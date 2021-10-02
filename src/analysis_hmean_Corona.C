@@ -37,10 +37,10 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
     MPI_Type_commit(&x_subarray);
 
     io_file_log->analyze_vp = (struct log_entry*) malloc(sizeof(struct log_entry));
-    log_entry_init(io_file_log->analyze_vp, "ANALYZE_VP", total_slice_iters);
+    log_entry_init(io_file_log->analyze_vp, "ANALYZE_VP", est_total_slice_iters);
 		if(Run.use_dspaces_io) {
       io_dspaces_log->analyze_vp = (struct log_entry*) malloc(sizeof(struct log_entry));
-      log_entry_init(io_dspaces_log->analyze_vp, "ANALYZE_VP", total_slice_iters);
+      log_entry_init(io_dspaces_log->analyze_vp, "ANALYZE_VP", est_total_slice_iters);
     }
 
     ini_flag = 0;
