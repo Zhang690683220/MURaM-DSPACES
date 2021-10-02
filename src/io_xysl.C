@@ -16,7 +16,7 @@
 
 using namespace std;
 
-int total_res_iters, total_slice_iters;
+int est_total_res_iters, est_total_slice_iters;
 struct root_list *io_root_rank_list;
 struct log *io_file_log, *io_dspaces_log;
 // Number of IO process to be logged
@@ -266,14 +266,14 @@ struct root_list* log_root_collect() {
 }
 
 void get_total_iters(const RunData& Run) {
-  total_res_iters = 0;
-  total_slice_iters = 0;
+  est_total_res_iters = 0;
+  est_total_slice_iters = 0;
   for(int i=Run.globiter; i< Run.maxiter; i++) {
     if(i % Run.resfreq == 0) {
-      total_res_iters++;
+      est_total_res_iters++;
     }
     if(i % Run.slicefreq == 0 || i % Run.resfreq == 0) {
-      total_slice_iters++;
+      est_total_slice_iters++;
     }
   }
 }
@@ -302,11 +302,11 @@ void log_entry_output(struct log_entry* le, char* prefix) {
   std::ofstream log;
   log.open(file_name, std::ofstream::out | std::ofstream::trunc);
   log << "Iteration, Time(s)" << std::endl;
-  for(int i=0; i<le->total_iters; i++) {
+  for(int i=0; i<le->count; i++) {
     log << le->iter[i] << ", " << le->time[i] << std::endl;
     le->total_time += le->time[i];
   }
-  le->avg_time = le->total_time / le->total_iters;
+  le->avg_time = le->total_time / le->count;
   log << "Total, " << le->total_time << std::endl;
   log << "Average, " << le->avg_time << std::endl;
   log.close();
@@ -318,16 +318,16 @@ void dspaces_log_entry_output(struct log_entry* le, char* prefix) {
   std::ofstream log;
   log.open(file_name, std::ofstream::out | std::ofstream::trunc);
   log << "Iteration, API_Time(s), Wait_Time(s), Time(s)" << std::endl;
-  for(int i=0; i<le->total_iters; i++) {
+  for(int i=0; i<le->count; i++) {
     log << le->iter[i] << ", " << le->api_time[i] << ", "
     << le->wait_time[i] << ", " << le->time[i] << std::endl;
     le->total_api_time += le->api_time[i];
     le->total_wait_time += le->wait_time[i];
     le->total_time += le->time[i];
   }
-  le->avg_api_time = le->total_api_time / le->total_iters;
-  le->avg_wait_time = le->total_wait_time / le->total_iters;
-  le->avg_time = le->total_time / le->total_iters;
+  le->avg_api_time = le->total_api_time / le->count;
+  le->avg_wait_time = le->total_wait_time / le->count;
+  le->avg_time = le->total_time / le->count;
   log << "Total, " << le->total_api_time << ", "
       << le->total_wait_time << ", " << le->total_time << std::endl;
   log << "Average, " << le->avg_api_time << ", "
@@ -957,11 +957,11 @@ void diag_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phy
 
   if(ini_flag == 1) {
     io_file_log->diag = (struct log_entry*) malloc(sizeof(struct log_entry));
-    log_entry_init(io_file_log->diag, "DIAG", total_res_iters);
+    log_entry_init(io_file_log->diag, "DIAG", est_total_res_iters);
 
     if(Run.use_dspaces_io) {
       io_dspaces_log->diag = (struct log_entry*) malloc(sizeof(struct log_entry));
-      log_entry_init(io_dspaces_log->diag, "DIAG", total_res_iters);
+      log_entry_init(io_dspaces_log->diag, "DIAG", est_total_res_iters);
     }
 
     ini_flag = 0;
@@ -1180,11 +1180,11 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
 
   if(ini_flag == 1) {
     io_file_log->eos = (struct log_entry*) malloc(sizeof(struct log_entry));
-    log_entry_init(io_file_log->eos, "EOS", total_res_iters);
+    log_entry_init(io_file_log->eos, "EOS", est_total_res_iters);
 
     if(Run.use_dspaces_io) {
       io_dspaces_log->eos = (struct log_entry*) malloc(sizeof(struct log_entry));
-      log_entry_init(io_dspaces_log->eos, "EOS", total_res_iters);
+      log_entry_init(io_dspaces_log->eos, "EOS", est_total_res_iters);
     }
 
     ini_flag = 0;

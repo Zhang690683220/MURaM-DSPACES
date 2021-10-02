@@ -14,7 +14,7 @@ using namespace std;
 
 typedef double realtype;
 
-extern total_slice_iters;
+extern est_total_slice_iters;
 extern struct log *io_file_log, *io_dspaces_log;
 
 extern void slice_write(const GridData&,const int,float*,int,int,const int,
@@ -351,16 +351,16 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
   free(iosum);
 
 	if(xcol_rank == 0 && yz_rank == 0) {
-		io_file_log->tau->iter[io_file_log->tau->index] = Run.globiter;
-		io_file_log->tau->api_time[io_file_log->tau->index] = file_time;
-		io_file_log->tau->time[io_file_log->tau->index] = file_time;
-		io_file_log->tau->index++ ;
+		io_file_log->tau->iter[io_file_log->tau->count] = Run.globiter;
+		io_file_log->tau->api_time[io_file_log->tau->count] = file_time;
+		io_file_log->tau->time[io_file_log->tau->count] = file_time;
+		io_file_log->tau->count++ ;
 		if(Run.use_dspaces_io) {
-			io_dspaces_log->tau->iter[io_dspaces_log->tau->index] = Run.globiter;
-      io_dspaces_log->tau->api_time[io_dspaces_log->tau->index] = dspaces_time;
-      io_dspaces_log->tau->wait_time[io_dspaces_log->tau->index] = dspaces_wait_time;
-      io_dspaces_log->tau->time[io_dspaces_log->tau->index] = dspaces_time+dspaces_wait_time;
-			io_dspaces_log->tau->index++ ;
+			io_dspaces_log->tau->iter[io_dspaces_log->tau->count] = Run.globiter;
+      io_dspaces_log->tau->api_time[io_dspaces_log->tau->count] = dspaces_time;
+      io_dspaces_log->tau->wait_time[io_dspaces_log->tau->count] = dspaces_wait_time;
+      io_dspaces_log->tau->time[io_dspaces_log->tau->count] = dspaces_time+dspaces_wait_time;
+			io_dspaces_log->tau->count++ ;
 		}
 		if(Run.verbose >0) {
 			std::cout << "File Output (TAU_SLICE) in " << file_time << " seconds" << std::endl;

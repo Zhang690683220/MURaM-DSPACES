@@ -11,7 +11,7 @@
 
 using namespace std;
 
-extern total_slice_iters;
+extern est_total_slice_iters;
 extern struct log *io_file_log, *io_dspaces_log;
 
 extern void slice_write(const GridData&,const int,float*,int,int,const int,
@@ -277,16 +277,16 @@ void xy_slice(const RunData&  Run, const GridData& Grid,
   free(iobuf);
 
 	if(Run.rank == 0) {
-		io_file_log->xy->iter[io_file_log->xy->index] = Run.globiter;
-		io_file_log->xy->api_time[io_file_log->xy->index] = file_time;
-		io_file_log->xy->time[io_file_log->xy->index] = file_time;
-		io_file_log->xy->index++ ;
+		io_file_log->xy->iter[io_file_log->xy->count] = Run.globiter;
+		io_file_log->xy->api_time[io_file_log->xy->count] = file_time;
+		io_file_log->xy->time[io_file_log->xy->count] = file_time;
+		io_file_log->xy->count++ ;
 		if(Run.use_dspaces_io) {
-			io_dspaces_log->xy->iter[io_dspaces_log->xy->index] = Run.globiter;
-      io_dspaces_log->xy->api_time[io_dspaces_log->xy->index] = dspaces_time;
-      io_dspaces_log->xy->wait_time[io_dspaces_log->xy->index] = dspaces_wait_time;
-      io_dspaces_log->xy->time[io_dspaces_log->xy->index] = dspaces_time+dspaces_wait_time;
-			io_dspaces_log->xy->index++ ;
+			io_dspaces_log->xy->iter[io_dspaces_log->xy->count] = Run.globiter;
+      io_dspaces_log->xy->api_time[io_dspaces_log->xy->count] = dspaces_time;
+      io_dspaces_log->xy->wait_time[io_dspaces_log->xy->count] = dspaces_wait_time;
+      io_dspaces_log->xy->time[io_dspaces_log->xy->count] = dspaces_time+dspaces_wait_time;
+			io_dspaces_log->xy->count++ ;
 		}
 		if(Run.verbose > 0) {
 			std::cout << "File Output (XY_SLICE) in " << file_time << " seconds" << std::endl;

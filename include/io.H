@@ -15,7 +15,7 @@ extern dspaces_client_t ds_client;
 struct log_entry {
   char name[128];
 	int* rank_root;
-	int index;
+	int count;
 	int total_iters;
   int* iter;
   double* api_time;
