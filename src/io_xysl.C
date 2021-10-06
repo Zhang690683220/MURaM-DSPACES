@@ -308,10 +308,10 @@ void log_entry_output(struct log_entry* le, char* prefix) {
   if(strcmp(le->name, "CORONA") == 0) {
     log << "Global Size" << std::endl;
     for(int j=0; j<3; j++) {
-      for(int i=0; i<le->ndims; i++) {
+      for(int i=0; i<le->ndims-1; i++) {
         log << le->corona_gsize[j][i] << ", ";
       }
-      log << std::endl;
+      log << le->corona_gsize[j][i] << std::endl;
     }
   }
   else {
@@ -338,6 +338,23 @@ void dspaces_log_entry_output(struct log_entry* le, char* prefix) {
   sprintf(file_name, "%s_%s.log", prefix, le->name);
   std::ofstream log;
   log.open(file_name, std::ofstream::out | std::ofstream::trunc);
+  if(strcmp(le->name, "CORONA") == 0) {
+    log << "Global Size" << std::endl;
+    for(int j=0; j<3; j++) {
+      for(int i=0; i<le->ndims-1; i++) {
+        log << le->corona_gsize[j][i] << ", ";
+      }
+      log << le->corona_gsize[j][i] << std::endl;
+    }
+  }
+  else {
+    log << "Global Size, ";
+    for(int i=0; i<le->ndims; i++) {
+      log << le->gsize[i] << ", ";
+    }
+    log << std::endl;
+  }
+  log << "NVars," <<le->nvars << std::endl;
   log << "Iteration, API_Time(s), Wait_Time(s), Time(s)" << std::endl;
   for(int i=0; i<le->count; i++) {
     log << le->iter[i] << ", " << le->api_time[i] << ", "
