@@ -285,6 +285,7 @@ void log_entry_init(struct log_entry* le, char* name, int iters, int ndims, int*
   for(int i=0; i<ndims; i++) {
     le->gsize[i] = gsize[i];
   }
+  le->nvars = nvars;
   le->count = 0;
   le->total_iters = iters;
   le->iter = (int*) malloc(iters * sizeof(int));

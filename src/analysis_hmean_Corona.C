@@ -296,6 +296,7 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
                                             1, lb, ub, &iobuf[v*Grid.lsize[0]]);
         dspaces_time += MPI_Wtime() - clk;
       }
+      clk = MPI_Wtime();
       char header_name[128];
       FILE * hfhandle = NULL;
       if( xcol_rank == 0 ){
@@ -319,6 +320,8 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
   delete[] glo;
 
   if(yz_rank == 0 && Run.use_dspaces_io) {
+    double dspaces_overlap_time = MPI_Wtime() - clk;
+    clk = MPI_Wtime();
     for(int i=0; i<nvar; i++) {
       dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
     }
