@@ -90,7 +90,7 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
     log_entry_init(io_file_log->tau, "TAU", est_total_slice_iters, 2, gsize, nslice*nslvar);
 		if(Run.use_dspaces_io) {
       io_dspaces_log->tau = (struct log_entry*) malloc(sizeof(struct log_entry));
-      log_entry_init(io_dspaces_log->tau, "TAU", est_total_slice_iters, gsize, nslice*nslvar);
+      log_entry_init(io_dspaces_log->tau, "TAU", est_total_slice_iters, 2, gsize, nslice*nslvar);
     }
 
     ini_flag = 0;
