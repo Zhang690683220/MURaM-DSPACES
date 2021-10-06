@@ -309,7 +309,7 @@ void log_entry_output(struct log_entry* le, char* prefix) {
     log << "Global Size" << std::endl;
     for(int j=0; j<3; j++) {
       for(int i=0; i<le->ndims; i++) {
-        log << le->corona_gsize[j][i] << ", "
+        log << le->corona_gsize[j][i] << ", ";
       }
       log << std::endl;
     }
@@ -317,7 +317,7 @@ void log_entry_output(struct log_entry* le, char* prefix) {
   else {
     log << "Global Size, ";
     for(int i=0; i<le->ndims; i++) {
-      log << le->gsize[i] << ", "
+      log << le->gsize[i] << ", ";
     }
     log << std::endl;
   }
@@ -1068,7 +1068,7 @@ void diag_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phy
 
     if(Run.use_dspaces_io) {
       io_dspaces_log->diag = (struct log_entry*) malloc(sizeof(struct log_entry));
-      log_entry_init(io_dspaces_log->diag, "DIAG", est_total_res_iters, gsize, tot_vars);
+      log_entry_init(io_dspaces_log->diag, "DIAG", est_total_res_iters, 3, gsize, tot_vars);
     }
 
     ini_flag = 0;
