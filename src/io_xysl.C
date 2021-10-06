@@ -311,15 +311,15 @@ void log_entry_output(struct log_entry* le, char* prefix) {
       for(int i=0; i<le->ndims-1; i++) {
         log << le->corona_gsize[j][i] << ", ";
       }
-      log << le->corona_gsize[j][i] << std::endl;
+      log << le->corona_gsize[j][le->ndims-1] << std::endl;
     }
   }
   else {
     log << "Global Size, ";
-    for(int i=0; i<le->ndims; i++) {
+    for(int i=0; i<le->ndims-1; i++) {
       log << le->gsize[i] << ", ";
     }
-    log << std::endl;
+    log << le->gsize[le->ndims-1] << std::endl;
   }
   log << "NVars," <<le->nvars << std::endl;
   log << "Iteration, Time(s)" << std::endl;
@@ -344,15 +344,15 @@ void dspaces_log_entry_output(struct log_entry* le, char* prefix) {
       for(int i=0; i<le->ndims-1; i++) {
         log << le->corona_gsize[j][i] << ", ";
       }
-      log << le->corona_gsize[j][i] << std::endl;
+      log << le->corona_gsize[j][le->ndims-1] << std::endl;
     }
   }
   else {
     log << "Global Size, ";
-    for(int i=0; i<le->ndims; i++) {
+    for(int i=0; i<le->ndims-1; i++) {
       log << le->gsize[i] << ", ";
     }
-    log << std::endl;
+    log << le->gsize[le->ndims-1] << std::endl;
   }
   log << "NVars," <<le->nvars << std::endl;
   log << "Iteration, API_Time(s), Wait_Time(s), Time(s)" << std::endl;
