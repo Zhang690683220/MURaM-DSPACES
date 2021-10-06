@@ -13,6 +13,10 @@ extern dspaces_client_t ds_client;
 
 // struct for IO logs
 struct log_entry {
+  int ndims;
+  int gsize[3];
+  int corona_gsize[3][2];
+  int nvars;
   char name[128];
 	int* rank_root;
 	int count;
@@ -71,5 +75,5 @@ extern void eos_output_gpu(const RunData&,const GridData&,const PhysicsData&, RT
 extern void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid, 
 		               const PhysicsData& Physics);
 
-void log_entry_init(struct log_entry* le, char* name, int iters);
+void log_entry_init(struct log_entry* le, char* name, int iters, int ndims, int* gsize, int nvars);
 

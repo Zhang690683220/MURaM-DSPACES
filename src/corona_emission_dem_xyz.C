@@ -102,11 +102,25 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
     if(Run.rank==0){
       cout << "DEM: Use log(T), log(rho)" << endl;
     }
-	io_file_log->corona = (struct log_entry*) malloc(sizeof(struct log_entry));
-    log_entry_init(io_file_log->corona, "CORONA", est_total_slice_iters);
+
+		int gsize[2]={0};
+		io_file_log->corona = (struct log_entry*) malloc(sizeof(struct log_entry));
+    log_entry_init(io_file_log->corona, "CORONA", est_total_slice_iters, 2, gsize, nout*nslvar);
+		io_file_log->corona->corona_gsize[0][0] = Grid.gsize[2];
+		io_file_log->corona->corona_gsize[0][1] = Grid.gsize[0];
+		io_file_log->corona->corona_gsize[1][0] = Grid.gsize[1];
+		io_file_log->corona->corona_gsize[1][1] = Grid.gsize[2];
+		io_file_log->corona->corona_gsize[2][0] = Grid.gsize[1];
+		io_file_log->corona->corona_gsize[2][1] = Grid.gsize[0];
 		if(Run.use_dspaces_io) {
       io_dspaces_log->corona = (struct log_entry*) malloc(sizeof(struct log_entry));
-      log_entry_init(io_dspaces_log->corona, "CORONA", est_total_slice_iters);
+      log_entry_init(io_dspaces_log->corona, "CORONA", est_total_slice_iters,2, gsize, nout*nslvar);
+			io_dspaces_log->corona->corona_gsize[0][0] = Grid.gsize[2];
+			io_dspaces_log->corona->corona_gsize[0][1] = Grid.gsize[0];
+			io_dspaces_log->corona->corona_gsize[1][0] = Grid.gsize[1];
+			io_dspaces_log->corona->corona_gsize[1][1] = Grid.gsize[2];
+			io_dspaces_log->corona->corona_gsize[2][0] = Grid.gsize[1];
+			io_dspaces_log->corona->corona_gsize[2][1] = Grid.gsize[0];
     }
     ini_flag = 0;
   }

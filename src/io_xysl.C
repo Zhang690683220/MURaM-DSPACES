@@ -279,8 +279,12 @@ void get_total_iters(const RunData& Run) {
 }
 
 
-void log_entry_init(struct log_entry* le, char* name, int iters) {
+void log_entry_init(struct log_entry* le, char* name, int iters, int ndims, int* gsize, int nvars) {
   sprintf(le->name, "%s", name);
+  le->ndims = ndims;
+  for(int i=0; i<ndims; i++) {
+    le->gsize[i] = gsize[i];
+  }
   le->count = 0;
   le->total_iters = iters;
   le->iter = (int*) malloc(iters * sizeof(int));
@@ -301,6 +305,23 @@ void log_entry_output(struct log_entry* le, char* prefix) {
   sprintf(file_name, "%s_%s.log", prefix, le->name);
   std::ofstream log;
   log.open(file_name, std::ofstream::out | std::ofstream::trunc);
+  if(strcmp(le->name, "CORONA") == 0) {
+    log << "Global Size" << std::endl;
+    for(int j=0; j<3; j++) {
+      for(int i=0; i<le->ndims; i++) {
+        log << le->corona_gsize[j][i] << ", "
+      }
+      log << std::endl;
+    }
+  }
+  else {
+    log << "Global Size, ";
+    for(int i=0; i<le->ndims; i++) {
+      log << le->gsize[i] << ", "
+    }
+    log << std::endl;
+  }
+  log << "NVars," <<le->nvars << std::endl;
   log << "Iteration, Time(s)" << std::endl;
   for(int i=0; i<le->count; i++) {
     log << le->iter[i] << ", " << le->time[i] << std::endl;
@@ -955,18 +976,6 @@ void diag_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phy
 
   static int ini_flag = 1;
 
-  if(ini_flag == 1) {
-    io_file_log->diag = (struct log_entry*) malloc(sizeof(struct log_entry));
-    log_entry_init(io_file_log->diag, "DIAG", est_total_res_iters);
-
-    if(Run.use_dspaces_io) {
-      io_dspaces_log->diag = (struct log_entry*) malloc(sizeof(struct log_entry));
-      log_entry_init(io_dspaces_log->diag, "DIAG", est_total_res_iters);
-    }
-
-    ini_flag = 0;
-  }
-
   char filename[128];
 
   register int i,j,k,loc;
@@ -1048,6 +1057,22 @@ void diag_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phy
   sprintf(diag_names[8],"%s","Qres");
   sprintf(diag_names[9],"%s","Qvis");
   sprintf(diag_names[10],"%s","Qamb");
+
+  if(ini_flag == 1) {
+    int gsize[3];
+    for(int i=0; i<3; i++) {
+      gsize[i] = Grid.gsize[i];
+    }
+    io_file_log->diag = (struct log_entry*) malloc(sizeof(struct log_entry));
+    log_entry_init(io_file_log->diag, "DIAG", est_total_res_iters, 3, gsize, tot_vars);
+
+    if(Run.use_dspaces_io) {
+      io_dspaces_log->diag = (struct log_entry*) malloc(sizeof(struct log_entry));
+      log_entry_init(io_dspaces_log->diag, "DIAG", est_total_res_iters, gsize, tot_vars);
+    }
+
+    ini_flag = 0;
+  }
   
   
   iobuf_loc = (float*)malloc(lsize*sizeof(float));
@@ -1178,17 +1203,7 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
 
   static int ini_flag = 1;
 
-  if(ini_flag == 1) {
-    io_file_log->eos = (struct log_entry*) malloc(sizeof(struct log_entry));
-    log_entry_init(io_file_log->eos, "EOS", est_total_res_iters);
-
-    if(Run.use_dspaces_io) {
-      io_dspaces_log->eos = (struct log_entry*) malloc(sizeof(struct log_entry));
-      log_entry_init(io_dspaces_log->eos, "EOS", est_total_res_iters);
-    }
-
-    ini_flag = 0;
-  }
+  
 
   char filename[128];
 
@@ -1294,6 +1309,22 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
   eos_vars[11] = Grid.QMg;
   eos_vars[12] = Grid.QCa;
   eos_vars[13] = Grid.QChr;
+
+  if(ini_flag == 1) {
+    int gsize[3];
+    for(int i=0; i<3; i++) {
+      gsize[i] = Grid.gsize[i];
+    }
+    io_file_log->eos = (struct log_entry*) malloc(sizeof(struct log_entry));
+    log_entry_init(io_file_log->eos, "EOS", est_total_res_iters, 3, gsize, tot_vars);
+
+    if(Run.use_dspaces_io) {
+      io_dspaces_log->eos = (struct log_entry*) malloc(sizeof(struct log_entry));
+      log_entry_init(io_dspaces_log->eos, "EOS", est_total_res_iters, 3, gsize, tot_vars);
+    }
+
+    ini_flag = 0;
+  }
  
   iobuf_loc = (float*)malloc(lsize*sizeof(float));
   for(v2=0;v2<v2_max;v2++)

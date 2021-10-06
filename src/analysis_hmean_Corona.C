@@ -22,29 +22,7 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
 
   static MPI_Datatype x_subarray;
 
-  if (ini_flag) {
-    int array_of_sizes[1];
-    int array_of_subsizes[1];
-    int array_of_starts[1];
-
-    array_of_sizes[0]=Grid.gsize[0];
-    array_of_subsizes[0]=Grid.lsize[0];
-    array_of_starts[0]=Grid.beg[0]-Grid.gbeg[0];
-
-    MPI_Type_create_subarray(1,array_of_sizes,array_of_subsizes,
-			     array_of_starts,MPI_ORDER_FORTRAN,
-			     MPI_FLOAT,&x_subarray);
-    MPI_Type_commit(&x_subarray);
-
-    io_file_log->analyze_vp = (struct log_entry*) malloc(sizeof(struct log_entry));
-    log_entry_init(io_file_log->analyze_vp, "ANALYZE_VP", est_total_slice_iters);
-		if(Run.use_dspaces_io) {
-      io_dspaces_log->analyze_vp = (struct log_entry*) malloc(sizeof(struct log_entry));
-      log_entry_init(io_dspaces_log->analyze_vp, "ANALYZE_VP", est_total_slice_iters);
-    }
-
-    ini_flag = 0;
-  }
+  
 
   register int i,j,k,node,ind,ioff,v;
 
@@ -80,6 +58,32 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
   double dn,eps,vx,vy,vz,bx,by,bz,vsqr,idn,rfac;
 
   static int nvar=50;
+
+  if (ini_flag) {
+    int array_of_sizes[1];
+    int array_of_subsizes[1];
+    int array_of_starts[1];
+
+    array_of_sizes[0]=Grid.gsize[0];
+    array_of_subsizes[0]=Grid.lsize[0];
+    array_of_starts[0]=Grid.beg[0]-Grid.gbeg[0];
+
+    MPI_Type_create_subarray(1,array_of_sizes,array_of_subsizes,
+			     array_of_starts,MPI_ORDER_FORTRAN,
+			     MPI_FLOAT,&x_subarray);
+    MPI_Type_commit(&x_subarray);
+
+    int gsize[1];
+    gsize[0] = Grid.gsize[0];
+    io_file_log->analyze_vp = (struct log_entry*) malloc(sizeof(struct log_entry));
+    log_entry_init(io_file_log->analyze_vp, "ANALYZE_VP", est_total_slice_iters, 1, gsize, nvar);
+		if(Run.use_dspaces_io) {
+      io_dspaces_log->analyze_vp = (struct log_entry*) malloc(sizeof(struct log_entry));
+      log_entry_init(io_dspaces_log->analyze_vp, "ANALYZE_VP", est_total_slice_iters, 1, gsize, nvar);
+    }
+
+    ini_flag = 0;
+  }
 
   double  *loc, *glo;
   float *iobuf;

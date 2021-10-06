@@ -74,11 +74,14 @@ void xy_slice(const RunData&  Run, const GridData& Grid,
       if (Physics.xy_var[v] == 1) nslvar+=1;
     }
 
+		int gsize[2];
+    gsize[0] = Grid.gsize[1];
+    gsize[1] = Grid.gsize[0];
 		io_file_log->xy = (struct log_entry*) malloc(sizeof(struct log_entry));
-    log_entry_init(io_file_log->xy, "XY", est_total_slice_iters);
+    log_entry_init(io_file_log->xy, "XY", est_total_slice_iters, 2, gsize, nslice*nslvar);
 		if(Run.use_dspaces_io) {
       io_dspaces_log->xy = (struct log_entry*) malloc(sizeof(struct log_entry));
-      log_entry_init(io_dspaces_log->xy, "XY", est_total_slice_iters);
+      log_entry_init(io_dspaces_log->xy, "XY", est_total_slice_iters, 2, gsize, nslice*nslvar);
     }
 
     ini_flag = 0;
