@@ -1438,7 +1438,7 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
       sprintf(ds_var_name, "%s%s", Run.path_3D,eos_names[var]);
       clk = MPI_Wtime();
       dspaces_put_req = dspaces_iput(ds_client, ds_var_name, Run.globiter,
-                                      sizeof(float), Grid.NDIM, lb, ub, iobuf_loc);
+                                      sizeof(float), Grid.NDIM, lb, ub, iobuf_loc, 1);
       dspaces_time += MPI_Wtime() - clk;
       clk = MPI_Wtime();
     }
