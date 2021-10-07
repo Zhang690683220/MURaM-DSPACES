@@ -1169,10 +1169,10 @@ void diag_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phy
     v_max = tot_vars;
     for(int vi=0; vi<v_max; vi++) {
       var = var_index[vi];
-      if(vi>0) {
-        dspaces_check_put(ds_client, dspaces_put_req, 1);
-        dspaces_wait_time += MPI_Wtime() - clk;
-      }
+      // if(vi>0) {
+      //   dspaces_check_put(ds_client, dspaces_put_req, 1);
+      //   dspaces_wait_time += MPI_Wtime() - clk;
+      // }
       for(k=0;k<sizez;k++){
 	      for(j=0;j<sizey;j++){
 	        for(i=0;i<sizex;i++){
@@ -1188,24 +1188,24 @@ void diag_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phy
       sprintf(ds_var_name, "%s%s", Run.path_3D,diag_names[var]);
       clk = MPI_Wtime();
       dspaces_put_req = dspaces_iput(ds_client, ds_var_name, Run.globiter,
-                                      sizeof(float), Grid.NDIM, lb, ub, iobuf_loc);
+                                      sizeof(float), Grid.NDIM, lb, ub, iobuf_loc, 1);
       dspaces_time += MPI_Wtime() - clk;
       clk = MPI_Wtime();
     }
-    if(Run.iteration > 0){
-    dspaces_check_put(ds_client, dspaces_put_req, 1);
-    dspaces_wait_time += MPI_Wtime() - clk;
-    }
+    // if(Run.iteration > 0){
+    // dspaces_check_put(ds_client, dspaces_put_req, 1);
+    // dspaces_wait_time += MPI_Wtime() - clk;
+    // }
     if(io_rank == 0) {
       io_dspaces_log->diag->iter[io_dspaces_log->diag->count] = Run.globiter;
       io_dspaces_log->diag->api_time[io_dspaces_log->diag->count] = dspaces_time;
-      io_dspaces_log->diag->wait_time[io_dspaces_log->diag->count] = dspaces_wait_time;
-      io_dspaces_log->diag->time[io_dspaces_log->diag->count] = dspaces_time+dspaces_wait_time;
+      // io_dspaces_log->diag->wait_time[io_dspaces_log->diag->count] = dspaces_wait_time;
+      io_dspaces_log->diag->time[io_dspaces_log->diag->count] = dspaces_time;
       io_dspaces_log->diag->count++ ;
       if(Run.verbose > 0) {
         std::cout << "DataSpaces API Call (DIAG) in " << dspaces_time << " seconds" << std::endl;
-        std::cout << "DataSpaces Wait (DIAG) in " << dspaces_wait_time << " seconds" << std::endl;
-        std::cout << "DataSpaces Output (DIAG) in " << dspaces_time+dspaces_wait_time << " seconds"
+        // std::cout << "DataSpaces Wait (DIAG) in " << dspaces_wait_time << " seconds" << std::endl;
+        std::cout << "DataSpaces Output (DIAG) in " << dspaces_time << " seconds"
                   << std::endl;
       }
     }
@@ -1419,10 +1419,10 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
     v_max = tot_vars;
     for(int vi=0; vi<v_max; vi++) {
       var = var_index[vi];
-      if(vi>0) {
-        dspaces_check_put(ds_client, dspaces_put_req, 1);
-        dspaces_wait_time += MPI_Wtime() - clk;
-      }
+      // if(vi>0) {
+      //   dspaces_check_put(ds_client, dspaces_put_req, 1);
+      //   dspaces_wait_time += MPI_Wtime() - clk;
+      // }
       for(k=0; k<sizez; k++) {
         for(j=0; j<sizey; j++){
           for(i=0; i<sizex; i++) {
@@ -1443,18 +1443,18 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
       clk = MPI_Wtime();
     }
 
-    dspaces_check_put(ds_client, dspaces_put_req, 1);
-    dspaces_wait_time += MPI_Wtime() - clk;
+    // dspaces_check_put(ds_client, dspaces_put_req, 1);
+    // dspaces_wait_time += MPI_Wtime() - clk;
     if(io_rank == 0 && Run.verbose > 0) {
       io_dspaces_log->eos->iter[io_dspaces_log->eos->count] = Run.globiter;
       io_dspaces_log->eos->api_time[io_dspaces_log->eos->count] = dspaces_time;
-      io_dspaces_log->eos->wait_time[io_dspaces_log->eos->count] = dspaces_wait_time;
-      io_dspaces_log->eos->time[io_dspaces_log->eos->count] = dspaces_time+dspaces_wait_time;
+      // io_dspaces_log->eos->wait_time[io_dspaces_log->eos->count] = dspaces_wait_time;
+      io_dspaces_log->eos->time[io_dspaces_log->eos->count] = dspaces_time;
       io_dspaces_log->eos->count++;
       if(Run.verbose) {
         std::cout << "DataSpaces API Call (EOS) in " << dspaces_time << " seconds" << std::endl;
-        std::cout << "DataSpaces Wait (EOS) in " << dspaces_wait_time << " seconds" << std::endl;
-        std::cout << "DataSpaces Output (EOS) in " << dspaces_time+dspaces_wait_time << " seconds"
+        // std::cout << "DataSpaces Wait (EOS) in " << dspaces_wait_time << " seconds" << std::endl;
+        std::cout << "DataSpaces Output (EOS) in " << dspaces_time << " seconds"
                   << std::endl;
       }
     }

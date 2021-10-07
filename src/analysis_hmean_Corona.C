@@ -319,15 +319,15 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
   delete[] loc;
   delete[] glo;
 
-  if(yz_rank == 0 && Run.use_dspaces_io) {
-    double dspaces_overlap_time = MPI_Wtime() - clk;
-    clk = MPI_Wtime();
-    for(int i=0; i<nvar; i++) {
-      dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
-    }
-    dspaces_wait_time += MPI_Wtime() - clk;
-    free(dspaces_put_req_list);
-  }
+  // if(yz_rank == 0 && Run.use_dspaces_io) {
+  //   double dspaces_overlap_time = MPI_Wtime() - clk;
+  //   clk = MPI_Wtime();
+  //   for(int i=0; i<nvar; i++) {
+  //     dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
+  //   }
+  //   dspaces_wait_time += MPI_Wtime() - clk;
+  //   free(dspaces_put_req_list);
+  // }
   delete[] iobuf;
 
   if(yz_rank == 0 && xcol_rank == 0) {
@@ -338,8 +338,8 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
 		if(Run.use_dspaces_io) {
 			io_dspaces_log->analyze_vp->iter[io_dspaces_log->analyze_vp->count] = Run.globiter;
       io_dspaces_log->analyze_vp->api_time[io_dspaces_log->analyze_vp->count] = dspaces_time;
-      io_dspaces_log->analyze_vp->wait_time[io_dspaces_log->analyze_vp->count] = dspaces_wait_time;
-      io_dspaces_log->analyze_vp->time[io_dspaces_log->analyze_vp->count] = dspaces_time+dspaces_wait_time;
+      // io_dspaces_log->analyze_vp->wait_time[io_dspaces_log->analyze_vp->count] = dspaces_wait_time;
+      io_dspaces_log->analyze_vp->time[io_dspaces_log->analyze_vp->count] = dspaces_time;
       io_dspaces_log->analyze_vp->count++ ;
 		}
     if(Run.verbose > 0) {
@@ -347,9 +347,9 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
       if(Run.use_dspaces_io) {
         std::cout << "DataSpaces API Call (ANALYZE_VP) in " << dspaces_time
                   << " seconds" << std::endl;
-        std::cout << "DataSpaces Wait (ANALYZE_VP) in " << dspaces_wait_time
-                  << " seconds" << std::endl;
-        std::cout << "DataSpaces Output (ANALYZE_VP) in " << dspaces_time+dspaces_wait_time
+        // std::cout << "DataSpaces Wait (ANALYZE_VP) in " << dspaces_wait_time
+        //           << " seconds" << std::endl;
+        std::cout << "DataSpaces Output (ANALYZE_VP) in " << dspaces_time
                   << " seconds" << std::endl;
       }
     }

@@ -95,13 +95,13 @@ void xy_slice(const RunData&  Run, const GridData& Grid,
          (Grid.end[2] >= ixpos[nsl]+Grid.gbeg[2] )){
 
 	  // check dspaces_iput() except for the first iter
-      if(Run.use_dspaces_io && nsl > 0) {
-        for(int i=0; i<nslvar; i++) {
-          dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
-        }
-        dspaces_wait_time += MPI_Wtime() - clk;
-        free(dspaces_put_req_list);
-      }
+      // if(Run.use_dspaces_io && nsl > 0) {
+      //   for(int i=0; i<nslvar; i++) {
+      //     dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
+      //   }
+      //   dspaces_wait_time += MPI_Wtime() - clk;
+      //   free(dspaces_put_req_list);
+      // }
 
       for (i=ibeg; i<=iend; i++){
         for (j=jbeg; j<=jend; j++){
@@ -267,16 +267,16 @@ void xy_slice(const RunData&  Run, const GridData& Grid,
   }
 
   // check if put finish for the last dspaces_iput() before iobuf free
-  if ( (Grid.beg[2] <= ixpos[nsl]+Grid.gbeg[2] ) and 
-         (Grid.end[2] >= ixpos[nsl]+Grid.gbeg[2] )){
-	if(Run.use_dspaces_io) {
-      for(int i=0; i<nslvar; i++) {
-        dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
-      }
-      dspaces_wait_time += MPI_Wtime() - clk;
-      free(dspaces_put_req_list);
-    }
-  }
+  // if ( (Grid.beg[2] <= ixpos[nsl]+Grid.gbeg[2] ) and 
+  //        (Grid.end[2] >= ixpos[nsl]+Grid.gbeg[2] )){
+	// if(Run.use_dspaces_io) {
+  //     for(int i=0; i<nslvar; i++) {
+  //       dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
+  //     }
+  //     dspaces_wait_time += MPI_Wtime() - clk;
+  //     free(dspaces_put_req_list);
+  //   }
+  // }
   free(iobuf);
 
 	if(Run.rank == 0) {
@@ -287,8 +287,8 @@ void xy_slice(const RunData&  Run, const GridData& Grid,
 		if(Run.use_dspaces_io) {
 			io_dspaces_log->xy->iter[io_dspaces_log->xy->count] = Run.globiter;
       io_dspaces_log->xy->api_time[io_dspaces_log->xy->count] = dspaces_time;
-      io_dspaces_log->xy->wait_time[io_dspaces_log->xy->count] = dspaces_wait_time;
-      io_dspaces_log->xy->time[io_dspaces_log->xy->count] = dspaces_time+dspaces_wait_time;
+      // io_dspaces_log->xy->wait_time[io_dspaces_log->xy->count] = dspaces_wait_time;
+      io_dspaces_log->xy->time[io_dspaces_log->xy->count] = dspaces_time;
 			io_dspaces_log->xy->count++ ;
 		}
 		if(Run.verbose > 0) {
@@ -296,9 +296,9 @@ void xy_slice(const RunData&  Run, const GridData& Grid,
 			if(Run.use_dspaces_io) {
 				std::cout << "DataSpaces API Call (XY_SLICE) in " << dspaces_time
 									<< " seconds" << std::endl;
-    		std::cout << "DataSpaces Wait (XY_SLICE) in " << dspaces_wait_time
-									<< " seconds" << std::endl;
-    		std::cout << "DataSpaces Output (XY_SLICE) in " << dspaces_time+dspaces_wait_time
+    		// std::cout << "DataSpaces Wait (XY_SLICE) in " << dspaces_wait_time
+				// 					<< " seconds" << std::endl;
+    		std::cout << "DataSpaces Output (XY_SLICE) in " << dspaces_time
 									<< " seconds" << std::endl;
 			}
 		}
