@@ -305,7 +305,7 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
 					sprintf(ds_var_name, "%s%s_%.6f", Run.path_2D,"tau_slice",tau_lev[nsl]);
         clk = MPI_Wtime();
         dspaces_put_req_list = slice_write_dspaces(Grid, 0, &(iosum[0]), localsize, nslvar, 1, 2,
-													ds_var_name, Run.globiter/50, 2);
+													ds_var_name, Run.globiter, 2);
         dspaces_time += MPI_Wtime() - clk;
         char header_filename[128];
         if(yz_rank == 0) {

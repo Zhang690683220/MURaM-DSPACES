@@ -238,7 +238,7 @@ void yz_slice(const RunData&  Run, const GridData& Grid,
         sprintf(ds_var_name, "%s%s_%04d", Run.path_2D,"yz_slice",ixpos[nsl]);
         clk = MPI_Wtime();
         dspaces_put_req_list = slice_write_dspaces(Grid, 0, iobuf, localsize, nslvar, 1, 2, ds_var_name,
-                                                   Run.globiter/50, 2);
+                                                   Run.globiter, 2);
         dspaces_time += MPI_Wtime() - clk;
         char header_filename[128];
         if(yz_rank == 0) {
