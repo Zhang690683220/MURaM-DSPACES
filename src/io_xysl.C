@@ -1573,7 +1573,7 @@ void eos_output_gpu(const RunData& Run, const GridData& Grid,const PhysicsData& 
     if(ds_put_local) {
       dspaces_put_local(ds_client, ds_var_name, Run.globiter, sizeof(float), Grid.NDIM, lb, ub, dev_ptr);
     } else {
-      dspaces_iput(ds_client, ds_var_name, Run.globiter, sizeof(float), Grid.NDIM, lb, ub, dev_ptr);
+      dspaces_put(ds_client, ds_var_name, Run.globiter, sizeof(float), Grid.NDIM, lb, ub, dev_ptr);
     }
     if(ds_ret != 0) {
       cout << "Error Writing " << ds_var_name << "Version: " << Run.globiter
