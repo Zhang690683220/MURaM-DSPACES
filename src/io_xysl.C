@@ -901,11 +901,17 @@ void IO_Finalize() {
     }
 
   }
+  if(io_rank == 1){
+      std::cout << "Rank:" << io_rank << " ,I'm alive before file logoutput!" <<std::endl;
+  }
   
   // write log
   log_output(io_file_log, io_log_path);
   log_summary_print(io_file_log);
   if(ds_io) {
+    if(io_rank == 1){
+      std::cout << "Rank:" << io_rank << " ,I'm alive before dspaces logoutput!" <<std::endl;
+  }
     dspaces_log_output(io_dspaces_log, io_log_path);
     log_summary_print(io_dspaces_log);
     log_free(io_dspaces_log);
