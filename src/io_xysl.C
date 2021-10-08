@@ -879,9 +879,9 @@ void IO_Finalize() {
                                   + io_dspaces_log->corona->api_time[io_dspaces_log->corona->count-1];
     }
     wait_time = 0.0;
-    if(io_rank == 1){
+    
       std::cout << "Rank:" << io_rank << "I'm alive before analyzevp!" <<std::endl;
-    }
+    
     // 1D/ANALYZE_VP at YZ_ROOT only
     if(io_dspaces_log->analyze_vp != NULL) {
       if(analyzevp_dspaces_put_req_list != NULL) {
@@ -901,28 +901,28 @@ void IO_Finalize() {
     }
 
   }
-  if(io_rank == 1){
+  
       std::cout << "Rank:" << io_rank << " ,I'm alive before file logoutput!" <<std::endl;
-  }
+
   
   // write log
   log_output(io_file_log, io_log_path);
   log_summary_print(io_file_log);
   if(ds_io) {
-    if(io_rank == 1){
+    
       std::cout << "Rank:" << io_rank << " ,I'm alive before dspaces logoutput!" <<std::endl;
-  }
+  
     dspaces_log_output(io_dspaces_log, io_log_path);
     log_summary_print(io_dspaces_log);
     log_free(io_dspaces_log);
   }
-  if(io_rank == 1){
+  
       std::cout << "Rank:" << io_rank << " ,I'm alive after free dspaces logoutput!" <<std::endl;
-  }
+  
   log_free(io_file_log);
-  if(io_rank == 1){
+  
       std::cout << "Rank:" << io_rank << " ,I'm alive after free file logoutput!" <<std::endl;
-  }
+
 
   MPI_Type_free(&io_subarray);
   MPI_Info_free(&io_info);
@@ -946,9 +946,8 @@ void IO_Finalize() {
     if(ds_terminate) {
       dspaces_kill(ds_client);
     }
-    if(io_rank == 1){
+    
       std::cout << "Rank:" << io_rank << " ,I'm alive before dspaces fini!" <<std::endl;
-  }
     dspaces_fini(ds_client);
       std::cout << "Rank:" << io_rank << " ,I'm alive after dspaces fini!" <<std::endl;
   
