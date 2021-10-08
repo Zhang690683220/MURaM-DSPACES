@@ -733,7 +733,7 @@ void IO_Finalize() {
       io_dspaces_log->tau->wait_time[io_dspaces_log->tau->count-1] = wait_time;
       io_dspaces_log->tau->time[io_dspaces_log->tau->count-1] = wait_time
                                   + io_dspaces_log->tau->api_time[io_dspaces_log->tau->count-1];
-      free(tauslice_dspaces_put_req_list)
+      free(tauslice_dspaces_put_req_list);
     }
 
     wait_time = 0.0;
