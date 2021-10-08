@@ -916,7 +916,13 @@ void IO_Finalize() {
     log_summary_print(io_dspaces_log);
     log_free(io_dspaces_log);
   }
+  if(io_rank == 1){
+      std::cout << "Rank:" << io_rank << " ,I'm alive after free dspaces logoutput!" <<std::endl;
+  }
   log_free(io_file_log);
+  if(io_rank == 1){
+      std::cout << "Rank:" << io_rank << " ,I'm alive after free file logoutput!" <<std::endl;
+  }
 
   MPI_Type_free(&io_subarray);
   MPI_Info_free(&io_info);
@@ -940,7 +946,13 @@ void IO_Finalize() {
     if(ds_terminate) {
       dspaces_kill(ds_client);
     }
+    if(io_rank == 1){
+      std::cout << "Rank:" << io_rank << " ,I'm alive before dspaces fini!" <<std::endl;
+  }
     dspaces_fini(ds_client);
+    if(io_rank == 1){
+      std::cout << "Rank:" << io_rank << " ,I'm alive after dspaces fini!" <<std::endl;
+  }
   }
 }
 ////////////////////// Output /////////////////////////////////
