@@ -316,10 +316,14 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
       if (xcol_rank == iroot){
 	for (v=0;v<nout;v++){
 
-		if(Run.use_dspaces_io && coronayz_dspaces_put_req_list != NULL && corona_ref_count > 0) {
+		if(Run.use_dspaces_io && corona_ref_count > 0) {
 			clk = MPI_Wtime();
 			for(int i=0; i<nslvar; i++) {
-				dspaces_check_put(ds_client, coronayz_dspaces_put_req_list[v][i], 1);
+				// slice_write_rebin() sometimes has all involved ranks write
+				// sometimes gather the data to the root rank
+				if(coronayz_dspaces_put_req_list[v][i] != NULL) {
+					dspaces_check_put(ds_client, coronayz_dspaces_put_req_list[v][i], 1);
+				}
 			}
 			double dspaces_check_time = MPI_Wtime() - clk;
 			if(dspaces_check_time > nslvar*1e-6) {
@@ -452,10 +456,14 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
       
       if (ycol_rank == iroot){
 	for (v=0;v<nout;v++){
-		if(Run.use_dspaces_io && coronaxz_dspaces_put_req_list != NULL && corona_ref_count > 0) {
+		if(Run.use_dspaces_io && corona_ref_count > 0) {
 			clk = MPI_Wtime();
 			for(int i=0; i<nslvar; i++) {
-				dspaces_check_put(ds_client, coronaxz_dspaces_put_req_list[v][i], 1);
+				// slice_write_rebin() sometimes has all involved ranks write
+				// sometimes gather the data to the root rank
+				if(coronaxz_dspaces_put_req_list[v][i] != NULL) {
+					dspaces_check_put(ds_client, coronaxz_dspaces_put_req_list[v][i], 1);
+				}
 			}
 			double dspaces_check_time = MPI_Wtime() - clk;
 			if(dspaces_check_time > nslvar*1e-6) {
@@ -586,10 +594,14 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 
       if (zcol_rank == iroot){
 	for (v=0;v<nout;v++){
-		if(Run.use_dspaces_io && coronaxy_dspaces_put_req_list && corona_ref_count > 0) {
+		if(Run.use_dspaces_io && corona_ref_count > 0) {
+			clk = MPI_Wtime();
 			for(int i=0; i<nslvar; i++) {
-				clk = MPI_Wtime();
-				dspaces_check_put(ds_client, coronaxy_dspaces_put_req_list[v][i], 1);
+				// slice_write_rebin() sometimes has all involved ranks write
+				// sometimes gather the data to the root rank
+				if(coronaxy_dspaces_put_req_list[v][i]) {
+					dspaces_check_put(ds_client, coronaxy_dspaces_put_req_list[v][i], 1);
+				}
 			}
 			double dspaces_check_time = MPI_Wtime() - clk;
 			if(dspaces_check_time > nslvar*1e-6) {
