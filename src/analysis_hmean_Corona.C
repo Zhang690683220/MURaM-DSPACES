@@ -293,7 +293,7 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
         sprintf(ds_var_name, "%s%s_%d", Run.path_2D, "hmean1D", v);
         clk = MPI_Wtime();
         dspaces_put_req_list[v] = dspaces_iput(ds_client, ds_var_name, Run.globiter, sizeof(float),
-                                            1, lb, ub, &iobuf[v*Grid.lsize[0]]);
+                                            1, lb, ub, &iobuf[v*Grid.lsize[0]], 0, 0);
         dspaces_time += MPI_Wtime() - clk;
       }
       clk = MPI_Wtime();
