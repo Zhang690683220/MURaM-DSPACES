@@ -687,6 +687,9 @@ void IO_Finalize() {
     double clk;
     double wait_time = 0.0;
     double dspaces_check_time;
+    if(io_rank == 1){
+      std::cout << "Rank:" << io_rank << "I'm alive before eos!" <<std::endl
+    }
     // 3D/EOS_OUTPUT
     if(io_dspaces_log->eos != NULL) {
       clk = MPI_Wtime();
@@ -704,6 +707,9 @@ void IO_Finalize() {
     }
 
     wait_time = 0.0;
+    if(io_rank == 1){
+      std::cout << "Rank:" << io_rank << "I'm alive before diag!" <<std::endl
+    }
     // 3D/DIAG_OUTPUT
     if(io_dspaces_log->diag != NULL) { 
       clk = MPI_Wtime();
@@ -721,6 +727,9 @@ void IO_Finalize() {
     }
 
     wait_time = 0.0;
+    if(io_rank == 1){
+      std::cout << "Rank:" << io_rank << "I'm alive before tau!" <<std::endl
+    }
     // 2D/TAU_SLICE at XCOL_ROOT only 
     if(io_dspaces_log->tau != NULL) {
       if(tauslice_dspaces_put_req_list != NULL) {
@@ -743,6 +752,9 @@ void IO_Finalize() {
     }
 
     wait_time = 0.0;
+    if(io_rank == 1){
+      std::cout << "Rank:" << io_rank << "I'm alive before yz!" <<std::endl
+    }
     // 2D/YZ_SLICE
     if(io_dspaces_log->yz != NULL) {
       clk = MPI_Wtime();
@@ -763,6 +775,9 @@ void IO_Finalize() {
     }
 
     wait_time = 0.0;
+    if(io_rank == 1){
+      std::cout << "Rank:" << io_rank << "I'm alive before xy!" <<std::endl
+    }
     // 2D/XY_SLICE
     if(io_dspaces_log->xy != NULL) {
       clk = MPI_Wtime();
@@ -783,6 +798,9 @@ void IO_Finalize() {
     }
 
     wait_time = 0.0;
+    if(io_rank == 1){
+      std::cout << "Rank:" << io_rank << "I'm alive before xz!" <<std::endl
+    }
     // 2D/XZ_SLICE
     if(io_dspaces_log->xz) {
       clk = MPI_Wtime();
@@ -803,6 +821,9 @@ void IO_Finalize() {
     }
 
     wait_time = 0.0;
+    if(io_rank == 1){
+      std::cout << "Rank:" << io_rank << "I'm alive before corona!" <<std::endl
+    }
     // 2D/CORONA_EMISSION_XYZ at XCOL_ROOT, YCOL_ROOT, ZCOL_ROOT respectively
     if(io_dspaces_log->corona != NULL) {
       if(coronaxz_dspaces_put_req_list != NULL) {
@@ -858,6 +879,9 @@ void IO_Finalize() {
                                   + io_dspaces_log->corona->api_time[io_dspaces_log->corona->count-1];
     }
     wait_time = 0.0;
+    if(io_rank == 1){
+      std::cout << "Rank:" << io_rank << "I'm alive before analyzevp!" <<std::endl
+    }
     // 1D/ANALYZE_VP at YZ_ROOT only
     if(io_dspaces_log->analyze_vp != NULL) {
       if(analyzevp_dspaces_put_req_list != NULL) {
