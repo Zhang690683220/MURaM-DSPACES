@@ -950,9 +950,8 @@ void IO_Finalize() {
       std::cout << "Rank:" << io_rank << " ,I'm alive before dspaces fini!" <<std::endl;
   }
     dspaces_fini(ds_client);
-    if(io_rank == 1){
       std::cout << "Rank:" << io_rank << " ,I'm alive after dspaces fini!" <<std::endl;
-  }
+  
   }
 }
 ////////////////////// Output /////////////////////////////////
