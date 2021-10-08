@@ -208,7 +208,7 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
     // }
 
 		// tauslice_dspaces_put_req_list != NULL is stronger than xcol_rank == root
-		if(Run.use_dspaces_io && tauslice_ref_count > 0 && tauslice_dspaces_put_req_list != NULL) {
+		if(Run.use_dspaces_io && tauslice_ref_count > 0 && xcol_rank == iroot) {
 			clk = MPI_Wtime();
       for(int i=0; i<nslvar; i++) {
         dspaces_check_put(ds_client, tauslice_dspaces_put_req_list[nsl][i], 1);
