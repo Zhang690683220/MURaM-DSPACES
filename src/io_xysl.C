@@ -686,12 +686,13 @@ void IO_Finalize() {
     // check all the async put
     double clk;
     double wait_time = 0.0;
+    double dspaces_check_time;
     // 3D/EOS_OUTPUT
     clk = MPI_Wtime();
     for(int i=0; i<eos_nvar; i++) {
       dspaces_check_put(ds_client, eos_dspaces_put_req_list[i], 1);
     }
-    double dspaces_check_time = MPI_Wtime() - clk;
+    dspaces_check_time = MPI_Wtime() - clk;
     if(dspaces_check_time > eos_nvar*1e-6) {
       wait_time = MPI_Wtime() - clk;
     }
@@ -706,7 +707,7 @@ void IO_Finalize() {
     for(int i=0; i<diag_nvar; i++) {
       dspaces_check_put(ds_client, diag_dspaces_put_req_list[i], 1);
     }
-    double dspaces_check_time = MPI_Wtime() - clk;
+    dspaces_check_time = MPI_Wtime() - clk;
     if(dspaces_check_time > diag_nvar*1e-6) {
       wait_time = MPI_Wtime() - clk;
     }
@@ -725,7 +726,7 @@ void IO_Finalize() {
         }
         free(tauslice_dspaces_put_req_list[j]);
       }
-      double dspaces_check_time = MPI_Wtime() - clk;
+      dspaces_check_time = MPI_Wtime() - clk;
       if(dspaces_check_time > tauslice_nslvar*tauslice_nslice*1e-6) {
         wait_time = MPI_Wtime() - clk;  
       }
@@ -744,7 +745,7 @@ void IO_Finalize() {
       }
       free(yzslice_dspaces_put_req_list[j]);
     }
-    double dspaces_check_time = MPI_Wtime() - clk;
+    dspaces_check_time = MPI_Wtime() - clk;
     if(dspaces_check_time > yzslice_nslvar*yzslice_nslice*1e-6) {
       wait_time = MPI_Wtime() - clk;
     }
@@ -762,7 +763,7 @@ void IO_Finalize() {
       }
       free(xyslice_dspaces_put_req_list[j]);
     }
-    double dspaces_check_time = MPI_Wtime() - clk;
+    dspaces_check_time = MPI_Wtime() - clk;
     if(dspaces_check_time > xyslice_nslvar*xyslice_nslice*1e-6) {
       wait_time = MPI_Wtime() - clk;
     }
@@ -780,14 +781,14 @@ void IO_Finalize() {
       }
       free(xzslice_dspaces_put_req_list[j]);
     }
-    double dspaces_check_time = MPI_Wtime() - clk;
+    dspaces_check_time = MPI_Wtime() - clk;
     if(dspaces_check_time > xzslice_nslvar*xzslice_nslice*1e-6) {
       wait_time = MPI_Wtime() - clk;
     }
     io_dspaces_log->xz->wait_time[io_dspaces_log->xz->count-1] = wait_time;
     io_dspaces_log->xz->time[io_dspaces_log->xz->count-1] = wait_time
                                   + io_dspaces_log->xz->api_time[io_dspaces_log->xz->count-1];
-    free(xzslice_dspaces_put_req_list[j]);
+    free(xzslice_dspaces_put_req_list);
 
     wait_time = 0.0;
     // 2D/CORONA_EMISSION_XYZ at XCOL_ROOT, YCOL_ROOT, ZCOL_ROOT respectively
@@ -799,11 +800,11 @@ void IO_Finalize() {
         }
         free(coronaxz_dspaces_put_req_list[j]);
       }
-      double dspaces_check_time = MPI_Wtime() - clk;
+      dspaces_check_time = MPI_Wtime() - clk;
       if(dspaces_check_time > corona_nslvar*corona_nout*1e-6) {
         wait_time = MPI_Wtime() - clk;
       }
-      free(coronaxz_dspaces_put_req_list)
+      free(coronaxz_dspaces_put_req_list);
     }
     if(coronayz_dspaces_put_req_list != NULL) {
       clk = MPI_Wtime();
@@ -813,7 +814,7 @@ void IO_Finalize() {
         }
         free(coronayz_dspaces_put_req_list[j]);
       }
-      double dspaces_check_time = MPI_Wtime() - clk;
+      dspaces_check_time = MPI_Wtime() - clk;
       if(dspaces_check_time > corona_nslvar*corona_nout*1e-6) {
         wait_time += MPI_Wtime() - clk;
       }
@@ -827,11 +828,11 @@ void IO_Finalize() {
         }
         free(coronaxy_dspaces_put_req_list[j]);
       }
-      double dspaces_check_time = MPI_Wtime() - clk;
+      dspaces_check_time = MPI_Wtime() - clk;
       if(dspaces_check_time > corona_nslvar*corona_nout*1e-6) {
         wait_time += MPI_Wtime() - clk;
       }
-      free(coronaxy_dspaces_put_req_list)
+      free(coronaxy_dspaces_put_req_list);
     }
     io_dspaces_log->corona->wait_time[io_dspaces_log->corona->count-1] = wait_time;
     io_dspaces_log->corona->time[io_dspaces_log->corona->count-1] = wait_time
@@ -844,7 +845,7 @@ void IO_Finalize() {
       for(int i=0; i<analyzevp_nvar; i++) {
         dspaces_check_put(ds_client, analyzevp_dspaces_put_req_list[i], 1);
       }
-      double dspaces_check_time = MPI_Wtime() - clk;
+      dspaces_check_time = MPI_Wtime() - clk;
       if(dspaces_check_time > analyzevp_nvar*1e-6) {
         wait_time = MPI_Wtime() - clk;  
       }
@@ -1233,7 +1234,7 @@ void diag_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phy
   if(Run.use_dspaces_io) {
     dspaces_time = 0.0;
     dspaces_wait_time = 0.0;
-    dspaces_put_req = dspaces_PUT_NULL;
+    // dspaces_put_req = dspaces_PUT_NULL;
   }
 
   int v_max, v1_max,v2_max,v1,v2,var;
