@@ -102,6 +102,9 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
 			tauslice_nslvar = nslvar;
 			// dspaces_iput() is only called in ranks whose xcol_rank == iroot
 			// so the dspaces_put_req_list is only malloced there
+			if(xcol_rank == iroot) {
+				tauslice_dspaces_put_req_list = (dspaces_put_req_t**) malloc(nslice*sizeof(dspaces_put_req_t*));
+			}
     	tauslice_buf = (float*) malloc(nslice*nslvar*localsize*sizeof(float));
     }
 
@@ -255,9 +258,6 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
       
       MPI_File_close(&fhandle_mpi);   
       */
-			if(Run.use_dspaces_io && tauslice_ref_count == 0) {
-		 		tauslice_dspaces_put_req_list = (dspaces_put_req_t**) malloc(nslice*sizeof(dspaces_put_req_t*));
-		 	}
 
       if(Physics.slice[i_sl_collect] == 0) {	
 	if(yz_rank == 0) {

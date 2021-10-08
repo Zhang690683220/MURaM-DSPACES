@@ -90,6 +90,9 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
       analyzevp_nvar = nvar;
       // dspaces_iput() is only called in ranks whose yz_rank == iroot
 			// so the dspaces_put_req_list is only malloced there
+      if(yz_rank == 0) {
+        analyzevp_dspaces_put_req_list = (dspaces_put_req_t*) malloc(nvar*sizeof(dspaces_put_req_t));
+      }
       analyzevp_buf = (float*) malloc(nvar*Grid.lsize[0]*sizeof(float));
     }
 
@@ -248,10 +251,6 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
   MPI_Reduce(loc,glo,bufsz,MPI_DOUBLE,MPI_SUM,0,YZ_COMM);
   
   if(yz_rank==0){ // MPI_Reduce results are only meaningful on rank 0!
-
-    if(Run.use_dspaces_io && analyzevp_ref_count==0) {
-      analyzevp_dspaces_put_req_list = (dspaces_put_req_t*) malloc(nvar*sizeof(dspaces_put_req_t));
-    }
 
     // dspaces_put_req_list = (dspaces_put_req_t*) malloc(nvar*sizeof(dspaces_put_req_t));
     

@@ -136,6 +136,15 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 			corona_nslvar = nslvar;
 			// dspaces_iput() is only called in ranks whose xcol_rank == iroot, ycol_rank == iroot,
 			// zcol_rank == iroot, so the according dspaces_put_req_list is only malloced there
+			if(zcol_rank == iroot) {
+				coronaxy_dspaces_put_req_list = (dspaces_put_req_t**) malloc(nout*sizeof(dspaces_put_req_t*));
+			}
+			if(ycol_rank == iroot) {
+				coronaxz_dspaces_put_req_list = (dspaces_put_req_t**) malloc(nout*sizeof(dspaces_put_req_t*));
+			}
+			if(xcol_rank == iroot) {
+				coronayz_dspaces_put_req_list = (dspaces_put_req_t**) malloc(nout*sizeof(dspaces_put_req_t*));
+			}
     	coronaxy_buf = (float*) malloc(nout*nslvar*Grid.lsize[1]*Grid.lsize[0]*sizeof(float));
 			coronaxz_buf = (float*) malloc(nout*nslvar*Grid.lsize[2]*Grid.lsize[0]*sizeof(float));
 			coronayz_buf = (float*) malloc(nout*nslvar*Grid.lsize[1]*Grid.lsize[2]*sizeof(float));
@@ -305,9 +314,6 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 			// 	coronayz_buf[v] = (float) los_sum[v];
 			// }
       if (xcol_rank == iroot){
-				if(Run.use_dspaces_io && corona_ref_count == 0) {
-					coronayz_dspaces_put_req_list = (dspaces_put_req_t**) malloc(nout*sizeof(dspaces_put_req_t*));
-				}
 	for (v=0;v<nout;v++){
 
 		if(Run.use_dspaces_io && corona_ref_count > 0) {
@@ -445,9 +451,6 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 			// }
       
       if (ycol_rank == iroot){
-				if(Run.use_dspaces_io && corona_ref_count==0) {
-					coronaxz_dspaces_put_req_list = (dspaces_put_req_t**) malloc(nout*sizeof(dspaces_put_req_t*));
-				}
 	for (v=0;v<nout;v++){
 		if(Run.use_dspaces_io && corona_ref_count > 0) {
 			clk = MPI_Wtime();
@@ -582,9 +585,6 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 			}
 
       if (zcol_rank == iroot){
-				if(Run.use_dspaces_io && corona_ref_count==0) {
-					coronaxy_dspaces_put_req_list = (dspaces_put_req_t**) malloc(nout*sizeof(dspaces_put_req_t*));
-				}
 	for (v=0;v<nout;v++){
 		if(Run.use_dspaces_io && corona_ref_count > 0) {
 			for(int i=0; i<nslvar; i++) {
