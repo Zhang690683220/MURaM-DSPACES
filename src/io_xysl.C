@@ -1313,7 +1313,7 @@ void diag_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phy
   // allocate the diag buf after the tot_vars are set
   if(diag_ref_count == 1) {
     diag_nvar = tot_vars;
-    diag_dspaces_put_req_list = (dspace_put_req_t*) malloc(tot_vars*sizeof(dspaces_put_req_t));
+    diag_dspaces_put_req_list = (dspaces_put_req_t*) malloc(tot_vars*sizeof(dspaces_put_req_t));
     diag_buf = (float*) malloc(tot_vars*lsize*sizeof(float));
   }
   
