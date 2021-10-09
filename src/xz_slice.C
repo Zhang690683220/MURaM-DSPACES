@@ -89,12 +89,16 @@ void xz_slice(const RunData&  Run, const GridData& Grid,
 		if(Run.use_dspaces_io) {
       io_dspaces_log->xz = (struct log_entry*) malloc(sizeof(struct log_entry));
       log_entry_init(io_dspaces_log->xz, "XZ", est_total_slice_iters, 2, gsize, nslice*nslvar);
-    }
 
-		xzslice_nslice = nslice;
-		xzslice_nslvar = nslvar;
-		xzslice_dspaces_put_req_list = (dspaces_put_req_t**) malloc(nslice*sizeof(dspaces_put_req_t*));
-    xzslice_buf = (float*) malloc(nslice*nslvar*localsize*sizeof(float));
+			xzslice_nslice = nslice;
+			xzslice_nslvar = nslvar;
+			xzslice_dspaces_put_req_list = (dspaces_put_req_t**) malloc(nslice*sizeof(dspaces_put_req_t*));
+			// prevent non-NULL pointer exists when the rank is not in the selected domain
+      for(int i=0; i<nslice; i++) {
+        xzslice_dspaces_put_req_list[i] = NULL;
+      }
+    	xzslice_buf = (float*) malloc(nslice*nslvar*localsize*sizeof(float));
+    }
 
     ini_flag = 0;
   }

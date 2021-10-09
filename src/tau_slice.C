@@ -104,6 +104,11 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
 			// so the dspaces_put_req_list is only malloced there
 			if(xcol_rank == iroot) {
 				tauslice_dspaces_put_req_list = (dspaces_put_req_t**) malloc(nslice*sizeof(dspaces_put_req_t*));
+				// prevent non-NULL pointer exists in case that the rank is not in the selected domain
+				// although in tau this case does not happens
+      	for(int i=0; i<nslice; i++) {
+        	tauslice_dspaces_put_req_list[i] = NULL;
+      	}
 			}
     	tauslice_buf = (float*) malloc(nslice*nslvar*localsize*sizeof(float));
     }

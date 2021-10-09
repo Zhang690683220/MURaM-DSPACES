@@ -138,12 +138,27 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 			// zcol_rank == iroot, so the according dspaces_put_req_list is only malloced there
 			if(zcol_rank == iroot) {
 				coronaxy_dspaces_put_req_list = (dspaces_put_req_t**) malloc(nout*sizeof(dspaces_put_req_t*));
+				// prevent non-NULL pointer exists in case that the rank is not in the selected domain
+				// although in corona this case does not happens
+      	for(int i=0; i<nout; i++) {
+        	coronaxy_dspaces_put_req_list[i] = NULL;
+      	}
 			}
 			if(ycol_rank == iroot) {
 				coronaxz_dspaces_put_req_list = (dspaces_put_req_t**) malloc(nout*sizeof(dspaces_put_req_t*));
+				// prevent non-NULL pointer exists in case that the rank is not in the selected domain
+				// although in corona this case does not happens
+      	for(int i=0; i<nout; i++) {
+        	coronaxz_dspaces_put_req_list[i] = NULL;
+      	}
 			}
 			if(xcol_rank == iroot) {
 				coronayz_dspaces_put_req_list = (dspaces_put_req_t**) malloc(nout*sizeof(dspaces_put_req_t*));
+				// prevent non-NULL pointer exists in case that the rank is not in the selected domain
+				// although in corona this case does not happens
+      	for(int i=0; i<nout; i++) {
+        	coronayz_dspaces_put_req_list[i] = NULL;
+      	}
 			}
     	coronaxy_buf = (float*) malloc(nout*nslvar*Grid.lsize[1]*Grid.lsize[0]*sizeof(float));
 			coronaxz_buf = (float*) malloc(nout*nslvar*Grid.lsize[2]*Grid.lsize[0]*sizeof(float));

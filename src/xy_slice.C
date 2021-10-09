@@ -93,6 +93,10 @@ void xy_slice(const RunData&  Run, const GridData& Grid,
 			xyslice_nslice = nslice;
 			xyslice_nslvar = nslvar;
 			xyslice_dspaces_put_req_list = (dspaces_put_req_t**) malloc(nslice*sizeof(dspaces_put_req_t*));
+			// prevent non-NULL pointer exists when the rank is not in the selected domain
+      for(int i=0; i<nslice; i++) {
+        xyslice_dspaces_put_req_list[i] = NULL;
+      }
     	xyslice_buf = (float*) malloc(nslice*nslvar*localsize*sizeof(float));
     }
 
