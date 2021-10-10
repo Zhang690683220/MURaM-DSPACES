@@ -10,13 +10,12 @@
 #include "io.H"
 
 //========================================================================
-double slice_write_rebin(const GridData& Grid,const int iroot,float* vloc,
+void slice_write_rebin(const GridData& Grid,const int iroot,float* vloc,
 		       const int nloc,const int nvar,const int n0,
 		       const int n1,const int sm_x,const int sm_y,
-		       FILE* fhandle){
+		       FILE* fhandle, double *pp_time, double *api_time){
   
-  double clk;
-  double file_time=0;
+  double clk = MPI_Wtime();
   
   MPI_Comm comm=MPI_COMM_NULL;
   int rank=-1;
@@ -138,14 +137,17 @@ double slice_write_rebin(const GridData& Grid,const int iroot,float* vloc,
 	    }
 	  }
 	}
+  *pp_time += MPI_Wtime() - clk;
   clk = MPI_Wtime();
 	fwrite(iobuf_sm,sizeof(float),slsize_sm,fhandle);
-  file_time += MPI_Wtime() - clk;
+  *api_time += MPI_Wtime() - clk;
+  clk = MPI_Wtime();
 	free(iobuf_sm);
       } else {
+  *pp_time += MPI_Wtime() - clk;
   clk = MPI_Wtime();
 	fwrite(iobuf,sizeof(float),slsize,fhandle);
-  file_time += MPI_Wtime() - clk;
+  *api_time += MPI_Wtime() - clk;
       }
     }
 
@@ -161,7 +163,6 @@ double slice_write_rebin(const GridData& Grid,const int iroot,float* vloc,
   //   std::cout << "File IO API Call (Corona_XYZ) in " << file_time << " seconds" << std::endl;
   // }
 
-  return file_time;
 
 }
 
@@ -169,11 +170,11 @@ dspaces_put_req_t* slice_write_rebin_dspaces(const GridData& Grid,
            const int iroot, float* vloc,
 		       const int nloc,const int nvar,const int n0,
 		       const int n1,const int sm_x,const int sm_y,
-           char* filename, const int iter, const int ndim)
+           char* filename, const int iter, const int ndim, double* pp_time. double* api_time)
 {
 
-  double clk;
-  double ds_time = 0;
+  double clk = MPI_Wtime();
+  
 
   MPI_Comm comm=MPI_COMM_NULL;
   int rank=-1;
@@ -321,12 +322,14 @@ dspaces_put_req_t* slice_write_rebin_dspaces(const GridData& Grid,
 	          }
 	        }
 	      }
+        *pp_time += MPI_Wtime() - clk;
         sprintf(ds_var_name, "%s_%d", filename, v);
         clk = MPI_Wtime();
         // no allocation, no check
 		    dspaces_put_req_list[v] = dspaces_iput(ds_client, ds_var_name, iter, sizeof(float),
                                                ndim, lb, ub, iobuf_sm, 0,0);
-        ds_time += MPI_Wtime() - clk;
+        *api_time += MPI_Wtime() - clk;
+        clk = MPI_Wtime();
       }
       free(iobuf_sm);
       free(iobuf);
@@ -342,13 +345,14 @@ dspaces_put_req_t* slice_write_rebin_dspaces(const GridData& Grid,
 	  ub[0] = lb[0] + Grid.lsize[n0] - 1;
 	  ub[1] = lb[1] + Grid.lsize[n1] - 1;
     
+    *pp_time += MPI_Wtime() - clk;
     for(v=0; v<nvar; v++) {
       sprintf(ds_var_name, "%s_%d", filename, v);
       clk = MPI_Wtime();
       // no allocation, no check
 		  dspaces_put_req_list[v] = dspaces_iput(ds_client, ds_var_name, iter, sizeof(float),
                                              ndim, lb, ub, &vloc[v*localsize], 0, 0);
-      ds_time += MPI_Wtime() - clk;
+      *api_time += MPI_Wtime() - clk;
 	  }
   }
   // if(rank == 0) {

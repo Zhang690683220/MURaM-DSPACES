@@ -22,13 +22,14 @@ extern est_total_slice_iters;
 extern struct log *io_file_log, *io_dspaces_log;
 
 extern double slice_write_rebin(const GridData&,const int,float*,const int,const int,
-                              const int,const int,const int,const int,FILE*);
+                              const int,const int,const int,const int,FILE*, double*, double*);
 
 extern dspaces_put_req_t* slice_write_rebin_dspaces(const GridData& Grid,
            											const int iroot, float* vloc,
 		       										const int nloc,const int nvar,const int n0,
 		       										const int n1,const int sm_x,const int sm_y,
-           											char* filename, const int iter, const int ndim);
+           											char* filename, const int iter, const int ndim,
+																double* pp_time, double* api_time);
 
 float *coronaxy_buf = NULL;
 float *coronaxz_buf = NULL;
@@ -173,15 +174,20 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 
   FILE* fhandle=NULL;
 
-	double clk, file_time, dspaces_time, dspaces_wait_time;
+	double clk, file_time, file_api_time, file_pp_time,
+					dspaces_time, dspaces_wait_time, dspaces_api_time, dspaces_pp_time;
 	int put_count;
 	enum rank_group {X_COL, Y_COL, Z_COL};
 	enum rank_group rank_history;
 	file_time = 0.0;
+	file_api_time = 0.0;
+	file_pp_time = 0.0;
 	// dspaces_put_req_t* dspaces_put_req_list;
 	if(Run.use_dspaces_io) {
 	  dspaces_time = 0.0;
 	  dspaces_wait_time = 0.0;
+		dspaces_api_time = 0.0;
+		dspaces_pp_time = 0.0;
       // dspaces_put_req_list = NULL;
 	  put_count = 0;
 	}
@@ -382,7 +388,8 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 	
 	  //slice_write(Grid,0,&(io_buf[v*nslvar*localsize]),localsize,nslvar,d2,d3,fhandle);
 		clk = MPI_Wtime();
-	  slice_write_rebin(Grid,0,&(io_buf[v*nslvar*localsize]),localsize,nslvar,d2,d3,rebin[d2],rebin[d3],fhandle);
+	  slice_write_rebin(Grid,0,&(io_buf[v*nslvar*localsize]),localsize,nslvar,d2,d3,rebin[d2],rebin[d3],
+											fhandle, &file_pp_time, &file_api_time);
 	  file_time += MPI_Wtime() - clk;
 
 	  if(yz_rank == 0)
@@ -420,7 +427,8 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 			coronayz_dspaces_put_req_list[v] = slice_write_rebin_dspaces(Grid, 0,
 																																	 &coronayz_buf[v*nslvar*localsize],
 															 																		 localsize, nslvar, d2, d3, rebin[d2],
-															 																		 rebin[d3], filename, Run.globiter, 2);
+															 																		 rebin[d3], filename, Run.globiter, 2,
+																																	 &dspaces_pp_time, &dspaces_api_time);
 			dspaces_time += MPI_Wtime() - clk;
 		}
 	}
@@ -521,7 +529,8 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 	
 	  //slice_write(Grid,0,&(io_buf[v*nslvar*localsize]),localsize,nslvar,d2,d3,fhandle);
 		clk = MPI_Wtime();
-	  slice_write_rebin(Grid,0,&(io_buf[v*nslvar*localsize]),localsize,nslvar,d2,d3,rebin[d2],rebin[d3],fhandle);
+	  slice_write_rebin(Grid,0,&(io_buf[v*nslvar*localsize]),localsize,nslvar,d2,d3,rebin[d2],rebin[d3],
+											fhandle, &file_pp_time, &file_api_time);
 	  file_time += MPI_Wtime() - clk;
 
 	  if(xz_rank == 0)
@@ -559,7 +568,8 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 			coronaxz_dspaces_put_req_list[v] = slice_write_rebin_dspaces(Grid, 0,
 																																	 &coronaxz_buf[v*nslvar*localsize], 
 															 																		 localsize, nslvar, d2, d3, rebin[d2],
-															 																		 rebin[d3], filename, Run.globiter, 2);
+															 																		 rebin[d3], filename, Run.globiter, 2
+																																	 &dspaces_pp_time, &dspaces_api_time);
 			dspaces_time += MPI_Wtime() - clk;
 		}
 	}
@@ -660,7 +670,8 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 	
 	  //slice_write(Grid,0,&(io_buf[v*nslvar*localsize]),localsize,nslvar,d2,d3,fhandle);
 		clk = MPI_Wtime();
-	  slice_write_rebin(Grid,0,&(io_buf[v*nslvar*localsize]),localsize,nslvar,d2,d3,rebin[d2],rebin[d3],fhandle);
+	  slice_write_rebin(Grid,0,&(io_buf[v*nslvar*localsize]),localsize,nslvar,d2,d3,rebin[d2],rebin[d3],
+											fhandle, &file_pp_time, &file_api_time);
 	  file_time += MPI_Wtime() - clk;
 
 	  if(xy_rank == 0)
@@ -698,7 +709,8 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 			coronaxy_dspaces_put_req_list[v] = slice_write_rebin_dspaces(Grid, 0,
 																																	 &coronaxy_buf[v*nslvar*localsize],
 															 																		 localsize, nslvar, d2, d3, rebin[d2],
-															 																		 rebin[d3], filename, Run.globiter, 2);
+															 																		 rebin[d3], filename, Run.globiter, 2,
+																																	 &dspaces_pp_time, &dspaces_api_time);
 			dspaces_time += MPI_Wtime() - clk;
 		}
 	}
@@ -731,10 +743,14 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 		io_file_log->corona->iter[io_file_log->corona->count] = Run.globiter;
 		io_file_log->corona->api_time[io_file_log->corona->count] = file_time;
 		io_file_log->corona->time[io_file_log->corona->count] = file_time;
+		io_file_log->corona->pp_time[io_file_log->corona->count] = file_pp_time;
+		io_file_log->corona->pure_api_time[io_file_log->corona->count] = file_api_time;
 		io_file_log->corona->count++ ;
 		if(Run.use_dspaces_io) {
 			io_dspaces_log->corona->iter[io_dspaces_log->corona->count] = Run.globiter;
       io_dspaces_log->corona->api_time[io_dspaces_log->corona->count] = dspaces_time;
+			io_dspaces_log->corona->pp_time[io_dspaces_log->corona->count] = dspaces_pp_time;
+			io_dspaces_log->corona->pure_api_time[io_dspaces_log->corona->count] = dspaces_api_time;
       if(io_dspaces_log->corona->count > 0) {
         io_dspaces_log->corona->wait_time[io_dspaces_log->corona->count-1] = dspaces_wait_time;
         io_dspaces_log->corona->time[io_dspaces_log->corona->count-1] = dspaces_wait_time

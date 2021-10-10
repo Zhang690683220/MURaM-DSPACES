@@ -341,6 +341,25 @@ void log_entry_init(struct log_entry* le, char* name, int iters, int ndims, int*
   le->avg_api_time = 0.0;
   le->avg_wait_time = 0.0;
   le->avg_time = 0.0;
+  if(strcmp(le->name, "CORONA") == 0) {
+    le->pp_time = (double*) malloc(iters * sizeof(double));
+    le->pure_api_time = (double*) malloc(iters * sizeof(double));
+    le->total_pp_time = 0.0;
+    le->total_pure_api_time = 0.0;
+    le->avg_pp_time = 0.0;
+    le->avg_pure_api_time 0.0;
+  }
+}
+
+void log_entry_free(struct log_entry* le) {
+  free(le->iter);
+  free(le->api_time);
+  free(le->wait_time);
+  free(le->time);
+  if(strcmp(le->name, "CORONA") == 0) {
+    free(le->pp_time);
+    free(le->pure_api_time);
+  }
 }
 
 void log_entry_output(struct log_entry* le, char* prefix) {
@@ -398,21 +417,44 @@ void dspaces_log_entry_output(struct log_entry* le, char* prefix) {
     log << le->gsize[le->ndims-1] << std::endl;
   }
   log << "NVars," <<le->nvars << std::endl;
-  log << "Iteration, API_Time(s), Wait_Time(s), Time(s)" << std::endl;
-  for(int i=0; i<le->count; i++) {
-    log << le->iter[i] << ", " << le->api_time[i] << ", "
-    << le->wait_time[i] << ", " << le->time[i] << std::endl;
-    le->total_api_time += le->api_time[i];
-    le->total_wait_time += le->wait_time[i];
-    le->total_time += le->time[i];
+  if(strcmp(le->name, "CORONA") == 0) == 0) {
+    log << "Iteration, Function_Time(s), Prepare_time(s), API_time(s), Wait_Time(s), Time(s)" << std::endl;
+    for(int i=0; i<le->count; i++) {
+      log << le->iter[i] << ", " << le->api_time[i] << ", " << le->pp_time[i] << ", "
+        << le->pure_api_time[i] << ", "  << le->wait_time[i] << ", " << le->time[i] << std::endl;
+      le->total_api_time += le->api_time[i];
+      le->total_pp_time += le->pp_time[i];
+      le->total_pure_api_time += le->pure_api_time[i];
+      le->total_wait_time += le->wait_time[i];
+      le->total_time += le->time[i];
+    }
+    le->avg_api_time = le->total_api_time / le->count;
+    le->avg_pp_time = le->total_pp_time / le->count;
+    le->avg_pure_api_time = le->total_pure_api_time / le->count;
+    le->avg_wait_time = le->total_wait_time / le->count;
+    le->avg_time = le->total_time / le->count;
+    log << "Total, " << le->total_api_time << ", " << le->total_pp_time << ", "
+        << le->total_pure_api_time << ", " << le->total_wait_time << ", " << le->total_time << std::endl;
+    log << "Average, " << le->avg_api_time << ", " << le->avg_pp_time << ", "
+        << le->avg_pure_api_time << ", " << le->avg_wait_time << ", " << le->avg_time << std::endl;
+  } else {
+    log << "Iteration, Function_Time(s), Wait_Time(s), Time(s)" << std::endl;
+    for(int i=0; i<le->count; i++) {
+      log << le->iter[i] << ", " << le->api_time[i] << ", "
+        << le->wait_time[i] << ", " << le->time[i] << std::endl;
+      le->total_api_time += le->api_time[i];
+      le->total_wait_time += le->wait_time[i];
+      le->total_time += le->time[i];
+    }
+    le->avg_api_time = le->total_api_time / le->count;
+    le->avg_wait_time = le->total_wait_time / le->count;
+    le->avg_time = le->total_time / le->count;
+    log << "Total, " << le->total_api_time << ", "
+        << le->total_wait_time << ", " << le->total_time << std::endl;
+    log << "Average, " << le->avg_api_time << ", "
+        << le->avg_wait_time << ", " << le->avg_time << std::endl;
   }
-  le->avg_api_time = le->total_api_time / le->count;
-  le->avg_wait_time = le->total_wait_time / le->count;
-  le->avg_time = le->total_time / le->count;
-  log << "Total, " << le->total_api_time << ", "
-      << le->total_wait_time << ", " << le->total_time << std::endl;
-  log << "Average, " << le->avg_api_time << ", "
-      << le->avg_wait_time << ", " << le->avg_time << std::endl;
+  
   log.close();
 }
 
@@ -524,34 +566,42 @@ void log_summary_print(struct log *io_log) {
 
 void log_free(struct log *io_log) {
   if(io_log->eos != NULL) {
+    log_entry_free(io_log->eos);
     free(io_log->eos);
   }
 
   if(io_log->diag != NULL) {
+    log_entry_free(io_log->diag);
     free(io_log->diag);
   }
 
   if(io_log->tau != NULL) {
+    log_entry_free(io_log->tau);
     free(io_log->tau);
   }
 
   if(io_log->yz != NULL) {
+    log_entry_free(io_log->yz);
     free(io_log->yz);
   }
 
   if(io_log->xy != NULL) {
+    log_entry_free(io_log->xy);
     free(io_log->xy);
   }
 
   if(io_log->xz != NULL) {
+    log_entry_free(io_log->xz);
     free(io_log->xz);
   }
 
   if(io_log->corona != NULL) {
+    log_entry_free(io_log->corona);
     free(io_log->corona);
   }
 
   if(io_log->analyze_vp != NULL) {
+    log_entry_free(io_log->analyze_vp);
     free(io_log->analyze_vp);
   }
 
