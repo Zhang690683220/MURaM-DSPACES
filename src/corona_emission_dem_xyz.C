@@ -346,8 +346,8 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 					dspaces_check_put(ds_client, coronayz_dspaces_put_req_list[v][i], 1);
 				}
 				double dspaces_check_time = MPI_Wtime() - clk;
-				if(dspaces_check_time > nslvar*1e-6) {
-					dspaces_wait_time += MPI_Wtime() - clk;
+				if(dspaces_check_time > nslvar*dspaces_check_overhead) {
+					dspaces_wait_time += MPI_Wtime() - clk - nslvar*dspaces_check_overhead;
 				}
 				free(coronayz_dspaces_put_req_list[v]);
 			}
@@ -488,8 +488,8 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 					dspaces_check_put(ds_client, coronaxz_dspaces_put_req_list[v][i], 1);
 				}
 				double dspaces_check_time = MPI_Wtime() - clk;
-				if(dspaces_check_time > nslvar*1e-6) {
-					dspaces_wait_time += MPI_Wtime() - clk;
+				if(dspaces_check_time > nslvar*dspaces_check_overhead) {
+					dspaces_wait_time += MPI_Wtime() - clk - nslvar*dspaces_check_overhead;
 				}
 				free(coronaxz_dspaces_put_req_list[v]);
 			}
@@ -628,8 +628,8 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 					dspaces_check_put(ds_client, coronaxy_dspaces_put_req_list[v][i], 1);	
 				}
 				double dspaces_check_time = MPI_Wtime() - clk;
-				if(dspaces_check_time > nslvar*1e-6) {
-					dspaces_wait_time += MPI_Wtime() - clk;
+				if(dspaces_check_time > nslvar*dspaces_check_overhead) {
+					dspaces_wait_time += MPI_Wtime() - clk - nslvar*dspaces_check_overhead;
 				}
 				free(coronaxy_dspaces_put_req_list[v]);
 			}

@@ -274,8 +274,8 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
         dspaces_check_put(ds_client, analyzevp_dspaces_put_req_list[i], 1);
       }
       double dspaces_check_time = MPI_Wtime() - clk;
-      if(dspaces_check_time > nvar*1e-6) {
-        dspaces_wait_time += MPI_Wtime() - clk;
+      if(dspaces_check_time > nvar*dspaces_check_overhead) {
+        dspaces_wait_time += MPI_Wtime() - clk - nvar*dspaces_check_overhead;
       }
     }
     if(Run.use_dspaces_io) {
