@@ -10,6 +10,7 @@ class RTS;
 
 // extern var for 2d slices use
 extern dspaces_client_t ds_client;
+extern const double dspaces_check_overhead;
 
 // struct for IO logs
 struct log_entry {
@@ -24,12 +25,18 @@ struct log_entry {
   int* iter;
   double* api_time;
   double* wait_time;
+  double* pp_time;
+  double* pure_api_time;
   double* time;
   double total_api_time;
   double total_wait_time;
+  double total_pp_time;
+  double total_pure_api_time;
   double total_time;
   double avg_api_time;
   double avg_wait_time;
+  double avg_pp_time;
+  double avg_pure_api_time;
   double avg_time;
 };
 

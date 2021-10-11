@@ -25,10 +25,11 @@ extern dspaces_put_req_t* slice_write_dspaces(const GridData& Grid, const int ir
                                 int n1, char* filename, const int iter,
                                 const int ndim);
 
-float *tauslice_buf = NULL;
+extern const int dspaces_bufnum;
+float **tauslice_buf = NULL;
 int tauslice_nslice;
 int tauslice_nslvar;
-dspaces_put_req_t** tauslice_dspaces_put_req_list = NULL;
+dspaces_put_req_t*** tauslice_dspaces_put_req_list = NULL;
 
 //======================================================================
 void tau_slice(const RunData&  Run, const GridData& Grid, 
@@ -61,11 +62,11 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
   FILE* fhandle=NULL;
 	double clk, file_time, dspaces_time, dspaces_wait_time;
 	file_time = 0.0;
-	dspaces_put_req_t* dspaces_put_req_list;
+	int bufind;
 	if(Run.use_dspaces_io) {
 		dspaces_time = 0.0;
     dspaces_wait_time = 0.0;
-    dspaces_put_req_list = NULL;
+		bufind = tauslice_ref_count % dspaces_bufnum;
 	}
 
   //MPI_File fhandle_mpi;
@@ -100,17 +101,26 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
 
 			tauslice_nslice = nslice;
 			tauslice_nslvar = nslvar;
+			tauslice_dspaces_put_req_list = (dspaces_put_req_t***) malloc(dspaces_bufnum *
+																															sizeof(dspaces_put_req_t**));
+			tauslice_buf = (float**) malloc(dspaces_bufnum*sizeof(float*));
 			// dspaces_iput() is only called in ranks whose xcol_rank == iroot
 			// so the dspaces_put_req_list is only malloced there
-			if(xcol_rank == iroot) {
-				tauslice_dspaces_put_req_list = (dspaces_put_req_t**) malloc(nslice*sizeof(dspaces_put_req_t*));
-				// prevent non-NULL pointer exists in case that the rank is not in the selected domain
-				// although in tau this case does not happens
-      	for(int i=0; i<nslice; i++) {
-        	tauslice_dspaces_put_req_list[i] = NULL;
-      	}
+			for(int j=0; j<dspaces_bufnum; j++) {
+				if(xcol_rank == iroot) {
+					tauslice_dspaces_put_req_list[j] = (dspaces_put_req_t**) malloc(nslice*
+																																					sizeof(dspaces_put_req_t*));
+					// prevent non-NULL pointer exists in case that the rank is not in the selected domain
+					// although in tau this case does not happens
+      		for(int i=0; i<nslice; i++) {
+        		tauslice_dspaces_put_req_list[j][i] = NULL;
+      		}
+				} else {
+					// non-XCOL_ROOT rank has to set the ptr that is not used to NULL
+					tauslice_dspaces_put_req_list[j] = NULL;
+				}
+    		tauslice_buf[j] = (float*) malloc(nslice*nslvar*localsize*sizeof(float));
 			}
-    	tauslice_buf = (float*) malloc(nslice*nslvar*localsize*sizeof(float));
     }
 
     ini_flag = 0;
@@ -217,15 +227,16 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
 
 		// tauslice_dspaces_put_req_list != NULL is stronger than xcol_rank == root
 		if(Run.use_dspaces_io && tauslice_ref_count > 0 && xcol_rank == iroot) {
+			int reqind = (tauslice_ref_count-1) % dspaces_bufnum;
 			clk = MPI_Wtime();
       for(int i=0; i<nslvar; i++) {
-        dspaces_check_put(ds_client, tauslice_dspaces_put_req_list[nsl][i], 1);
+        dspaces_check_put(ds_client, tauslice_dspaces_put_req_list[reqind][nsl][i], 1);
       }
 			double dspaces_check_time = MPI_Wtime() - clk;
 			if(dspaces_check_time > nslvar*dspaces_check_overhead) {
 				dspaces_wait_time += MPI_Wtime() - clk -nslvar*dspaces_check_overhead;
 			}
-      free(tauslice_dspaces_put_req_list[nsl]);
+      free(tauslice_dspaces_put_req_list[reqind][nsl]);
     }
 
 	// update iosum values
@@ -233,8 +244,8 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
 		  XCOL_COMM);
 
 		if(Run.use_dspaces_io) {
-			MPI_Reduce(iobuf,&tauslice_buf[nsl*nslvar*localsize],nslvar*localsize,MPI_FLOAT,MPI_SUM,iroot,
-		  					 XCOL_COMM);
+			MPI_Reduce(iobuf, &tauslice_buf[bufind][nsl*nslvar*localsize], nslvar*localsize, MPI_FLOAT,
+								 MPI_SUM, iroot, XCOL_COMM);
 		}
 
     if (xcol_rank == iroot){
@@ -342,10 +353,10 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
 				else
 					sprintf(ds_var_name, "%s%s_%.6f", Run.path_2D,"tau_slice",tau_lev[nsl]);
         clk = MPI_Wtime();
-        tauslice_dspaces_put_req_list[nsl] = slice_write_dspaces(Grid, 0,
-																																 &tauslice_buf[nsl*nslvar*localsize],
-																																 localsize, nslvar, 1, 2,
-																																 ds_var_name, Run.globiter, 2);
+        tauslice_dspaces_put_req_list[bufind][nsl] = slice_write_dspaces(Grid, 0,
+																															&tauslice_buf[bufind][nsl*nslvar*localsize],
+																															localsize, nslvar, 1, 2,
+																															ds_var_name, Run.globiter, 2);
         dspaces_time += MPI_Wtime() - clk;
         char header_filename[128];
         if(yz_rank == 0) {

@@ -31,14 +31,15 @@ extern dspaces_put_req_t* slice_write_rebin_dspaces(const GridData& Grid,
            											char* filename, const int iter, const int ndim,
 																double* pp_time, double* api_time);
 
-float *coronaxy_buf = NULL;
-float *coronaxz_buf = NULL;
-float *coronayz_buf = NULL;
+extern const int dspaces_bufnum;
+float **coronaxy_buf = NULL;
+float **coronaxz_buf = NULL;
+float **coronayz_buf = NULL;
 int corona_nout;
 int corona_nslvar;
-dspaces_put_req_t** coronaxy_dspaces_put_req_list = NULL;
-dspaces_put_req_t** coronaxz_dspaces_put_req_list = NULL;
-dspaces_put_req_t** coronayz_dspaces_put_req_list = NULL;
+dspaces_put_req_t*** coronaxy_dspaces_put_req_list = NULL;
+dspaces_put_req_t*** coronaxz_dspaces_put_req_list = NULL;
+dspaces_put_req_t*** coronayz_dspaces_put_req_list = NULL;
 
 inline int imin(int a, int b) { return a < b ? a : b; }
 inline int imax(int a, int b) { return a > b ? a : b; }
@@ -135,35 +136,55 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 
 			corona_nout = nout;
 			corona_nslvar = nslvar;
-			// dspaces_iput() is only called in ranks whose xcol_rank == iroot, ycol_rank == iroot,
-			// zcol_rank == iroot, so the according dspaces_put_req_list is only malloced there
-			if(zcol_rank == iroot) {
-				coronaxy_dspaces_put_req_list = (dspaces_put_req_t**) malloc(nout*sizeof(dspaces_put_req_t*));
-				// prevent non-NULL pointer exists in case that the rank is not in the selected domain
-				// although in corona this case does not happens
-      	for(int i=0; i<nout; i++) {
-        	coronaxy_dspaces_put_req_list[i] = NULL;
-      	}
+			coronaxy_dspaces_put_req_list = (dspaces_put_req_t***) malloc(dspaces_bufnum *
+																																		sizeof(dspaces_put_req_t**));
+			coronaxz_dspaces_put_req_list = (dspaces_put_req_t***) malloc(dspaces_bufnum *
+																																		sizeof(dspaces_put_req_t**));
+			coronayz_dspaces_put_req_list = (dspaces_put_req_t***) malloc(dspaces_bufnum *
+																																		sizeof(dspaces_put_req_t**));
+			coronaxy_buf = (float**) malloc(dspaces_bufnum*sizeof(float*));
+			coronaxz_buf = (float**) malloc(dspaces_bufnum*sizeof(float*));
+			coronayz_buf = (float**) malloc(dspaces_bufnum*sizeof(float*));
+			for(int j=0; j<dspaces_bufnum; j++) {
+				// dspaces_iput() is only called in ranks whose xcol_rank == iroot, ycol_rank == iroot,
+				// zcol_rank == iroot, so the according dspaces_put_req_list is only malloced there
+				if(zcol_rank == iroot) {
+					coronaxy_dspaces_put_req_list[j] = (dspaces_put_req_t**) malloc(nout *
+																																		sizeof(dspaces_put_req_t*));
+					// prevent non-NULL pointer exists in case that the rank is not in the selected domain
+					// although in corona this case does not happens
+      		for(int i=0; i<nout; i++) {
+        		coronaxy_dspaces_put_req_list[j][i] = NULL;
+      		}
+				} else {
+					coronaxy_dspaces_put_req_list[j] = NULL;
+				}
+				if(ycol_rank == iroot) {
+					coronaxz_dspaces_put_req_list[j] = (dspaces_put_req_t**) malloc(nout *
+																																		sizeof(dspaces_put_req_t*));
+					// prevent non-NULL pointer exists in case that the rank is not in the selected domain
+					// although in corona this case does not happens
+      		for(int i=0; i<nout; i++) {
+        		coronaxz_dspaces_put_req_list[j][i] = NULL;
+      		}
+				} else {
+					coronaxz_dspaces_put_req_list[j] = NULL;
+				}
+				if(xcol_rank == iroot) {
+					coronayz_dspaces_put_req_list[j] = (dspaces_put_req_t**) malloc(nout *
+																																		sizeof(dspaces_put_req_t*));
+					// prevent non-NULL pointer exists in case that the rank is not in the selected domain
+					// although in corona this case does not happens
+      		for(int i=0; i<nout; i++) {
+        		coronayz_dspaces_put_req_list[i] = NULL;
+      		}
+				} else {
+					coronayz_dspaces_put_req_list[j] = NULL;
+				}
+    		coronaxy_buf[j] = (float*) malloc(nout*nslvar*Grid.lsize[1]*Grid.lsize[0]*sizeof(float));
+				coronaxz_buf[j] = (float*) malloc(nout*nslvar*Grid.lsize[2]*Grid.lsize[0]*sizeof(float));
+				coronayz_buf[j] = (float*) malloc(nout*nslvar*Grid.lsize[1]*Grid.lsize[2]*sizeof(float));
 			}
-			if(ycol_rank == iroot) {
-				coronaxz_dspaces_put_req_list = (dspaces_put_req_t**) malloc(nout*sizeof(dspaces_put_req_t*));
-				// prevent non-NULL pointer exists in case that the rank is not in the selected domain
-				// although in corona this case does not happens
-      	for(int i=0; i<nout; i++) {
-        	coronaxz_dspaces_put_req_list[i] = NULL;
-      	}
-			}
-			if(xcol_rank == iroot) {
-				coronayz_dspaces_put_req_list = (dspaces_put_req_t**) malloc(nout*sizeof(dspaces_put_req_t*));
-				// prevent non-NULL pointer exists in case that the rank is not in the selected domain
-				// although in corona this case does not happens
-      	for(int i=0; i<nout; i++) {
-        	coronayz_dspaces_put_req_list[i] = NULL;
-      	}
-			}
-    	coronaxy_buf = (float*) malloc(nout*nslvar*Grid.lsize[1]*Grid.lsize[0]*sizeof(float));
-			coronaxz_buf = (float*) malloc(nout*nslvar*Grid.lsize[2]*Grid.lsize[0]*sizeof(float));
-			coronayz_buf = (float*) malloc(nout*nslvar*Grid.lsize[1]*Grid.lsize[2]*sizeof(float));
     }
 
     ini_flag = 0;
@@ -182,6 +203,7 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 	file_time = 0.0;
 	file_api_time = 0.0;
 	file_pp_time = 0.0;
+	int bufind;
 	// dspaces_put_req_t* dspaces_put_req_list;
 	if(Run.use_dspaces_io) {
 	  dspaces_time = 0.0;
@@ -190,6 +212,7 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 		dspaces_pp_time = 0.0;
       // dspaces_put_req_list = NULL;
 	  put_count = 0;
+		bufind = corona_ref_count % dspaces_bufnum;
 	}
 
   for(d=0;d<Grid.NDIM;d++){
@@ -338,18 +361,19 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 	for (v=0;v<nout;v++){
 
 		if(Run.use_dspaces_io && corona_ref_count > 0) {
+			int reqind = (corona_ref_count-1) % dspaces_bufnum;
 			clk = MPI_Wtime();
 			// slice_write_rebin() sometimes has all involved ranks write
 			// sometimes gather the data to the root rank
-			if(coronayz_dspaces_put_req_list[v][i] != NULL) {
+			if(coronayz_dspaces_put_req_list[reqind][v] != NULL) {
 				for(int i=0; i<nslvar; i++) {				
-					dspaces_check_put(ds_client, coronayz_dspaces_put_req_list[v][i], 1);
+					dspaces_check_put(ds_client, coronayz_dspaces_put_req_list[reqind][v][i], 1);
 				}
 				double dspaces_check_time = MPI_Wtime() - clk;
 				if(dspaces_check_time > nslvar*dspaces_check_overhead) {
 					dspaces_wait_time += MPI_Wtime() - clk - nslvar*dspaces_check_overhead;
 				}
-				free(coronayz_dspaces_put_req_list[v]);
+				free(coronayz_dspaces_put_req_list[reqind][v]);
 			}
 		}
 
@@ -357,7 +381,7 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 			// move iobuf update inside the nout loop
 			for(int i=0; i<nslvar*localsize; i++) {
 				io_buf[i+v*nslvar*localsize] = (float) los_sum[i+v*nslvar*localsize];
-				coronayz_buf[i+v*nslvar*localsize] = (float) los_sum[i+v*nslvar*localsize];
+				coronayz_buf[bufind][i+v*nslvar*localsize] = (float) los_sum[i+v*nslvar*localsize];
 			}
 		} else {
 			for(int i=0; i<nslvar*localsize; i++) {
@@ -424,8 +448,8 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 				fclose(hfhandle);
 			}
 			clk = MPI_Wtime();
-			coronayz_dspaces_put_req_list[v] = slice_write_rebin_dspaces(Grid, 0,
-																																	 &coronayz_buf[v*nslvar*localsize],
+			coronayz_dspaces_put_req_list[bufind][v] = slice_write_rebin_dspaces(Grid, 0,
+																																&coronayz_buf[bufind][v*nslvar*localsize],
 															 																		 localsize, nslvar, d2, d3, rebin[d2],
 															 																		 rebin[d3], filename, Run.globiter, 2,
 																																	 &dspaces_pp_time, &dspaces_api_time);
@@ -480,25 +504,26 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
       if (ycol_rank == iroot){
 	for (v=0;v<nout;v++){
 		if(Run.use_dspaces_io && corona_ref_count > 0) {
+			int reqind = (corona_ref_count-1) % dspaces_bufnum;
 			clk = MPI_Wtime();
 			// slice_write_rebin() sometimes has all involved ranks write
 			// sometimes gather the data to the root rank
-			if(coronaxz_dspaces_put_req_list[v] != NULL) {
+			if(coronaxz_dspaces_put_req_list[reqind][v] != NULL) {
 				for(int i=0; i<nslvar; i++) {
-					dspaces_check_put(ds_client, coronaxz_dspaces_put_req_list[v][i], 1);
+					dspaces_check_put(ds_client, coronaxz_dspaces_put_req_list[reqind][v][i], 1);
 				}
 				double dspaces_check_time = MPI_Wtime() - clk;
 				if(dspaces_check_time > nslvar*dspaces_check_overhead) {
 					dspaces_wait_time += MPI_Wtime() - clk - nslvar*dspaces_check_overhead;
 				}
-				free(coronaxz_dspaces_put_req_list[v]);
+				free(coronaxz_dspaces_put_req_list[reqind][v]);
 			}
 		}
 		if(Run.use_dspaces_io) {
 			// move iobuf update inside nout loop
 			for(int i=0; i<nslvar*localsize; i++) {
 				io_buf[i+v*nslvar*localsize] = (float) los_sum[i+v*nslvar*localsize];
-				coronaxz_buf[i+v*nslvar*localsize] = (float) los_sum[i+v*nslvar*localsize];
+				coronaxz_buf[bufind][i+v*nslvar*localsize] = (float) los_sum[i+v*nslvar*localsize];
 			}
 		} else {
 			for(int i=0; i<nslvar*localsize; i++) {
@@ -565,8 +590,8 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 				fclose(hfhandle);
 			}
 			clk = MPI_Wtime();
-			coronaxz_dspaces_put_req_list[v] = slice_write_rebin_dspaces(Grid, 0,
-																																	 &coronaxz_buf[v*nslvar*localsize], 
+			coronaxz_dspaces_put_req_list[bufind][v] = slice_write_rebin_dspaces(Grid, 0,
+																																&coronaxz_buf[bufind][v*nslvar*localsize], 
 															 																		 localsize, nslvar, d2, d3, rebin[d2],
 															 																		 rebin[d3], filename, Run.globiter, 2
 																																	 &dspaces_pp_time, &dspaces_api_time);
@@ -612,33 +637,34 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 	  // 	free(dspaces_put_req_list);	
 	  // }
 	  // update io_buf values
-      for(v=0;v<nout*nslvar*localsize;v++) {
-				io_buf[v] = (float) los_sum[v];
-				coronaxy_buf[v] = (float) los_sum[v];
-			}
+      // for(v=0;v<nout*nslvar*localsize;v++) {
+			// 	io_buf[v] = (float) los_sum[v];
+			// 	coronaxy_buf[v] = (float) los_sum[v];
+			// }
 
       if (zcol_rank == iroot){
 	for (v=0;v<nout;v++){
 		if(Run.use_dspaces_io && corona_ref_count > 0) {
+			int reqind = (corona_ref_count-1) % dspaces_bufnum;
 			clk = MPI_Wtime();
 			// slice_write_rebin() sometimes has all involved ranks write
 			// sometimes gather the data to the root rank
-			if(coronaxy_dspaces_put_req_list[v] != NULL) {
+			if(coronaxy_dspaces_put_req_list[reqind][v] != NULL) {
 				for(int i=0; i<nslvar; i++) {
-					dspaces_check_put(ds_client, coronaxy_dspaces_put_req_list[v][i], 1);	
+					dspaces_check_put(ds_client, coronaxy_dspaces_put_req_list[reqind][v][i], 1);	
 				}
 				double dspaces_check_time = MPI_Wtime() - clk;
 				if(dspaces_check_time > nslvar*dspaces_check_overhead) {
 					dspaces_wait_time += MPI_Wtime() - clk - nslvar*dspaces_check_overhead;
 				}
-				free(coronaxy_dspaces_put_req_list[v]);
+				free(coronaxy_dspaces_put_req_list[reqind][v]);
 			}
 		}
 		if(Run.use_dspaces_io) {
 			// move iobuf update inside nout loop
 			for(int i=0; i<nslvar*localsize; i++) {
 				io_buf[i+v*nslvar*localsize] = (float) los_sum[i+v*nslvar*localsize];
-				coronaxy_buf[i+v*nslvar*localsize] = (float) los_sum[i+v*nslvar*localsize];
+				coronaxy_buf[bufind][i+v*nslvar*localsize] = (float) los_sum[i+v*nslvar*localsize];
 			}
 		} else {
 			for(int i=0; i<nslvar*localsize; i++) {
@@ -706,8 +732,8 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 				fclose(hfhandle);
 			}
 			clk = MPI_Wtime();
-			coronaxy_dspaces_put_req_list[v] = slice_write_rebin_dspaces(Grid, 0,
-																																	 &coronaxy_buf[v*nslvar*localsize],
+			coronaxy_dspaces_put_req_list[bufind][v] = slice_write_rebin_dspaces(Grid, 0,
+																																&coronaxy_buf[bufind][v*nslvar*localsize],
 															 																		 localsize, nslvar, d2, d3, rebin[d2],
 															 																		 rebin[d3], filename, Run.globiter, 2,
 																																	 &dspaces_pp_time, &dspaces_api_time);

@@ -22,10 +22,11 @@ extern dspaces_put_req_t* slice_write_dspaces(const GridData& Grid, const int ir
                                 int n1, char* filename, const int iter,
                                 const int ndim);
 
-float *xyslice_buf = NULL;
+extern const int dspaces_bufnum;
+float **xyslice_buf = NULL;
 int xyslice_nslice;
 int xyslice_nslvar;
-dspaces_put_req_t** xyslice_dspaces_put_req_list = NULL;
+dspaces_put_req_t*** xyslice_dspaces_put_req_list = NULL;
 
 //======================================================================
 void xy_slice(const RunData&  Run, const GridData& Grid, 
@@ -52,11 +53,13 @@ void xy_slice(const RunData&  Run, const GridData& Grid,
   FILE* fhandle=NULL;
 	double clk, file_time, dspaces_time, dspaces_wait_time;
 	file_time = 0.0;
+	int bufind;
 	// dspaces_put_req_t* dspaces_put_req_list;
 	if(Run.use_dspaces_io) {
 		dspaces_time = 0.0;
     dspaces_wait_time = 0.0;
     // dspaces_put_req_list = NULL;
+		bufind = xyslice_ref_count % dspaces_bufnum;
 	}
 
   //MPI_File fhandle_mpi;
@@ -92,12 +95,17 @@ void xy_slice(const RunData&  Run, const GridData& Grid,
 
 			xyslice_nslice = nslice;
 			xyslice_nslvar = nslvar;
-			xyslice_dspaces_put_req_list = (dspaces_put_req_t**) malloc(nslice*sizeof(dspaces_put_req_t*));
-			// prevent non-NULL pointer exists when the rank is not in the selected domain
-      for(int i=0; i<nslice; i++) {
-        xyslice_dspaces_put_req_list[i] = NULL;
-      }
-    	xyslice_buf = (float*) malloc(nslice*nslvar*localsize*sizeof(float));
+			xyslice_dspaces_put_req_list = (dspaces_put_req_t***) malloc(dspaces_bufnum *
+																																		sizeof(dspaces_put_req_t**));
+			xyslice_buf = (float**) malloc(dspaces_bufnum*sizeof(float*));
+			for(int j=0; j<dspaces_bufnum; j++) {
+				xyslice_dspaces_put_req_list[j] = (dspaces_put_req_t**) malloc(nslice*sizeof(dspaces_put_req_t*));
+				// prevent non-NULL pointer exists when the rank is not in the selected domain
+      	for(int i=0; i<nslice; i++) {
+        	xyslice_dspaces_put_req_list[j][i] = NULL;
+      	}
+    		xyslice_buf[j] = (float*) malloc(nslice*nslvar*localsize*sizeof(float));
+			}
     }
 
     ini_flag = 0;
@@ -120,15 +128,16 @@ void xy_slice(const RunData&  Run, const GridData& Grid,
       // }
 
 			if(Run.use_dspaces_io && xyslice_ref_count > 0) {
+				int reqind = (xyslice_ref_count-1) % dspaces_bufnum;
 				clk = MPI_Wtime();
         for(int i=0; i<nslvar; i++) {
-          dspaces_check_put(ds_client, xyslice_dspaces_put_req_list[nsl][i], 1);
+          dspaces_check_put(ds_client, xyslice_dspaces_put_req_list[reqind][nsl][i], 1);
         }
 				double dspaces_check_time = MPI_Wtime() - clk;
 				if(dspaces_check_time > nslvar*dspaces_check_overhead) {
 					dspaces_wait_time += MPI_Wtime() - clk -nslvar*dspaces_check_overhead;
 				}
-        free(xyslice_dspaces_put_req_list[nsl]);
+        free(xyslice_dspaces_put_req_list[reqind][nsl]);
       }
 
 		if(Run.use_dspaces_io) {
@@ -141,62 +150,62 @@ void xy_slice(const RunData&  Run, const GridData& Grid,
 
 	  if (Physics.xy_var[0] == 1){
 	    iobuf[ind] = (float) Grid.U[node].d;
-			xyslice_buf[ind+nsl*nslvar*localsize] = (float) Grid.U[node].d;
+			xyslice_buf[bufind][ind+nsl*nslvar*localsize] = (float) Grid.U[node].d;
 	    ind += localsize;
 	  }
 	  if (Physics.xy_var[1] == 1){
 	    iobuf[ind] = (float) Grid.U[node].M.x;
-			xyslice_buf[ind+nsl*nslvar*localsize] = (float) Grid.U[node].M.x;
+			xyslice_buf[bufind][ind+nsl*nslvar*localsize] = (float) Grid.U[node].M.x;
 	    ind += localsize;
 	  }
 	  if (Physics.xy_var[2] == 1){
 	    iobuf[ind] = (float) Grid.U[node].M.y; 
-			xyslice_buf[ind+nsl*nslvar*localsize] = (float) Grid.U[node].M.y; 
+			xyslice_buf[bufind][ind+nsl*nslvar*localsize] = (float) Grid.U[node].M.y; 
 	    ind += localsize;
 	  }
 	  if (Physics.xy_var[3] == 1){
 	    iobuf[ind] = (float) Grid.U[node].M.z;
-			xyslice_buf[ind+nsl*nslvar*localsize] = (float) Grid.U[node].M.z;
+			xyslice_buf[bufind][ind+nsl*nslvar*localsize] = (float) Grid.U[node].M.z;
 	    ind += localsize;
 	  }
 	  if (Physics.xy_var[4] == 1){
 	    iobuf[ind] = (float) (Grid.U[node].e/Grid.U[node].d);
-			xyslice_buf[ind+nsl*nslvar*localsize] = (float) (Grid.U[node].e/Grid.U[node].d);
+			xyslice_buf[bufind][ind+nsl*nslvar*localsize] = (float) (Grid.U[node].e/Grid.U[node].d);
 	    ind += localsize;
 	  }
 	  if (Physics.xy_var[5] == 1){
 	    iobuf[ind] = (float) Grid.U[node].B.x;
-			xyslice_buf[ind+nsl*nslvar*localsize] = (float) Grid.U[node].B.x;
+			xyslice_buf[bufind][ind+nsl*nslvar*localsize] = (float) Grid.U[node].B.x;
 	    ind += localsize;
 	  }
 	  if (Physics.xy_var[6] == 1){
 	    iobuf[ind] = (float) Grid.U[node].B.y;  
-			xyslice_buf[ind+nsl*nslvar*localsize] = (float) Grid.U[node].B.y;
+			xyslice_buf[bufind][ind+nsl*nslvar*localsize] = (float) Grid.U[node].B.y;
 	    ind += localsize;
 	  }
 	  if (Physics.xy_var[7] == 1){
 	    iobuf[ind] = (float) Grid.U[node].B.z;
-			xyslice_buf[ind+nsl*nslvar*localsize] = (float) Grid.U[node].B.z;
+			xyslice_buf[bufind][ind+nsl*nslvar*localsize] = (float) Grid.U[node].B.z;
 	    ind += localsize;
 	  }
 	  if (Physics.xy_var[8] == 1){
 	    iobuf[ind] = (float) sqrt(Grid.U[node].M.sqr());
-			xyslice_buf[ind+nsl*nslvar*localsize] = (float) sqrt(Grid.U[node].M.sqr());
+			xyslice_buf[bufind][ind+nsl*nslvar*localsize] = (float) sqrt(Grid.U[node].M.sqr());
 	    ind += localsize;
 	  }
 	  if (Physics.xy_var[9] == 1){
 	    iobuf[ind] = (float) sqrt(Grid.U[node].B.sqr());
-			xyslice_buf[ind+nsl*nslvar*localsize] = (float) sqrt(Grid.U[node].B.sqr());
+			xyslice_buf[bufind][ind+nsl*nslvar*localsize] = (float) sqrt(Grid.U[node].B.sqr());
 	    ind += localsize;
 	  }
 	  if (Physics.xy_var[10] == 1){
 	    iobuf[ind] = (float) Grid.temp[node];
-			xyslice_buf[ind+nsl*nslvar*localsize] = (float) Grid.temp[node];
+			xyslice_buf[bufind][ind+nsl*nslvar*localsize] = (float) Grid.temp[node];
 	    ind += localsize;
 	  }
 	  if (Physics.xy_var[11] == 1){
 	    iobuf[ind] = (float) Grid.pres[node];
-			xyslice_buf[ind+nsl*nslvar*localsize] = (float) Grid.pres[node];
+			xyslice_buf[bufind][ind+nsl*nslvar*localsize] = (float) Grid.pres[node];
 	  }
 	}
       }
@@ -327,7 +336,8 @@ void xy_slice(const RunData&  Run, const GridData& Grid,
         char ds_var_name[128];
         sprintf(ds_var_name, "%s%s_%04d", Run.path_2D,"xy_slice",ixpos[nsl]);
         clk = MPI_Wtime();
-        xyslice_dspaces_put_req_list[nsl] = slice_write_dspaces(Grid, 0, &xyslice_buf[nsl*nslvar*localsize],
+        xyslice_dspaces_put_req_list[bufind][nsl] = slice_write_dspaces(Grid, 0,
+																													&xyslice_buf[bufind][nsl*nslvar*localsize],
 																																localsize, nslvar, 1, 0, ds_var_name,
 												 																				Run.globiter, 2);
         dspaces_time += MPI_Wtime() - clk;

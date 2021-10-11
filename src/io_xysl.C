@@ -61,47 +61,48 @@ void xy_slice_read(const GridData&,const int,float*,int,FILE*);
 
 enum io_group {XY_ROOT, XZ_ROOT, YZ_ROOT, XCOL_ROOT, YCOL_ROOT, ZCOL_ROOT, ALL_IO_RANK};
 
+const int dspaces_bufnum = 2;
 // 3D/EOS_OUTPUT
-float *eos_buf = NULL;
+float **eos_buf = NULL;
 int eos_nvar;
-dspaces_put_req_t* eos_dspaces_put_req_list = NULL;
+dspaces_put_req_t** eos_dspaces_put_req_list = NULL;
 // 3D/DIAG_OUTPUT
-float *diag_buf = NULL;
+float **diag_buf = NULL;
 int diag_nvar;
-dspaces_put_req_t* diag_dspaces_put_req_list = NULL;
+dspaces_put_req_t*** diag_dspaces_put_req_list = NULL;
 // 2D/TAU_SLICE
-extern float *tauslice_buf;
+extern float **tauslice_buf;
 extern int tauslice_nslice;
 extern int tauslice_nslvar;
-extern dspaces_put_req_t** tauslice_dspaces_put_req_list;
+extern dspaces_put_req_t*** tauslice_dspaces_put_req_list;
 // 2D/YZ_SLICE
-extern float *yzslice_buf;
+extern float **yzslice_buf;
 extern int yzslice_nslice;
 extern int yzslice_nslvar;
-extern dspaces_put_req_t** yzslice_dspaces_put_req_list;
+extern dspaces_put_req_t*** yzslice_dspaces_put_req_list;
 // 2D/XY_SLICE
-extern float *xyslice_buf;
+extern float **xyslice_buf;
 extern int xyslice_nslice;
 extern int xyslice_nslvar;
-extern dspaces_put_req_t** xyslice_dspaces_put_req_list;
+extern dspaces_put_req_t*** xyslice_dspaces_put_req_list;
 // 2D/XZ_SLICE
-extern float *xzslice_buf;
+extern float **xzslice_buf;
 extern int xzslice_nslice;
 extern int xzslice_nslvar;
-extern dspaces_put_req_t** xzslice_dspaces_put_req_list;
+extern dspaces_put_req_t*** xzslice_dspaces_put_req_list;
 // 2D/CORONA_EMISSION_XYZ
-extern float *coronaxy_buf;
-extern float *coronaxz_buf;
-extern float *coronayz_buf;
+extern float **coronaxy_buf;
+extern float **coronaxz_buf;
+extern float **coronayz_buf;
 extern int corona_nout;
 extern int corona_nslvar;
-extern dspaces_put_req_t** coronaxy_dspaces_put_req_list;
-extern dspaces_put_req_t** coronaxz_dspaces_put_req_list;
-extern dspaces_put_req_t** coronayz_dspaces_put_req_list;
+extern dspaces_put_req_t*** coronaxy_dspaces_put_req_list;
+extern dspaces_put_req_t*** coronaxz_dspaces_put_req_list;
+extern dspaces_put_req_t*** coronayz_dspaces_put_req_list;
 // 1D/ANALYZE_VP
-extern float *analyzevp_buf;
+extern float **analyzevp_buf;
 extern int analyzevp_nvar;
-extern dspaces_put_req_t* analyzevp_dspaces_put_req_list;
+extern dspaces_put_req_t** analyzevp_dspaces_put_req_list;
 
 // ALL ranks should call it
 // But return value only valids in proc whose io_rank == 0
@@ -743,18 +744,24 @@ void IO_Finalize() {
     }
     // 3D/EOS_OUTPUT
     if(io_dspaces_log->eos != NULL) {
+      int reqind = (io_dspaces_log->eos->count-1) % dspaces_bufnum;
       clk = MPI_Wtime();
       for(int i=0; i<eos_nvar; i++) {
-        dspaces_check_put(ds_client, eos_dspaces_put_req_list[i], 1);
+        dspaces_check_put(ds_client, eos_dspaces_put_req_list[reqind][i], 1);
       }
       dspaces_check_time = MPI_Wtime() - clk;
-      if(dspaces_check_time > eos_nvar*1e-6) {
-        wait_time = MPI_Wtime() - clk;
+      if(dspaces_check_time > eos_nvar*dspaces_check_overhead) {
+        wait_time = MPI_Wtime() - clk - eos_nvar*dspaces_check_overhead;
       }
       io_dspaces_log->eos->wait_time[io_dspaces_log->eos->count-1] = wait_time;
       io_dspaces_log->eos->time[io_dspaces_log->eos->count-1] = wait_time
                                   + io_dspaces_log->eos->api_time[io_dspaces_log->eos->count-1];
+      for(int i=0; i<dspaces_bufnum; i++) {
+        free(eos_dspaces_put_req_list[i]);
+        free(eos_buf[i]);
+      }
       free(eos_dspaces_put_req_list);
+      free(eos_buf);
     }
 
     wait_time = 0.0;
@@ -763,18 +770,24 @@ void IO_Finalize() {
     }
     // 3D/DIAG_OUTPUT
     if(io_dspaces_log->diag != NULL) { 
+      int reqind = (io_dspaces_log->diag->count-1) % dspaces_bufnum;
       clk = MPI_Wtime();
       for(int i=0; i<diag_nvar; i++) {
-        dspaces_check_put(ds_client, diag_dspaces_put_req_list[i], 1);
+        dspaces_check_put(ds_client, diag_dspaces_put_req_list[reqind][i], 1);
       }
       dspaces_check_time = MPI_Wtime() - clk;
-      if(dspaces_check_time > diag_nvar*1e-6) {
-        wait_time = MPI_Wtime() - clk;
+      if(dspaces_check_time > diag_nvar*dspaces_check_overhead) {
+        wait_time = MPI_Wtime() - clk - diag_nvar*dspaces_check_overhead;
       }
       io_dspaces_log->diag->wait_time[io_dspaces_log->diag->count-1] = wait_time;
       io_dspaces_log->diag->time[io_dspaces_log->diag->count-1] = wait_time
                                   + io_dspaces_log->diag->api_time[io_dspaces_log->diag->count-1];
+      for(int i=0; i<dspaces_bufnum; i++) {
+        free(diag_dspaces_put_req_list[i]);
+        free(diag_buf[i]);
+      }
       free(diag_dspaces_put_req_list);
+      free(diag_buf);
     }
 
     wait_time = 0.0;
@@ -783,23 +796,32 @@ void IO_Finalize() {
     }
     // 2D/TAU_SLICE at XCOL_ROOT only 
     if(io_dspaces_log->tau != NULL) {
-      if(tauslice_dspaces_put_req_list != NULL) {
+      int reqind = (io_dspaces_log->tau->count-1) % dspaces_bufnum;
+      if(tauslice_dspaces_put_req_list[reqind] != NULL) {
         clk = MPI_Wtime();
         for(int j=0; j<tauslice_nslice; j++) {
           for(int i=0; i<tauslice_nslvar; i++) {
-            dspaces_check_put(ds_client, tauslice_dspaces_put_req_list[j][i], 1);
+            dspaces_check_put(ds_client, tauslice_dspaces_put_req_list[reqind][j][i], 1);
           }
-          free(tauslice_dspaces_put_req_list[j]);
+          free(tauslice_dspaces_put_req_list[reqind][j]);
         }
         dspaces_check_time = MPI_Wtime() - clk;
-        if(dspaces_check_time > tauslice_nslvar*tauslice_nslice*1e-6) {
-          wait_time = MPI_Wtime() - clk;  
+        if(dspaces_check_time > tauslice_nslvar*tauslice_nslice*dspaces_check_overhead) {
+          wait_time = MPI_Wtime() - clk - tauslice_nslvar*tauslice_nslice*dspaces_check_overhead;  
         }
         io_dspaces_log->tau->wait_time[io_dspaces_log->tau->count-1] = wait_time;
         io_dspaces_log->tau->time[io_dspaces_log->tau->count-1] = wait_time
                                   + io_dspaces_log->tau->api_time[io_dspaces_log->tau->count-1];
+        for(int i=0; i<dspaces_bufnum; i++) {
+          free(tauslice_dspaces_put_req_list[i]);
+        }
         free(tauslice_dspaces_put_req_list);
       }
+      // databuf exists in all ranks
+      for(int i=0; i<dspaces_bufnum; i++) {
+          free(tauslice_buf[i]);
+      }
+      free(tauslice_buf);
     }
 
     wait_time = 0.0;
@@ -808,21 +830,30 @@ void IO_Finalize() {
     }
     // 2D/YZ_SLICE
     if(io_dspaces_log->yz != NULL) {
+      int reqind = (io_dspaces_log->yz->count-1) % dspaces_bufnum;
       clk = MPI_Wtime();
       for(int j=0; j<yzslice_nslice; j++) {
-        for(int i=0; i<yzslice_nslvar; i++) {
-          dspaces_check_put(ds_client, yzslice_dspaces_put_req_list[j][i], 1);
+        // put() is only called in selected ranks with centain sub domain
+        if(yzslice_dspaces_put_req_list[reqind][j] != NULL) {
+          for(int i=0; i<yzslice_nslvar; i++) {
+            dspaces_check_put(ds_client, yzslice_dspaces_put_req_list[reqind][j][i], 1);
+          }
+          free(yzslice_dspaces_put_req_list[reqind][j]);
         }
-        free(yzslice_dspaces_put_req_list[j]);
       }
       dspaces_check_time = MPI_Wtime() - clk;
-      if(dspaces_check_time > yzslice_nslvar*yzslice_nslice*1e-6) {
-        wait_time = MPI_Wtime() - clk;
+      if(dspaces_check_time > yzslice_nslvar*yzslice_nslice*dspaces_check_overhead) {
+        wait_time = MPI_Wtime() - clk - yzslice_nslvar*yzslice_nslice*dspaces_check_overhead;
       }
       io_dspaces_log->yz->wait_time[io_dspaces_log->yz->count-1] = wait_time;
       io_dspaces_log->yz->time[io_dspaces_log->yz->count-1] = wait_time
                                   + io_dspaces_log->yz->api_time[io_dspaces_log->yz->count-1];
+      for(int i=0; i<dspaces_bufnum; i++) {
+        free(yzslice_dspaces_put_req_list[i]);
+        free(yzslice_buf[i]);
+      }
       free(yzslice_dspaces_put_req_list);
+      free(yzslice_buf);
     }
 
     wait_time = 0.0;
@@ -831,21 +862,30 @@ void IO_Finalize() {
     }
     // 2D/XY_SLICE
     if(io_dspaces_log->xy != NULL) {
+      int reqind = (io_dspaces_log->xy->count-1) % dspaces_bufnum;
       clk = MPI_Wtime();
       for(int j=0; j<xyslice_nslice; j++) {
-        for(int i=0; i<xyslice_nslvar; i++) {
-          dspaces_check_put(ds_client, xyslice_dspaces_put_req_list[j][i], 1);
+        // put() is only called in selected ranks with centain sub domain
+        if(xyslice_dspaces_put_req_list[reqind][j] != NULL) {
+          for(int i=0; i<xyslice_nslvar; i++) {
+            dspaces_check_put(ds_client, xyslice_dspaces_put_req_list[reqind][j][i], 1);
+          }
+          free(xyslice_dspaces_put_req_list[reqind][j]);
         }
-        free(xyslice_dspaces_put_req_list[j]);
       }
       dspaces_check_time = MPI_Wtime() - clk;
-      if(dspaces_check_time > xyslice_nslvar*xyslice_nslice*1e-6) {
-        wait_time = MPI_Wtime() - clk;
+      if(dspaces_check_time > xyslice_nslvar*xyslice_nslice*dspaces_check_overhead) {
+        wait_time = MPI_Wtime() - clk - xyslice_nslvar*xyslice_nslice*dspaces_check_overhead;
       }
       io_dspaces_log->xy->wait_time[io_dspaces_log->xy->count-1] = wait_time;
       io_dspaces_log->xy->time[io_dspaces_log->xy->count-1] = wait_time
                                   + io_dspaces_log->xy->api_time[io_dspaces_log->xy->count-1];
+      for(int i=0; i<dspaces_bufnum; i++) {
+        free(xyslice_dspaces_put_req_list[i]);
+        free(xyslice_buf[i]);
+      }
       free(xyslice_dspaces_put_req_list);
+      free(xyslice_buf);
     }
 
     wait_time = 0.0;
@@ -854,21 +894,30 @@ void IO_Finalize() {
     }
     // 2D/XZ_SLICE
     if(io_dspaces_log->xz) {
+      int reqind = (io_dspaces_log->xz->count-1) % dspaces_bufnum;
       clk = MPI_Wtime();
       for(int j=0; j<xzslice_nslice; j++) {
-        for(int i=0; i<xzslice_nslvar; i++) {
-          dspaces_check_put(ds_client, xzslice_dspaces_put_req_list[j][i], 1);
+        // put() is only called in selected ranks with centain sub domain
+        if(xzslice_dspaces_put_req_list[reqind][j] != NULL) {
+          for(int i=0; i<xzslice_nslvar; i++) {
+            dspaces_check_put(ds_client, xzslice_dspaces_put_req_list[reqind][j][i], 1);
+          }
+          free(xzslice_dspaces_put_req_list[reqind][j]);
         }
-        free(xzslice_dspaces_put_req_list[j]);
       }
       dspaces_check_time = MPI_Wtime() - clk;
-      if(dspaces_check_time > xzslice_nslvar*xzslice_nslice*1e-6) {
-        wait_time = MPI_Wtime() - clk;
+      if(dspaces_check_time > xzslice_nslvar*xzslice_nslice*dspaces_check_overhead) {
+        wait_time = MPI_Wtime() - clk - xzslice_nslvar*xzslice_nslice*dspaces_check_overhead;
       }
       io_dspaces_log->xz->wait_time[io_dspaces_log->xz->count-1] = wait_time;
       io_dspaces_log->xz->time[io_dspaces_log->xz->count-1] = wait_time
                                   + io_dspaces_log->xz->api_time[io_dspaces_log->xz->count-1];
+      for(int i=0; i<dspaces_bufnum; i++) {
+        free(xzslice_dspaces_put_req_list[i]);
+        free(xzslice_buf[i]);
+      }
       free(xzslice_dspaces_put_req_list);
+      free(xzslice_buf);
     }
 
     wait_time = 0.0;
@@ -877,57 +926,76 @@ void IO_Finalize() {
     }
     // 2D/CORONA_EMISSION_XYZ at XCOL_ROOT, YCOL_ROOT, ZCOL_ROOT respectively
     if(io_dspaces_log->corona != NULL) {
-      if(coronaxz_dspaces_put_req_list != NULL) {
+      int reqind = (io_dspaces_log->corona->count-1) % dspaces_bufnum;
+      if(coronaxz_dspaces_put_req_list[reqind] != NULL) {
         clk = MPI_Wtime();
         for(int j=0; j<corona_nout; j++) {
-          if(coronaxz_dspaces_put_req_list[j] != NULL) {
+          if(coronaxz_dspaces_put_req_list[reqind][j] != NULL) {
             for(int i=0; i<corona_nslvar; i++) {
-              dspaces_check_put(ds_client, coronaxz_dspaces_put_req_list[j][i], 1);
+              dspaces_check_put(ds_client, coronaxz_dspaces_put_req_list[reqind][j][i], 1);
             }
-            free(coronaxz_dspaces_put_req_list[j]);
+            free(coronaxz_dspaces_put_req_list[reqind][j]);
           }
         }
         dspaces_check_time = MPI_Wtime() - clk;
-        if(dspaces_check_time > corona_nslvar*corona_nout*1e-6) {
-          wait_time = MPI_Wtime() - clk;
+        if(dspaces_check_time > corona_nslvar*corona_nout*dspaces_check_overhead) {
+          wait_time = MPI_Wtime() - clk - corona_nslvar*corona_nout*dspaces_check_overhead;
+        }
+        for(int i=0; i<dspaces_bufnum; i++) {
+          free(coronaxz_dspaces_put_req_list[i]);
         }
         free(coronaxz_dspaces_put_req_list);
       }
-      if(coronayz_dspaces_put_req_list != NULL) {
+      if(coronayz_dspaces_put_req_list[reqind] != NULL) {
         clk = MPI_Wtime();
         for(int j=0; j<corona_nout; j++) {
-          if(coronayz_dspaces_put_req_list[j]) {
+          if(coronayz_dspaces_put_req_list[reqind][j]) {
             for(int i=0; i<corona_nslvar; i++) {
-              dspaces_check_put(ds_client, coronayz_dspaces_put_req_list[j][i], 1);
+              dspaces_check_put(ds_client, coronayz_dspaces_put_req_list[reqind][j][i], 1);
             }
-            free(coronayz_dspaces_put_req_list[j]);
+            free(coronayz_dspaces_put_req_list[reqind][j]);
           }
         }
         dspaces_check_time = MPI_Wtime() - clk;
-        if(dspaces_check_time > corona_nslvar*corona_nout*1e-6) {
-          wait_time += MPI_Wtime() - clk;
+        if(dspaces_check_time > corona_nslvar*corona_nout*dspaces_check_overhead) {
+          wait_time += MPI_Wtime() - clk - corona_nslvar*corona_nout*dspaces_check_overhead;
+        }
+        for(int i=0; i<dspaces_bufnum; i++) {
+          free(coronayz_dspaces_put_req_list[i]);
         }
         free(coronayz_dspaces_put_req_list);
       }
-      if(coronaxy_dspaces_put_req_list != NULL) {
+      if(coronaxy_dspaces_put_req_list[reqind] != NULL) {
         clk = MPI_Wtime();
         for(int j=0; j<corona_nout; j++) {
-          if(coronaxy_dspaces_put_req_list[j] != NULL) {
+          if(coronaxy_dspaces_put_req_list[reqind][j] != NULL) {
             for(int i=0; i<corona_nslvar; i++) {
-              dspaces_check_put(ds_client, coronaxy_dspaces_put_req_list[j][i], 1);
+              dspaces_check_put(ds_client, coronaxy_dspaces_put_req_list[reqind][j][i], 1);
             }
-            free(coronaxy_dspaces_put_req_list[j]);
+            free(coronaxy_dspaces_put_req_list[reqind][j]);
           }
         }
         dspaces_check_time = MPI_Wtime() - clk;
-        if(dspaces_check_time > corona_nslvar*corona_nout*1e-6) {
-          wait_time += MPI_Wtime() - clk;
+        if(dspaces_check_time > corona_nslvar*corona_nout*dspaces_check_overhead) {
+          wait_time += MPI_Wtime() - clk - corona_nslvar*corona_nout*dspaces_check_overhead;
+        }
+        for(int i=0; i<dspaces_bufnum; i++) {
+          free(coronaxy_dspaces_put_req_list[i]);
         }
         free(coronaxy_dspaces_put_req_list);
       }
       io_dspaces_log->corona->wait_time[io_dspaces_log->corona->count-1] = wait_time;
       io_dspaces_log->corona->time[io_dspaces_log->corona->count-1] = wait_time
                                   + io_dspaces_log->corona->api_time[io_dspaces_log->corona->count-1];
+      // databuf exists in all ranks
+      for(int i=0; i<dspaces_bufnum; i++) {
+        free(coronaxy_buf[i]);
+        free(coronaxz_buf[i]);
+        free(coronayz_buf[i]);
+      }
+      free(coronaxy_buf);
+      free(coronaxz_buf);
+      free(coronayz_buf);
     }
     wait_time = 0.0;
     
@@ -935,20 +1003,29 @@ void IO_Finalize() {
     
     // 1D/ANALYZE_VP at YZ_ROOT only
     if(io_dspaces_log->analyze_vp != NULL) {
-      if(analyzevp_dspaces_put_req_list != NULL) {
+      int reqind = (io_dspaces_log->analyze_vp->count-1) % dspaces_bufnum;
+      if(analyzevp_dspaces_put_req_list[reqind] != NULL) {
         clk = MPI_Wtime();
         for(int i=0; i<analyzevp_nvar; i++) {
-          dspaces_check_put(ds_client, analyzevp_dspaces_put_req_list[i], 1);
+          dspaces_check_put(ds_client, analyzevp_dspaces_put_req_list[reqind][i], 1);
         }
         dspaces_check_time = MPI_Wtime() - clk;
-        if(dspaces_check_time > analyzevp_nvar*1e-6) {
-          wait_time = MPI_Wtime() - clk;  
+        if(dspaces_check_time > analyzevp_nvar*dspaces_check_overhead) {
+          wait_time = MPI_Wtime() - clk - analyzevp_nvar*dspaces_check_overhead;  
         }
         io_dspaces_log->analyze_vp->wait_time[io_dspaces_log->analyze_vp->count-1] = wait_time;
         io_dspaces_log->analyze_vp->time[io_dspaces_log->analyze_vp->count-1] = wait_time
                               + io_dspaces_log->analyze_vp->api_time[io_dspaces_log->analyze_vp->count-1];
+        for(int i=0; i<dspaces_bufnum; i++) {
+          free(analyzevp_dspaces_put_req_list[i]);
+        }
         free(analyzevp_dspaces_put_req_list);
       }
+      // databuf exist in all ranks
+      for(int i=0; i<dspaces_bufnum; i++) {
+        free(analyzevp_buf[i]);
+      }
+      free(analyzevp_buf);
     }
 
   }
@@ -1417,16 +1494,23 @@ void diag_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phy
     if(Run.use_dspaces_io) {
       io_dspaces_log->diag = (struct log_entry*) malloc(sizeof(struct log_entry));
       log_entry_init(io_dspaces_log->diag, "DIAG", est_total_res_iters, 3, gsize, tot_vars);
+
     }
 
     ini_flag = 0;
   }
 
-  // allocate the diag buf after the tot_vars are set
-  if(diag_ref_count == 1) {
-    diag_nvar = tot_vars;
-    diag_dspaces_put_req_list = (dspaces_put_req_t*) malloc(tot_vars*sizeof(dspaces_put_req_t));
-    diag_buf = (float*) malloc(tot_vars*lsize*sizeof(float));
+  if(Run.use_dspaces_io) {
+    // allocate the diag buf after the tot_vars are set
+    if(diag_ref_count == 1) {
+      diag_nvar = tot_vars;
+      diag_dspaces_put_req_list = (dspaces_put_req_t**) malloc(dspaces_bufnum*sizeof(dspaces_put_req_t*));
+      diag_buf = (float**) malloc(dspaces_bufnum*sizeof(float*));
+      for(int i=0; i<dspaces_bufnum; i++) {
+        diag_dspaces_put_req_list[i] = (dspaces_put_req_t*) malloc(tot_vars*sizeof(dspaces_put_req_t));
+        diag_buf[i] = (float*) malloc(tot_vars*lsize*sizeof(float));
+      }
+    }
   }
   
   
@@ -1503,8 +1587,9 @@ void diag_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phy
 
   if(Run.use_dspaces_io) {
     char ds_var_name[128];
+    int bufind = diag_ref_count % dspaces_bufnum;
     v_max = tot_vars;
-    // fill all vars into the big eos_buf
+    // fill all vars into the big diag_buf
     // fill one var, send one var
     for(int vi=0; vi<v_max; vi++) {
       var = var_index[vi];
@@ -1513,8 +1598,9 @@ void diag_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phy
       //   dspaces_wait_time += MPI_Wtime() - clk;
       // }
       if(diag_ref_count > 1) {
+        int reqind = (diag_ref_count-1) % dspaces_bufnum;
         clk = MPI_Wtime();
-        dspaces_check_put(ds_client, diag_dspaces_put_req_list[vi], 1);
+        dspaces_check_put(ds_client, diag_dspaces_put_req_list[reqind][vi], 1);
         double dspaces_check_time = MPI_Wtime() - clk;
         if(dspaces_check_time > tot_vars*dspaces_check_overhead) {
           dspaces_wait_time += MPI_Wtime() - clk - tot_vars*dspaces_check_overhead;
@@ -1524,7 +1610,7 @@ void diag_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phy
 	      for(j=0;j<sizey;j++){
 	        for(i=0;i<sizex;i++){
 	          loc=Grid.node(i+Grid.ghosts[0],j+Grid.ghosts[1],k+Grid.ghosts[2]);
-	          diag_buf[i+j*sizex+k*sizex*sizey+vi*lsize] = (float) tvars[var][loc];
+	          diag_buf[bufind][i+j*sizex+k*sizex*sizey+vi*lsize] = (float) tvars[var][loc];
 	        }
 	      }
       }
@@ -1535,8 +1621,9 @@ void diag_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phy
       sprintf(ds_var_name, "%s%s", Run.path_3D,diag_names[var]);
       clk = MPI_Wtime();
       // no buf allocation, no check
-      diag_dspaces_put_req_list[vi] = dspaces_iput(ds_client, ds_var_name, Run.globiter,
-                                      sizeof(float), Grid.NDIM, lb, ub, &diag_buf[vi*lsize], 0, 0);
+      diag_dspaces_put_req_list[bufind][vi] = dspaces_iput(ds_client, ds_var_name, Run.globiter,
+                                                           sizeof(float), Grid.NDIM, lb, ub, 
+                                                           &diag_buf[bufind][vi*lsize], 0, 0);
       dspaces_time += MPI_Wtime() - clk;
     }
     // if(Run.iteration > 0){
@@ -1691,8 +1778,12 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
       log_entry_init(io_dspaces_log->eos, "EOS", est_total_res_iters, 3, gsize, tot_vars);
 
       eos_nvar = tot_vars;
-      eos_dspaces_put_req_list = (dspaces_put_req_t*) malloc(tot_vars*sizeof(dspaces_put_req_t));
-      eos_buf = (float*) malloc(tot_vars*lsize*sizeof(float));
+      eos_dspaces_put_req_list = (dspaces_put_req_t**) malloc(dspaces_bufnum*sizeof(dspaces_put_req_t*));
+      eos_buf = (float**) malloc(dspaces_bufnum*sizeof(float*))
+      for(int i=0; i<dspaces_bufnum; i++) {
+        eos_dspaces_put_req_list[i] = (dspaces_put_req_t*) malloc(tot_vars*sizeof(dspaces_put_req_t));
+        eos_buf[i] = (float*) malloc(tot_vars*lsize*sizeof(float));
+      }
     }
 
     ini_flag = 0;
@@ -1770,6 +1861,7 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
     if (zcol_rank == v2) free(iobuf_glo); 
 
   if(Run.use_dspaces_io) {
+    int bufind = eos_ref_count % dspaces_bufnum;
     char ds_var_name[128];
     v_max = tot_vars;
     // fill all vars into the big eos_buf
@@ -1781,8 +1873,9 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
       //   dspaces_wait_time += MPI_Wtime() - clk;
       // }
       if(eos_ref_count > 0) {
+        int reqind = (eos_ref_count-1) % dspaces_bufnum;
         clk = MPI_Wtime();
-        dspaces_check_put(ds_client, eos_dspaces_put_req_list[vi], 1);
+        dspaces_check_put(ds_client, eos_dspaces_put_req_list[reqind][vi], 1);
         double dspaces_check_time = MPI_Wtime() - clk;
         if(dspaces_check_time > tot_vars*dspaces_check_overhead) {
           dspaces_wait_time += MPI_Wtime() - clk - tot_vars*dspaces_check_overhead;
@@ -1792,7 +1885,7 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
         for(j=0; j<sizey; j++){
           for(i=0; i<sizex; i++) {
             loc = Grid.node(+Grid.ghosts[0],j+Grid.ghosts[1],k+Grid.ghosts[2]);
-            eos_buf[i+j*sizex+k*sizex*sizey+vi*lsize] = (float) eos_vars[var][loc];
+            eos_buf[bufind][i+j*sizex+k*sizex*sizey+vi*lsize] = (float) eos_vars[var][loc];
           }
         }
       }
@@ -1803,8 +1896,9 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
       sprintf(ds_var_name, "%s%s", Run.path_3D,eos_names[var]);
       clk = MPI_Wtime();
       // no buf allocation, no check
-      eos_dspaces_put_req_list[vi] = dspaces_iput(ds_client, ds_var_name, Run.globiter,
-                                              sizeof(float), Grid.NDIM, lb, ub, &eos_buf[vi*lsize], 0, 0);
+      eos_dspaces_put_req_list[bufind][vi] = dspaces_iput(ds_client, ds_var_name, Run.globiter,
+                                                          sizeof(float), Grid.NDIM, lb, ub,
+                                                          &eos_buf[bufind][vi*lsize], 0, 0);
       dspaces_time += MPI_Wtime() - clk;
     }
 

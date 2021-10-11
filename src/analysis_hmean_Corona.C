@@ -15,9 +15,10 @@ using namespace std;
 extern est_total_slice_iters;
 extern struct log *io_file_log, *io_dspaces_log;
 
-float *analyzevp_buf = NULL;
+extern const int dspaces_bufnum;
+float **analyzevp_buf = NULL;
 int analyzevp_nvar;
-dspaces_put_req_t* analyzevp_dspaces_put_req_list = NULL;
+dspaces_put_req_t** analyzevp_dspaces_put_req_list = NULL;
 
 //======================================================================
 void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
@@ -43,10 +44,12 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
 
   double clk, file_time, dspaces_time, dspaces_wait_time;
 	file_time = 0.0;
+  int bufind;
 	// dspaces_put_req_t* dspaces_put_req_list;
 	if(Run.use_dspaces_io) {
 		dspaces_time = 0.0;
     dspaces_wait_time = 0.0;
+    bufind = analyzevp_ref_count % dspaces_bufnum;
     // dspaces_put_req_list = NULL;
 	}
 
@@ -88,12 +91,19 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
       log_entry_init(io_dspaces_log->analyze_vp, "ANALYZE_VP", est_total_slice_iters, 1, gsize, nvar);
       
       analyzevp_nvar = nvar;
-      // dspaces_iput() is only called in ranks whose yz_rank == iroot
-			// so the dspaces_put_req_list is only malloced there
-      if(yz_rank == 0) {
-        analyzevp_dspaces_put_req_list = (dspaces_put_req_t*) malloc(nvar*sizeof(dspaces_put_req_t));
+      analyzevp_dspaces_put_req_list = (dspaces_put_req_t**) malloc(dspaces_bufnum *
+                                                                    sizeof(dspaces_put_req_t*));
+      analyzevp_buf = (float**) malloc(dspaces_bufnum*sizeof(float*));
+      for(int i=0; i<dspaces_bufnum; i++) {
+        // dspaces_iput() is only called in ranks whose yz_rank == iroot
+			  // so the dspaces_put_req_list is only malloced there
+        if(yz_rank == 0) {
+          analyzevp_dspaces_put_req_list[i] = (dspaces_put_req_t*) malloc(nvar*sizeof(dspaces_put_req_t));
+        } else {
+          analyzevp_dspaces_put_req_list[i] = NULL;
+        }
+        analyzevp_buf[i] = (float*) malloc(nvar*Grid.lsize[0]*sizeof(float));
       }
-      analyzevp_buf = (float*) malloc(nvar*Grid.lsize[0]*sizeof(float));
     }
 
     ini_flag = 0;
@@ -269,9 +279,10 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
     }
 
     if(Run.use_dspaces_io && analyzevp_ref_count > 0) {
+      int reqind = (analyzevp_ref_count-1) % dspaces_bufnum;
       clk = MPI_Wtime();
       for(int i=0; i<nvar; i++) {
-        dspaces_check_put(ds_client, analyzevp_dspaces_put_req_list[i], 1);
+        dspaces_check_put(ds_client, analyzevp_dspaces_put_req_list[reqind][i], 1);
       }
       double dspaces_check_time = MPI_Wtime() - clk;
       if(dspaces_check_time > nvar*dspaces_check_overhead) {
@@ -281,7 +292,7 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
     if(Run.use_dspaces_io) {
       for(ind=0;ind<bufsz;ind++){ 
         iobuf[ind] = (float) glo[ind];
-        analyzevp_buf[ind] = (float) glo[ind];
+        analyzevp_buf[bufind][ind] = (float) glo[ind];
       }
     } else {
       for(ind=0;ind<bufsz;ind++){ 
@@ -323,9 +334,9 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
       for(int v=0; v<nvar; v++) {
         sprintf(ds_var_name, "%s%s_%d", Run.path_2D, "hmean1D", v);
         clk = MPI_Wtime();
-        analyzevp_dspaces_put_req_list[v] = dspaces_iput(ds_client, ds_var_name, Run.globiter,
+        analyzevp_dspaces_put_req_list[bufind][v] = dspaces_iput(ds_client, ds_var_name, Run.globiter,
                                                          sizeof(float), 1, lb, ub,
-                                                         &analyzevp_buf[v*Grid.lsize[0]], 0, 0);
+                                                         &analyzevp_buf[bufind][v*Grid.lsize[0]], 0, 0);
         dspaces_time += MPI_Wtime() - clk;
       }
       char header_name[128];
