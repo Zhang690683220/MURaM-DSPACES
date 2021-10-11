@@ -407,7 +407,7 @@ void xy_slice(const RunData&  Run, const GridData& Grid,
 			std::cout << "File Output (XY_SLICE) in " << file_time << " seconds" << std::endl;
 			if(Run.use_dspaces_io) {
 				std::cout << "DataSpaces API Call (XY_SLICE) in " << dspaces_time
-									<< " seconds" << std::endl;
+									<< " seconds" <<  " Bin: " << bufind << std::endl;
     		// std::cout << "DataSpaces Wait (XY_SLICE) in " << dspaces_wait_time
 				// 					<< " seconds" << std::endl;
     		// std::cout << "DataSpaces Output (XY_SLICE) in " << dspaces_time

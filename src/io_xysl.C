@@ -1641,7 +1641,7 @@ void diag_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phy
       }
       io_dspaces_log->diag->count++ ;
       if(Run.verbose > 0) {
-        std::cout << "DataSpaces API Call (DIAG) in " << dspaces_time << " seconds" << std::endl;
+        std::cout << "DataSpaces API Call (DIAG) in " << dspaces_time << " seconds" <<  " Bin: " << bufind << std::endl;
         // std::cout << "DataSpaces Wait (DIAG) in " << dspaces_wait_time << " seconds" << std::endl;
         // std::cout << "DataSpaces Output (DIAG) in " << dspaces_time << " seconds"
         //           << std::endl;
@@ -1915,7 +1915,7 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
       }
       io_dspaces_log->eos->count++;
       if(Run.verbose) {
-        std::cout << "DataSpaces API Call (EOS) in " << dspaces_time << " seconds" << std::endl;
+        std::cout << "DataSpaces API Call (EOS) in " << dspaces_time << " seconds" <<  " Bin: " << bufind << std::endl;
         // std::cout << "DataSpaces Wait (EOS) in " << dspaces_wait_time << " seconds" << std::endl;
         // std::cout << "DataSpaces Output (EOS) in " << dspaces_time << " seconds"
         //           << std::endl;
