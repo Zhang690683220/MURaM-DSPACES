@@ -41,7 +41,7 @@ int ds_put_local = 0;
 int ds_optimized = 0;
 dspaces_client_t ds_client = dspaces_CLIENT_NULL;
 uint64_t *lb, *ub;
-const double dspaces_check_overhead = 2e-5;
+// const double dspaces_check_overhead = 2e-5;
 int io_rank;
 char io_log_path[128];
 
@@ -61,7 +61,7 @@ void xy_slice_read(const GridData&,const int,float*,int,FILE*);
 
 enum io_group {XY_ROOT, XZ_ROOT, YZ_ROOT, XCOL_ROOT, YCOL_ROOT, ZCOL_ROOT, ALL_IO_RANK};
 
-const int dspaces_bufnum = 2;
+// extern const int dspaces_bufnum = 2;
 // 3D/EOS_OUTPUT
 float **eos_buf = NULL;
 int eos_nvar;

@@ -10,7 +10,8 @@ class RTS;
 
 // extern var for 2d slices use
 extern dspaces_client_t ds_client;
-extern const double dspaces_check_overhead;
+const double dspaces_check_overhead = 2e-5;
+const int dspaces_bufnum = 2;
 
 // struct for IO logs
 struct log_entry {
