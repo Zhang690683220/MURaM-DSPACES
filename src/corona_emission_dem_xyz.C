@@ -176,7 +176,7 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 					// prevent non-NULL pointer exists in case that the rank is not in the selected domain
 					// although in corona this case does not happens
       		for(int i=0; i<nout; i++) {
-        		coronayz_dspaces_put_req_list[i] = NULL;
+        		coronayz_dspaces_put_req_list[j][i] = NULL;
       		}
 				} else {
 					coronayz_dspaces_put_req_list[j] = NULL;
