@@ -170,7 +170,7 @@ dspaces_put_req_t* slice_write_rebin_dspaces(const GridData& Grid,
            const int iroot, float* vloc,
 		       const int nloc,const int nvar,const int n0,
 		       const int n1,const int sm_x,const int sm_y,
-           char* filename, const int iter, const int ndim, double* pp_time. double* api_time)
+           char* filename, const int iter, const int ndim, double* pp_time, double* api_time)
 {
 
   double clk = MPI_Wtime();
