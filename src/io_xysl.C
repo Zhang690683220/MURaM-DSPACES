@@ -504,34 +504,36 @@ void dspaces_log_output(struct log *io_log, char* log_path) {
   // inside the according IO process
   char fstr[128];
   sprintf(fstr, "%s%s", log_path, io_log->name);
+  std::cout << "Rank:" << io_rank << " ,I'm alive before dspaces logout output EOS!" <<std::endl;
+
   if(io_log->eos != NULL && io_rank == 0) {
     dspaces_log_entry_output(io_log->eos, fstr);
   }
-
+  std::cout << "Rank:" << io_rank << " ,I'm alive before dspaces logout output DIAG!" <<std::endl;
   if(io_log->diag != NULL && io_rank == 0) {
     dspaces_log_entry_output(io_log->diag, fstr);
   }
-
+  std::cout << "Rank:" << io_rank << " ,I'm alive before dspaces logout output TAU!" <<std::endl;
   if(io_log->tau != NULL && yz_rank == 0 && xcol_rank == 0) {
     dspaces_log_entry_output(io_log->tau, fstr);
   }
-
+  std::cout << "Rank:" << io_rank << " ,I'm alive before dspaces logout output YZ!" <<std::endl;
   if(io_log->yz != NULL && io_rank == 0) {
     dspaces_log_entry_output(io_log->yz, fstr);
   }
-
+  std::cout << "Rank:" << io_rank << " ,I'm alive before dspaces logout output XY!" <<std::endl;
   if(io_log->xy != NULL && io_rank == 0) {
     dspaces_log_entry_output(io_log->xy, fstr);
   }
-
+  std::cout << "Rank:" << io_rank << " ,I'm alive before dspaces logout output XZ!" <<std::endl;
   if(io_log->xz != NULL && io_rank == 0) {
     dspaces_log_entry_output(io_log->xz, fstr);
   }
-
+  std::cout << "Rank:" << io_rank << " ,I'm alive before dspaces logout output CORONA!" <<std::endl;
   if(io_log->corona != NULL && io_rank == 0) {
     dspaces_log_entry_output(io_log->corona, fstr);
   }
-
+  std::cout << "Rank:" << io_rank << " ,I'm alive before dspaces logout output ANALYSE_VP!" <<std::endl;
   if(io_log->analyze_vp != NULL && yz_rank == 0 && xcol_rank == 0) {
     dspaces_log_entry_output(io_log->analyze_vp, fstr);
   }
@@ -1044,7 +1046,10 @@ void IO_Finalize() {
       std::cout << "Rank:" << io_rank << " ,I'm alive before dspaces logoutput!" <<std::endl;
   
     dspaces_log_output(io_dspaces_log, io_log_path);
+    std::cout << "Rank:" << io_rank << " ,I'm alive before dspaces logout summary print!" <<std::endl;
     log_summary_print(io_dspaces_log);
+    std::cout << "Rank:" << io_rank << " ,I'm alive before dspaces logout free!" <<std::endl;
+
     log_free(io_dspaces_log);
   }
   
