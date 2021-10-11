@@ -18,7 +18,7 @@ using namespace std;
 //extern void slice_write(const GridData&,const int,float*,int,int,const int,
 //			const int,FILE*);
 
-extern est_total_slice_iters;
+extern int est_total_slice_iters;
 extern struct log *io_file_log, *io_dspaces_log;
 
 extern double slice_write_rebin(const GridData&,const int,float*,const int,const int,
@@ -593,7 +593,7 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 			coronaxz_dspaces_put_req_list[bufind][v] = slice_write_rebin_dspaces(Grid, 0,
 																																&coronaxz_buf[bufind][v*nslvar*localsize], 
 															 																		 localsize, nslvar, d2, d3, rebin[d2],
-															 																		 rebin[d3], filename, Run.globiter, 2
+															 																		 rebin[d3], filename, Run.globiter, 2,
 																																	 &dspaces_pp_time, &dspaces_api_time);
 			dspaces_time += MPI_Wtime() - clk;
 		}
