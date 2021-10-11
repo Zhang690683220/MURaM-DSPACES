@@ -752,9 +752,11 @@ void IO_Finalize() {
         free(eos_dspaces_put_req_list[reqind]);
         free(eos_buf[reqind]);
       }
-      io_dspaces_log->eos->wait_time[io_dspaces_log->eos->count-1] = wait_time;
-      io_dspaces_log->eos->time[io_dspaces_log->eos->count-1] = wait_time
+      if(io_rank == 0) {
+        io_dspaces_log->eos->wait_time[io_dspaces_log->eos->count-1] = wait_time;
+        io_dspaces_log->eos->time[io_dspaces_log->eos->count-1] = wait_time
                                   + io_dspaces_log->eos->api_time[io_dspaces_log->eos->count-1];
+      }
       free(eos_dspaces_put_req_list);
       free(eos_buf);
     }
@@ -777,9 +779,11 @@ void IO_Finalize() {
         free(diag_dspaces_put_req_list[reqind]);
         free(diag_buf[reqind]);
       }
+      if(io_rank == 0) {
       io_dspaces_log->diag->wait_time[io_dspaces_log->diag->count-1] = wait_time;
       io_dspaces_log->diag->time[io_dspaces_log->diag->count-1] = wait_time
                                   + io_dspaces_log->diag->api_time[io_dspaces_log->diag->count-1];
+      }
       free(diag_dspaces_put_req_list);
       free(diag_buf);
     }
