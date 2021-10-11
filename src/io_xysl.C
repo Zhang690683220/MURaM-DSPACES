@@ -778,8 +778,8 @@ void IO_Finalize() {
         if(dspaces_check_time > diag_nvar*dspaces_check_overhead) {
           wait_time += MPI_Wtime() - clk - diag_nvar*dspaces_check_overhead;
         }
-        free(diag_dspaces_put_req_list[i]);
-        free(diag_buf[i]);
+        free(diag_dspaces_put_req_list[reqind]);
+        free(diag_buf[reqind]);
       }
       io_dspaces_log->diag->wait_time[io_dspaces_log->diag->count-1] = wait_time;
       io_dspaces_log->diag->time[io_dspaces_log->diag->count-1] = wait_time
