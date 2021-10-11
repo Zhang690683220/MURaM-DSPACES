@@ -365,7 +365,7 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 			clk = MPI_Wtime();
 			// slice_write_rebin() sometimes has all involved ranks write
 			// sometimes gather the data to the root rank
-			if(coronayz_dspaces_put_req_list[reqind][v] != NULL) {
+			if(coronayz_dspaces_put_req_list[bufind][v] != NULL) {
 				for(int i=0; i<nslvar; i++) {				
 					dspaces_check_put(ds_client, coronayz_dspaces_put_req_list[bufind][v][i], 1);
 				}
@@ -373,7 +373,7 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 				if(dspaces_check_time > nslvar*dspaces_check_overhead) {
 					dspaces_wait_time += MPI_Wtime() - clk - nslvar*dspaces_check_overhead;
 				}
-				free(coronayz_dspaces_put_req_list[reqind][v]);
+				free(coronayz_dspaces_put_req_list[bufind][v]);
 			}
 		}
 
@@ -508,7 +508,7 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 			clk = MPI_Wtime();
 			// slice_write_rebin() sometimes has all involved ranks write
 			// sometimes gather the data to the root rank
-			if(coronaxz_dspaces_put_req_list[reqind][v] != NULL) {
+			if(coronaxz_dspaces_put_req_list[bufind][v] != NULL) {
 				for(int i=0; i<nslvar; i++) {
 					dspaces_check_put(ds_client, coronaxz_dspaces_put_req_list[bufind][v][i], 1);
 				}
@@ -516,7 +516,7 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 				if(dspaces_check_time > nslvar*dspaces_check_overhead) {
 					dspaces_wait_time += MPI_Wtime() - clk - nslvar*dspaces_check_overhead;
 				}
-				free(coronaxz_dspaces_put_req_list[reqind][v]);
+				free(coronaxz_dspaces_put_req_list[bufind][v]);
 			}
 		}
 		if(Run.use_dspaces_io) {
@@ -649,7 +649,7 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 			clk = MPI_Wtime();
 			// slice_write_rebin() sometimes has all involved ranks write
 			// sometimes gather the data to the root rank
-			if(coronaxy_dspaces_put_req_list[reqind][v] != NULL) {
+			if(coronaxy_dspaces_put_req_list[bufind][v] != NULL) {
 				for(int i=0; i<nslvar; i++) {
 					dspaces_check_put(ds_client, coronaxy_dspaces_put_req_list[bufind][v][i], 1);	
 				}
@@ -657,7 +657,7 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 				if(dspaces_check_time > nslvar*dspaces_check_overhead) {
 					dspaces_wait_time += MPI_Wtime() - clk - nslvar*dspaces_check_overhead;
 				}
-				free(coronaxy_dspaces_put_req_list[reqind][v]);
+				free(coronaxy_dspaces_put_req_list[bufind][v]);
 			}
 		}
 		if(Run.use_dspaces_io) {

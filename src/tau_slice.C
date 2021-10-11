@@ -236,7 +236,7 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
 			if(dspaces_check_time > nslvar*dspaces_check_overhead) {
 				dspaces_wait_time += MPI_Wtime() - clk -nslvar*dspaces_check_overhead;
 			}
-      free(tauslice_dspaces_put_req_list[reqind][nsl]);
+      free(tauslice_dspaces_put_req_list[bufind][nsl]);
     }
 
 	// update iosum values

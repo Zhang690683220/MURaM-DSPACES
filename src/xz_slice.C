@@ -138,7 +138,7 @@ void xz_slice(const RunData&  Run, const GridData& Grid,
 				if(dspaces_check_time > nslvar*dspaces_check_overhead) {
 					dspaces_wait_time += MPI_Wtime() - clk - nslvar*dspaces_check_overhead;
 				}
-        free(xzslice_dspaces_put_req_list[reqind][nsl]);
+        free(xzslice_dspaces_put_req_list[bufind][nsl]);
       }
 
 			if(Run.use_dspaces_io) {
