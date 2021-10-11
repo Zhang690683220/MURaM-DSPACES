@@ -278,11 +278,11 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
       glo[ind+12*ioff] *= b_unit*b_unit;
     }
 
-    if(Run.use_dspaces_io && analyzevp_ref_count > 0) {
-      int reqind = (analyzevp_ref_count-1) % dspaces_bufnum;
+    if(Run.use_dspaces_io && analyzevp_ref_count > dspaces_bufnum-1) {
+      // int reqind = (analyzevp_ref_count-1) % dspaces_bufnum;
       clk = MPI_Wtime();
       for(int i=0; i<nvar; i++) {
-        dspaces_check_put(ds_client, analyzevp_dspaces_put_req_list[reqind][i], 1);
+        dspaces_check_put(ds_client, analyzevp_dspaces_put_req_list[bufind][i], 1);
       }
       double dspaces_check_time = MPI_Wtime() - clk;
       if(dspaces_check_time > nvar*dspaces_check_overhead) {

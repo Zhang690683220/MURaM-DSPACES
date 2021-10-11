@@ -127,11 +127,11 @@ void xy_slice(const RunData&  Run, const GridData& Grid,
       //   free(dspaces_put_req_list);
       // }
 
-			if(Run.use_dspaces_io && xyslice_ref_count > 0) {
-				int reqind = (xyslice_ref_count-1) % dspaces_bufnum;
+			if(Run.use_dspaces_io && xyslice_ref_count > dspaces_bufnum-1) {
+				// int reqind = (xyslice_ref_count-1) % dspaces_bufnum;
 				clk = MPI_Wtime();
         for(int i=0; i<nslvar; i++) {
-          dspaces_check_put(ds_client, xyslice_dspaces_put_req_list[reqind][nsl][i], 1);
+          dspaces_check_put(ds_client, xyslice_dspaces_put_req_list[bufind][nsl][i], 1);
         }
 				double dspaces_check_time = MPI_Wtime() - clk;
 				if(dspaces_check_time > nslvar*dspaces_check_overhead) {

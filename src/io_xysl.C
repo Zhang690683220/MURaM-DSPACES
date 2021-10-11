@@ -744,22 +744,21 @@ void IO_Finalize() {
     }
     // 3D/EOS_OUTPUT
     if(io_dspaces_log->eos != NULL) {
-      int reqind = (io_dspaces_log->eos->count-1) % dspaces_bufnum;
-      clk = MPI_Wtime();
-      for(int i=0; i<eos_nvar; i++) {
-        dspaces_check_put(ds_client, eos_dspaces_put_req_list[reqind][i], 1);
-      }
-      dspaces_check_time = MPI_Wtime() - clk;
-      if(dspaces_check_time > eos_nvar*dspaces_check_overhead) {
-        wait_time = MPI_Wtime() - clk - eos_nvar*dspaces_check_overhead;
+      for(int reqind=0; reqind<dspaces_bufnum; reqind++) {
+        clk = MPI_Wtime();
+        for(int i=0; i<eos_nvar; i++) {
+          dspaces_check_put(ds_client, eos_dspaces_put_req_list[reqind][i], 1);
+        }
+        dspaces_check_time = MPI_Wtime() - clk;
+        if(dspaces_check_time > eos_nvar*dspaces_check_overhead) {
+          wait_time += MPI_Wtime() - clk - eos_nvar*dspaces_check_overhead;
+        }
+        free(eos_dspaces_put_req_list[reqind]);
+        free(eos_buf[reqind]);
       }
       io_dspaces_log->eos->wait_time[io_dspaces_log->eos->count-1] = wait_time;
       io_dspaces_log->eos->time[io_dspaces_log->eos->count-1] = wait_time
                                   + io_dspaces_log->eos->api_time[io_dspaces_log->eos->count-1];
-      for(int i=0; i<dspaces_bufnum; i++) {
-        free(eos_dspaces_put_req_list[i]);
-        free(eos_buf[i]);
-      }
       free(eos_dspaces_put_req_list);
       free(eos_buf);
     }
@@ -770,22 +769,21 @@ void IO_Finalize() {
     }
     // 3D/DIAG_OUTPUT
     if(io_dspaces_log->diag != NULL) { 
-      int reqind = (io_dspaces_log->diag->count-1) % dspaces_bufnum;
-      clk = MPI_Wtime();
-      for(int i=0; i<diag_nvar; i++) {
-        dspaces_check_put(ds_client, diag_dspaces_put_req_list[reqind][i], 1);
-      }
-      dspaces_check_time = MPI_Wtime() - clk;
-      if(dspaces_check_time > diag_nvar*dspaces_check_overhead) {
-        wait_time = MPI_Wtime() - clk - diag_nvar*dspaces_check_overhead;
+      for(int reqind=0; reqind<dspaces_bufnum; reqind++) {
+        clk = MPI_Wtime();
+        for(int i=0; i<diag_nvar; i++) {
+          dspaces_check_put(ds_client, diag_dspaces_put_req_list[reqind][i], 1);
+        }
+        dspaces_check_time = MPI_Wtime() - clk;
+        if(dspaces_check_time > diag_nvar*dspaces_check_overhead) {
+          wait_time += MPI_Wtime() - clk - diag_nvar*dspaces_check_overhead;
+        }
+        free(diag_dspaces_put_req_list[i]);
+        free(diag_buf[i]);
       }
       io_dspaces_log->diag->wait_time[io_dspaces_log->diag->count-1] = wait_time;
       io_dspaces_log->diag->time[io_dspaces_log->diag->count-1] = wait_time
                                   + io_dspaces_log->diag->api_time[io_dspaces_log->diag->count-1];
-      for(int i=0; i<dspaces_bufnum; i++) {
-        free(diag_dspaces_put_req_list[i]);
-        free(diag_buf[i]);
-      }
       free(diag_dspaces_put_req_list);
       free(diag_buf);
     }
@@ -796,27 +794,29 @@ void IO_Finalize() {
     }
     // 2D/TAU_SLICE at XCOL_ROOT only 
     if(io_dspaces_log->tau != NULL) {
-      int reqind = (io_dspaces_log->tau->count-1) % dspaces_bufnum;
-      if(tauslice_dspaces_put_req_list[reqind] != NULL) {
-        clk = MPI_Wtime();
-        for(int j=0; j<tauslice_nslice; j++) {
-          for(int i=0; i<tauslice_nslvar; i++) {
-            dspaces_check_put(ds_client, tauslice_dspaces_put_req_list[reqind][j][i], 1);
+      for(int reqind=0; reqind<dspaces_bufnum; reqind++) {
+        if(tauslice_dspaces_put_req_list[reqind] != NULL) {
+          clk = MPI_Wtime();
+          for(int j=0; j<tauslice_nslice; j++) {
+            for(int i=0; i<tauslice_nslvar; i++) {
+              dspaces_check_put(ds_client, tauslice_dspaces_put_req_list[reqind][j][i], 1);
+            }
+            free(tauslice_dspaces_put_req_list[reqind][j]);
           }
-          free(tauslice_dspaces_put_req_list[reqind][j]);
+          dspaces_check_time = MPI_Wtime() - clk;
+          if(dspaces_check_time > tauslice_nslvar*tauslice_nslice*dspaces_check_overhead) {
+            wait_time += MPI_Wtime() - clk - tauslice_nslvar*tauslice_nslice*dspaces_check_overhead;  
+          }
+          free(tauslice_dspaces_put_req_list[reqind]);
         }
-        dspaces_check_time = MPI_Wtime() - clk;
-        if(dspaces_check_time > tauslice_nslvar*tauslice_nslice*dspaces_check_overhead) {
-          wait_time = MPI_Wtime() - clk - tauslice_nslvar*tauslice_nslice*dspaces_check_overhead;  
-        }
+      }
+      if(wait_time > 1e-8) {
         io_dspaces_log->tau->wait_time[io_dspaces_log->tau->count-1] = wait_time;
         io_dspaces_log->tau->time[io_dspaces_log->tau->count-1] = wait_time
                                   + io_dspaces_log->tau->api_time[io_dspaces_log->tau->count-1];
-        for(int i=0; i<dspaces_bufnum; i++) {
-          free(tauslice_dspaces_put_req_list[i]);
-        }
-        free(tauslice_dspaces_put_req_list);
       }
+      free(tauslice_dspaces_put_req_list);
+      
       // databuf exists in all ranks
       for(int i=0; i<dspaces_bufnum; i++) {
           free(tauslice_buf[i]);
@@ -830,26 +830,27 @@ void IO_Finalize() {
     }
     // 2D/YZ_SLICE
     if(io_dspaces_log->yz != NULL) {
-      int reqind = (io_dspaces_log->yz->count-1) % dspaces_bufnum;
-      clk = MPI_Wtime();
-      for(int j=0; j<yzslice_nslice; j++) {
-        // put() is only called in selected ranks with centain sub domain
-        if(yzslice_dspaces_put_req_list[reqind][j] != NULL) {
-          for(int i=0; i<yzslice_nslvar; i++) {
-            dspaces_check_put(ds_client, yzslice_dspaces_put_req_list[reqind][j][i], 1);
+      for(int reqind=0; reqind<dspaces_bufnum; reqind++) {
+        clk = MPI_Wtime();
+        for(int j=0; j<yzslice_nslice; j++) {
+          // put() is only called in selected ranks with centain sub domain
+          if(yzslice_dspaces_put_req_list[reqind][j] != NULL) {
+            for(int i=0; i<yzslice_nslvar; i++) {
+              dspaces_check_put(ds_client, yzslice_dspaces_put_req_list[reqind][j][i], 1);
+            }
+            free(yzslice_dspaces_put_req_list[reqind][j]);
           }
-          free(yzslice_dspaces_put_req_list[reqind][j]);
         }
-      }
-      dspaces_check_time = MPI_Wtime() - clk;
-      if(dspaces_check_time > yzslice_nslvar*yzslice_nslice*dspaces_check_overhead) {
-        wait_time = MPI_Wtime() - clk - yzslice_nslvar*yzslice_nslice*dspaces_check_overhead;
+        dspaces_check_time = MPI_Wtime() - clk;
+        if(dspaces_check_time > yzslice_nslvar*yzslice_nslice*dspaces_check_overhead) {
+          wait_time += MPI_Wtime() - clk - yzslice_nslvar*yzslice_nslice*dspaces_check_overhead;
+        }
+        free(yzslice_dspaces_put_req_list[reqind]);
       }
       io_dspaces_log->yz->wait_time[io_dspaces_log->yz->count-1] = wait_time;
       io_dspaces_log->yz->time[io_dspaces_log->yz->count-1] = wait_time
                                   + io_dspaces_log->yz->api_time[io_dspaces_log->yz->count-1];
       for(int i=0; i<dspaces_bufnum; i++) {
-        free(yzslice_dspaces_put_req_list[i]);
         free(yzslice_buf[i]);
       }
       free(yzslice_dspaces_put_req_list);
@@ -862,26 +863,27 @@ void IO_Finalize() {
     }
     // 2D/XY_SLICE
     if(io_dspaces_log->xy != NULL) {
-      int reqind = (io_dspaces_log->xy->count-1) % dspaces_bufnum;
-      clk = MPI_Wtime();
-      for(int j=0; j<xyslice_nslice; j++) {
-        // put() is only called in selected ranks with centain sub domain
-        if(xyslice_dspaces_put_req_list[reqind][j] != NULL) {
-          for(int i=0; i<xyslice_nslvar; i++) {
-            dspaces_check_put(ds_client, xyslice_dspaces_put_req_list[reqind][j][i], 1);
+      for(int reqind=0; reqind<dspaces_bufnum; reqind++) {
+        clk = MPI_Wtime();
+        for(int j=0; j<xyslice_nslice; j++) {
+          // put() is only called in selected ranks with centain sub domain
+          if(xyslice_dspaces_put_req_list[reqind][j] != NULL) {
+            for(int i=0; i<xyslice_nslvar; i++) {
+              dspaces_check_put(ds_client, xyslice_dspaces_put_req_list[reqind][j][i], 1);
+            }
+            free(xyslice_dspaces_put_req_list[reqind][j]);
           }
-          free(xyslice_dspaces_put_req_list[reqind][j]);
         }
-      }
-      dspaces_check_time = MPI_Wtime() - clk;
-      if(dspaces_check_time > xyslice_nslvar*xyslice_nslice*dspaces_check_overhead) {
-        wait_time = MPI_Wtime() - clk - xyslice_nslvar*xyslice_nslice*dspaces_check_overhead;
+        dspaces_check_time = MPI_Wtime() - clk;
+        if(dspaces_check_time > xyslice_nslvar*xyslice_nslice*dspaces_check_overhead) {
+          wait_time += MPI_Wtime() - clk - xyslice_nslvar*xyslice_nslice*dspaces_check_overhead;
+        }
+        free(xyslice_dspaces_put_req_list[reqind]);
       }
       io_dspaces_log->xy->wait_time[io_dspaces_log->xy->count-1] = wait_time;
       io_dspaces_log->xy->time[io_dspaces_log->xy->count-1] = wait_time
                                   + io_dspaces_log->xy->api_time[io_dspaces_log->xy->count-1];
-      for(int i=0; i<dspaces_bufnum; i++) {
-        free(xyslice_dspaces_put_req_list[i]);
+      for(int i=0; i<dspaces_bufnum; i++) { 
         free(xyslice_buf[i]);
       }
       free(xyslice_dspaces_put_req_list);
@@ -894,26 +896,27 @@ void IO_Finalize() {
     }
     // 2D/XZ_SLICE
     if(io_dspaces_log->xz) {
-      int reqind = (io_dspaces_log->xz->count-1) % dspaces_bufnum;
-      clk = MPI_Wtime();
-      for(int j=0; j<xzslice_nslice; j++) {
-        // put() is only called in selected ranks with centain sub domain
-        if(xzslice_dspaces_put_req_list[reqind][j] != NULL) {
-          for(int i=0; i<xzslice_nslvar; i++) {
-            dspaces_check_put(ds_client, xzslice_dspaces_put_req_list[reqind][j][i], 1);
+      for(int reqind=0; reqind<dspaces_bufnum; reqind++) {
+        clk = MPI_Wtime();
+        for(int j=0; j<xzslice_nslice; j++) {
+          // put() is only called in selected ranks with centain sub domain
+          if(xzslice_dspaces_put_req_list[reqind][j] != NULL) {
+            for(int i=0; i<xzslice_nslvar; i++) {
+              dspaces_check_put(ds_client, xzslice_dspaces_put_req_list[reqind][j][i], 1);
+            }
+            free(xzslice_dspaces_put_req_list[reqind][j]);
           }
-          free(xzslice_dspaces_put_req_list[reqind][j]);
         }
-      }
-      dspaces_check_time = MPI_Wtime() - clk;
-      if(dspaces_check_time > xzslice_nslvar*xzslice_nslice*dspaces_check_overhead) {
-        wait_time = MPI_Wtime() - clk - xzslice_nslvar*xzslice_nslice*dspaces_check_overhead;
+        dspaces_check_time = MPI_Wtime() - clk;
+        if(dspaces_check_time > xzslice_nslvar*xzslice_nslice*dspaces_check_overhead) {
+          wait_time += MPI_Wtime() - clk - xzslice_nslvar*xzslice_nslice*dspaces_check_overhead;
+        }
+        free(xzslice_dspaces_put_req_list[reqind]);
       }
       io_dspaces_log->xz->wait_time[io_dspaces_log->xz->count-1] = wait_time;
       io_dspaces_log->xz->time[io_dspaces_log->xz->count-1] = wait_time
                                   + io_dspaces_log->xz->api_time[io_dspaces_log->xz->count-1];
       for(int i=0; i<dspaces_bufnum; i++) {
-        free(xzslice_dspaces_put_req_list[i]);
         free(xzslice_buf[i]);
       }
       free(xzslice_dspaces_put_req_list);
@@ -926,67 +929,63 @@ void IO_Finalize() {
     }
     // 2D/CORONA_EMISSION_XYZ at XCOL_ROOT, YCOL_ROOT, ZCOL_ROOT respectively
     if(io_dspaces_log->corona != NULL) {
-      int reqind = (io_dspaces_log->corona->count-1) % dspaces_bufnum;
-      if(coronaxz_dspaces_put_req_list[reqind] != NULL) {
-        clk = MPI_Wtime();
-        for(int j=0; j<corona_nout; j++) {
-          if(coronaxz_dspaces_put_req_list[reqind][j] != NULL) {
-            for(int i=0; i<corona_nslvar; i++) {
-              dspaces_check_put(ds_client, coronaxz_dspaces_put_req_list[reqind][j][i], 1);
+      for(int reqind=0; reqind<dspaces_bufnum; reqind++) {
+        if(coronaxz_dspaces_put_req_list[reqind] != NULL) {
+          clk = MPI_Wtime();
+          for(int j=0; j<corona_nout; j++) {
+            if(coronaxz_dspaces_put_req_list[reqind][j] != NULL) {
+              for(int i=0; i<corona_nslvar; i++) {
+                dspaces_check_put(ds_client, coronaxz_dspaces_put_req_list[reqind][j][i], 1);
+              }
+              free(coronaxz_dspaces_put_req_list[reqind][j]);
             }
-            free(coronaxz_dspaces_put_req_list[reqind][j]);
           }
+          dspaces_check_time = MPI_Wtime() - clk;
+          if(dspaces_check_time > corona_nslvar*corona_nout*dspaces_check_overhead) {
+            wait_time += MPI_Wtime() - clk - corona_nslvar*corona_nout*dspaces_check_overhead;
+          }
+          free(coronaxz_dspaces_put_req_list[reqind]);
         }
-        dspaces_check_time = MPI_Wtime() - clk;
-        if(dspaces_check_time > corona_nslvar*corona_nout*dspaces_check_overhead) {
-          wait_time = MPI_Wtime() - clk - corona_nslvar*corona_nout*dspaces_check_overhead;
-        }
-        for(int i=0; i<dspaces_bufnum; i++) {
-          free(coronaxz_dspaces_put_req_list[i]);
-        }
-        free(coronaxz_dspaces_put_req_list);
-      }
-      if(coronayz_dspaces_put_req_list[reqind] != NULL) {
-        clk = MPI_Wtime();
-        for(int j=0; j<corona_nout; j++) {
-          if(coronayz_dspaces_put_req_list[reqind][j]) {
-            for(int i=0; i<corona_nslvar; i++) {
-              dspaces_check_put(ds_client, coronayz_dspaces_put_req_list[reqind][j][i], 1);
+        if(coronayz_dspaces_put_req_list[reqind] != NULL) {
+          clk = MPI_Wtime();
+          for(int j=0; j<corona_nout; j++) {
+            if(coronayz_dspaces_put_req_list[reqind][j]) {
+              for(int i=0; i<corona_nslvar; i++) {
+                dspaces_check_put(ds_client, coronayz_dspaces_put_req_list[reqind][j][i], 1);
+              }
+              free(coronayz_dspaces_put_req_list[reqind][j]);
             }
-            free(coronayz_dspaces_put_req_list[reqind][j]);
           }
+          dspaces_check_time = MPI_Wtime() - clk;
+          if(dspaces_check_time > corona_nslvar*corona_nout*dspaces_check_overhead) {
+            wait_time += MPI_Wtime() - clk - corona_nslvar*corona_nout*dspaces_check_overhead;
+          }
+          free(coronayz_dspaces_put_req_list[reqind]);
         }
-        dspaces_check_time = MPI_Wtime() - clk;
-        if(dspaces_check_time > corona_nslvar*corona_nout*dspaces_check_overhead) {
-          wait_time += MPI_Wtime() - clk - corona_nslvar*corona_nout*dspaces_check_overhead;
-        }
-        for(int i=0; i<dspaces_bufnum; i++) {
-          free(coronayz_dspaces_put_req_list[i]);
-        }
-        free(coronayz_dspaces_put_req_list);
-      }
-      if(coronaxy_dspaces_put_req_list[reqind] != NULL) {
-        clk = MPI_Wtime();
-        for(int j=0; j<corona_nout; j++) {
-          if(coronaxy_dspaces_put_req_list[reqind][j] != NULL) {
-            for(int i=0; i<corona_nslvar; i++) {
-              dspaces_check_put(ds_client, coronaxy_dspaces_put_req_list[reqind][j][i], 1);
+        if(coronaxy_dspaces_put_req_list[reqind] != NULL) {
+          clk = MPI_Wtime();
+          for(int j=0; j<corona_nout; j++) {
+            if(coronaxy_dspaces_put_req_list[reqind][j] != NULL) {
+              for(int i=0; i<corona_nslvar; i++) {
+                dspaces_check_put(ds_client, coronaxy_dspaces_put_req_list[reqind][j][i], 1);
+              }
+              free(coronaxy_dspaces_put_req_list[reqind][j]);
             }
-            free(coronaxy_dspaces_put_req_list[reqind][j]);
           }
+          dspaces_check_time = MPI_Wtime() - clk;
+          if(dspaces_check_time > corona_nslvar*corona_nout*dspaces_check_overhead) {
+            wait_time += MPI_Wtime() - clk - corona_nslvar*corona_nout*dspaces_check_overhead;
+          }
+          free(coronaxy_dspaces_put_req_list[reqind]);
         }
-        dspaces_check_time = MPI_Wtime() - clk;
-        if(dspaces_check_time > corona_nslvar*corona_nout*dspaces_check_overhead) {
-          wait_time += MPI_Wtime() - clk - corona_nslvar*corona_nout*dspaces_check_overhead;
-        }
-        for(int i=0; i<dspaces_bufnum; i++) {
-          free(coronaxy_dspaces_put_req_list[i]);
-        }
-        free(coronaxy_dspaces_put_req_list);
       }
       io_dspaces_log->corona->wait_time[io_dspaces_log->corona->count-1] = wait_time;
       io_dspaces_log->corona->time[io_dspaces_log->corona->count-1] = wait_time
                                   + io_dspaces_log->corona->api_time[io_dspaces_log->corona->count-1];
+
+      free(coronaxz_dspaces_put_req_list);
+      free(coronayz_dspaces_put_req_list);
+      free(coronaxy_dspaces_put_req_list);
       // databuf exists in all ranks
       for(int i=0; i<dspaces_bufnum; i++) {
         free(coronaxy_buf[i]);
@@ -1003,24 +1002,26 @@ void IO_Finalize() {
     
     // 1D/ANALYZE_VP at YZ_ROOT only
     if(io_dspaces_log->analyze_vp != NULL) {
-      int reqind = (io_dspaces_log->analyze_vp->count-1) % dspaces_bufnum;
-      if(analyzevp_dspaces_put_req_list[reqind] != NULL) {
-        clk = MPI_Wtime();
-        for(int i=0; i<analyzevp_nvar; i++) {
-          dspaces_check_put(ds_client, analyzevp_dspaces_put_req_list[reqind][i], 1);
+      for(int reqind=0; reqind<dspaces_bufnum; reqind++) {
+        if(analyzevp_dspaces_put_req_list[reqind] != NULL) {
+          clk = MPI_Wtime();
+          for(int i=0; i<analyzevp_nvar; i++) {
+            dspaces_check_put(ds_client, analyzevp_dspaces_put_req_list[reqind][i], 1);
+          }
+          dspaces_check_time = MPI_Wtime() - clk;
+          if(dspaces_check_time > analyzevp_nvar*dspaces_check_overhead) {
+            wait_time += MPI_Wtime() - clk - analyzevp_nvar*dspaces_check_overhead;  
+          }
         }
-        dspaces_check_time = MPI_Wtime() - clk;
-        if(dspaces_check_time > analyzevp_nvar*dspaces_check_overhead) {
-          wait_time = MPI_Wtime() - clk - analyzevp_nvar*dspaces_check_overhead;  
-        }
+        free(analyzevp_dspaces_put_req_list[reqind]);
+      }
+      if(wait_time > 1e-8) {
         io_dspaces_log->analyze_vp->wait_time[io_dspaces_log->analyze_vp->count-1] = wait_time;
         io_dspaces_log->analyze_vp->time[io_dspaces_log->analyze_vp->count-1] = wait_time
                               + io_dspaces_log->analyze_vp->api_time[io_dspaces_log->analyze_vp->count-1];
-        for(int i=0; i<dspaces_bufnum; i++) {
-          free(analyzevp_dspaces_put_req_list[i]);
-        }
-        free(analyzevp_dspaces_put_req_list);
       }
+      free(analyzevp_dspaces_put_req_list);
+      
       // databuf exist in all ranks
       for(int i=0; i<dspaces_bufnum; i++) {
         free(analyzevp_buf[i]);
@@ -1597,10 +1598,10 @@ void diag_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phy
       //   dspaces_check_put(ds_client, dspaces_put_req, 1);
       //   dspaces_wait_time += MPI_Wtime() - clk;
       // }
-      if(diag_ref_count > 1) {
-        int reqind = (diag_ref_count-1) % dspaces_bufnum;
+      if(diag_ref_count > dspaces_bufnum-1+1) {
+        // int reqind = (diag_ref_count-1) % dspaces_bufnum;
         clk = MPI_Wtime();
-        dspaces_check_put(ds_client, diag_dspaces_put_req_list[reqind][vi], 1);
+        dspaces_check_put(ds_client, diag_dspaces_put_req_list[bufind][vi], 1);
         double dspaces_check_time = MPI_Wtime() - clk;
         if(dspaces_check_time > tot_vars*dspaces_check_overhead) {
           dspaces_wait_time += MPI_Wtime() - clk - tot_vars*dspaces_check_overhead;
@@ -1872,10 +1873,10 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
       //   dspaces_check_put(ds_client, dspaces_put_req, 1);
       //   dspaces_wait_time += MPI_Wtime() - clk;
       // }
-      if(eos_ref_count > 0) {
-        int reqind = (eos_ref_count-1) % dspaces_bufnum;
+      if(eos_ref_count > dspaces_bufnum-1) {
+        // int reqind = (eos_ref_count-1) % dspaces_bufnum;
         clk = MPI_Wtime();
-        dspaces_check_put(ds_client, eos_dspaces_put_req_list[reqind][vi], 1);
+        dspaces_check_put(ds_client, eos_dspaces_put_req_list[bufind][vi], 1);
         double dspaces_check_time = MPI_Wtime() - clk;
         if(dspaces_check_time > tot_vars*dspaces_check_overhead) {
           dspaces_wait_time += MPI_Wtime() - clk - tot_vars*dspaces_check_overhead;

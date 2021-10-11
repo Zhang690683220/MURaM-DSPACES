@@ -360,14 +360,14 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
       if (xcol_rank == iroot){
 	for (v=0;v<nout;v++){
 
-		if(Run.use_dspaces_io && corona_ref_count > 0) {
-			int reqind = (corona_ref_count-1) % dspaces_bufnum;
+		if(Run.use_dspaces_io && corona_ref_count > dspaces_bufnum-1) {
+			// int reqind = (corona_ref_count-1) % dspaces_bufnum;
 			clk = MPI_Wtime();
 			// slice_write_rebin() sometimes has all involved ranks write
 			// sometimes gather the data to the root rank
 			if(coronayz_dspaces_put_req_list[reqind][v] != NULL) {
 				for(int i=0; i<nslvar; i++) {				
-					dspaces_check_put(ds_client, coronayz_dspaces_put_req_list[reqind][v][i], 1);
+					dspaces_check_put(ds_client, coronayz_dspaces_put_req_list[bufind][v][i], 1);
 				}
 				double dspaces_check_time = MPI_Wtime() - clk;
 				if(dspaces_check_time > nslvar*dspaces_check_overhead) {
@@ -503,14 +503,14 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
       
       if (ycol_rank == iroot){
 	for (v=0;v<nout;v++){
-		if(Run.use_dspaces_io && corona_ref_count > 0) {
-			int reqind = (corona_ref_count-1) % dspaces_bufnum;
+		if(Run.use_dspaces_io && corona_ref_count > dspaces_bufnum-1) {
+			// int reqind = (corona_ref_count-1) % dspaces_bufnum;
 			clk = MPI_Wtime();
 			// slice_write_rebin() sometimes has all involved ranks write
 			// sometimes gather the data to the root rank
 			if(coronaxz_dspaces_put_req_list[reqind][v] != NULL) {
 				for(int i=0; i<nslvar; i++) {
-					dspaces_check_put(ds_client, coronaxz_dspaces_put_req_list[reqind][v][i], 1);
+					dspaces_check_put(ds_client, coronaxz_dspaces_put_req_list[bufind][v][i], 1);
 				}
 				double dspaces_check_time = MPI_Wtime() - clk;
 				if(dspaces_check_time > nslvar*dspaces_check_overhead) {
@@ -644,14 +644,14 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 
       if (zcol_rank == iroot){
 	for (v=0;v<nout;v++){
-		if(Run.use_dspaces_io && corona_ref_count > 0) {
-			int reqind = (corona_ref_count-1) % dspaces_bufnum;
+		if(Run.use_dspaces_io && corona_ref_count > dspaces_bufnum-1) {
+			// int reqind = (corona_ref_count-1) % dspaces_bufnum;
 			clk = MPI_Wtime();
 			// slice_write_rebin() sometimes has all involved ranks write
 			// sometimes gather the data to the root rank
 			if(coronaxy_dspaces_put_req_list[reqind][v] != NULL) {
 				for(int i=0; i<nslvar; i++) {
-					dspaces_check_put(ds_client, coronaxy_dspaces_put_req_list[reqind][v][i], 1);	
+					dspaces_check_put(ds_client, coronaxy_dspaces_put_req_list[bufind][v][i], 1);	
 				}
 				double dspaces_check_time = MPI_Wtime() - clk;
 				if(dspaces_check_time > nslvar*dspaces_check_overhead) {
