@@ -562,42 +562,34 @@ void log_summary_print(struct log *io_log) {
 }
 
 void log_free(struct log *io_log) {
-  std::cout << "Rank:" << io_rank << " ,I'm alive before dspaces logout free EOS!" <<std::endl;
   if(io_log->eos != NULL) {
     log_entry_free(io_log->eos);
     free(io_log->eos);
   }
-  std::cout << "Rank:" << io_rank << " ,I'm alive before dspaces logout free DIAG!" <<std::endl;
   if(io_log->diag != NULL) {
     log_entry_free(io_log->diag);
     free(io_log->diag);
   }
-  std::cout << "Rank:" << io_rank << " ,I'm alive before dspaces logout free TAU !" <<std::endl;
   if(io_log->tau != NULL) {
     log_entry_free(io_log->tau);
     free(io_log->tau);
   }
-  std::cout << "Rank:" << io_rank << " ,I'm alive before dspaces logout free YZ!" <<std::endl;
   if(io_log->yz != NULL) {
     log_entry_free(io_log->yz);
     free(io_log->yz);
   }
-  std::cout << "Rank:" << io_rank << " ,I'm alive before dspaces logout free XY!" <<std::endl;
   if(io_log->xy != NULL) {
     log_entry_free(io_log->xy);
     free(io_log->xy);
   }
-  std::cout << "Rank:" << io_rank << " ,I'm alive before dspaces logout free XZ!" <<std::endl;
   if(io_log->xz != NULL) {
     log_entry_free(io_log->xz);
     free(io_log->xz);
   }
-  std::cout << "Rank:" << io_rank << " ,I'm alive before dspaces logout free CORONA!" <<std::endl;
   if(io_log->corona != NULL) {
     log_entry_free(io_log->corona);
     free(io_log->corona);
   }
-  std::cout << "Rank:" << io_rank << " ,I'm alive before dspaces logout free ANALYZE__VP!" <<std::endl;
   if(io_log->analyze_vp != NULL) {
     log_entry_free(io_log->analyze_vp);
     free(io_log->analyze_vp);
@@ -792,242 +784,249 @@ void IO_Finalize() {
     
       std::cout << "Rank:" << io_rank << "I'm alive before tau!" <<std::endl;
     
-    // // 2D/TAU_SLICE at XCOL_ROOT only 
-    // if(io_dspaces_log->tau != NULL) {
-    //   for(int reqind=0; reqind<dspaces_bufnum; reqind++) {
-    //     if(tauslice_dspaces_put_req_list[reqind] != NULL) {
-    //       clk = MPI_Wtime();
-    //       for(int j=0; j<tauslice_nslice; j++) {
-    //         for(int i=0; i<tauslice_nslvar; i++) {
-    //           dspaces_check_put(ds_client, tauslice_dspaces_put_req_list[reqind][j][i], 1);
-    //         }
-    //         free(tauslice_dspaces_put_req_list[reqind][j]);
-    //       }
-    //       dspaces_check_time = MPI_Wtime() - clk;
-    //       if(dspaces_check_time > tauslice_nslvar*tauslice_nslice*dspaces_check_overhead) {
-    //         wait_time += MPI_Wtime() - clk - tauslice_nslvar*tauslice_nslice*dspaces_check_overhead;  
-    //       }
-    //       free(tauslice_dspaces_put_req_list[reqind]);
-    //     }
-    //   }
-    //   if(wait_time > 1e-8) {
-    //     io_dspaces_log->tau->wait_time[io_dspaces_log->tau->count-1] = wait_time;
-    //     io_dspaces_log->tau->time[io_dspaces_log->tau->count-1] = wait_time
-    //                               + io_dspaces_log->tau->api_time[io_dspaces_log->tau->count-1];
-    //   }
-    //   free(tauslice_dspaces_put_req_list);
+    // 2D/TAU_SLICE at XCOL_ROOT only 
+    if(io_dspaces_log->tau != NULL) {
+      for(int reqind=0; reqind<dspaces_bufnum; reqind++) {
+        if(tauslice_dspaces_put_req_list[reqind] != NULL) {
+          clk = MPI_Wtime();
+          for(int j=0; j<tauslice_nslice; j++) {
+            for(int i=0; i<tauslice_nslvar; i++) {
+              dspaces_check_put(ds_client, tauslice_dspaces_put_req_list[reqind][j][i], 1);
+            }
+            free(tauslice_dspaces_put_req_list[reqind][j]);
+          }
+          dspaces_check_time = MPI_Wtime() - clk;
+          if(dspaces_check_time > tauslice_nslvar*tauslice_nslice*dspaces_check_overhead) {
+            wait_time += MPI_Wtime() - clk - tauslice_nslvar*tauslice_nslice*dspaces_check_overhead;  
+          }
+          free(tauslice_dspaces_put_req_list[reqind]);
+        }
+      }
+      if(wait_time > 1e-8 && xcol_rank == 0 && yz_rank == 0) {
+        io_dspaces_log->tau->wait_time[io_dspaces_log->tau->count-1] = wait_time;
+        io_dspaces_log->tau->time[io_dspaces_log->tau->count-1] = wait_time
+                                  + io_dspaces_log->tau->api_time[io_dspaces_log->tau->count-1];
+      }
+      free(tauslice_dspaces_put_req_list);
       
-    //   // databuf exists in all ranks
-    //   for(int i=0; i<dspaces_bufnum; i++) {
-    //       free(tauslice_buf[i]);
-    //   }
-    //   free(tauslice_buf);
-    // }
+      // databuf exists in all ranks
+      for(int i=0; i<dspaces_bufnum; i++) {
+          free(tauslice_buf[i]);
+      }
+      free(tauslice_buf);
+    }
 
-    // wait_time = 0.0;
-    // if(io_rank == 1){
-    //   std::cout << "Rank:" << io_rank << "I'm alive before yz!" <<std::endl;
-    // }
-    // // 2D/YZ_SLICE
-    // if(io_dspaces_log->yz != NULL) {
-    //   for(int reqind=0; reqind<dspaces_bufnum; reqind++) {
-    //     clk = MPI_Wtime();
-    //     for(int j=0; j<yzslice_nslice; j++) {
-    //       // put() is only called in selected ranks with centain sub domain
-    //       if(yzslice_dspaces_put_req_list[reqind][j] != NULL) {
-    //         for(int i=0; i<yzslice_nslvar; i++) {
-    //           dspaces_check_put(ds_client, yzslice_dspaces_put_req_list[reqind][j][i], 1);
-    //         }
-    //         free(yzslice_dspaces_put_req_list[reqind][j]);
-    //       }
-    //     }
-    //     dspaces_check_time = MPI_Wtime() - clk;
-    //     if(dspaces_check_time > yzslice_nslvar*yzslice_nslice*dspaces_check_overhead) {
-    //       wait_time += MPI_Wtime() - clk - yzslice_nslvar*yzslice_nslice*dspaces_check_overhead;
-    //     }
-    //     free(yzslice_dspaces_put_req_list[reqind]);
-    //   }
-    //   io_dspaces_log->yz->wait_time[io_dspaces_log->yz->count-1] = wait_time;
-    //   io_dspaces_log->yz->time[io_dspaces_log->yz->count-1] = wait_time
-    //                               + io_dspaces_log->yz->api_time[io_dspaces_log->yz->count-1];
-    //   for(int i=0; i<dspaces_bufnum; i++) {
-    //     free(yzslice_buf[i]);
-    //   }
-    //   free(yzslice_dspaces_put_req_list);
-    //   free(yzslice_buf);
-    // }
+    wait_time = 0.0;
+    if(io_rank == 1){
+      std::cout << "Rank:" << io_rank << "I'm alive before yz!" <<std::endl;
+    }
+    // 2D/YZ_SLICE
+    if(io_dspaces_log->yz != NULL) {
+      for(int reqind=0; reqind<dspaces_bufnum; reqind++) {
+        clk = MPI_Wtime();
+        for(int j=0; j<yzslice_nslice; j++) {
+          // put() is only called in selected ranks with centain sub domain
+          if(yzslice_dspaces_put_req_list[reqind][j] != NULL) {
+            for(int i=0; i<yzslice_nslvar; i++) {
+              dspaces_check_put(ds_client, yzslice_dspaces_put_req_list[reqind][j][i], 1);
+            }
+            free(yzslice_dspaces_put_req_list[reqind][j]);
+          }
+        }
+        dspaces_check_time = MPI_Wtime() - clk;
+        if(dspaces_check_time > yzslice_nslvar*yzslice_nslice*dspaces_check_overhead) {
+          wait_time += MPI_Wtime() - clk - yzslice_nslvar*yzslice_nslice*dspaces_check_overhead;
+        }
+        free(yzslice_dspaces_put_req_list[reqind]);
+      }
+      if(io_rank == 0) {
+        io_dspaces_log->yz->wait_time[io_dspaces_log->yz->count-1] = wait_time;
+        io_dspaces_log->yz->time[io_dspaces_log->yz->count-1] = wait_time
+                                  + io_dspaces_log->yz->api_time[io_dspaces_log->yz->count-1];
+      }
+      for(int i=0; i<dspaces_bufnum; i++) {
+        free(yzslice_buf[i]);
+      }
+      free(yzslice_dspaces_put_req_list);
+      free(yzslice_buf);
+    }
 
-    // wait_time = 0.0;
-    // if(io_rank == 1){
-    //   std::cout << "Rank:" << io_rank << "I'm alive before xy!" <<std::endl;
-    // }
-    // // 2D/XY_SLICE
-    // if(io_dspaces_log->xy != NULL) {
-    //   for(int reqind=0; reqind<dspaces_bufnum; reqind++) {
-    //     clk = MPI_Wtime();
-    //     for(int j=0; j<xyslice_nslice; j++) {
-    //       // put() is only called in selected ranks with centain sub domain
-    //       if(xyslice_dspaces_put_req_list[reqind][j] != NULL) {
-    //         for(int i=0; i<xyslice_nslvar; i++) {
-    //           dspaces_check_put(ds_client, xyslice_dspaces_put_req_list[reqind][j][i], 1);
-    //         }
-    //         free(xyslice_dspaces_put_req_list[reqind][j]);
-    //       }
-    //     }
-    //     dspaces_check_time = MPI_Wtime() - clk;
-    //     if(dspaces_check_time > xyslice_nslvar*xyslice_nslice*dspaces_check_overhead) {
-    //       wait_time += MPI_Wtime() - clk - xyslice_nslvar*xyslice_nslice*dspaces_check_overhead;
-    //     }
-    //     free(xyslice_dspaces_put_req_list[reqind]);
-    //   }
-    //   io_dspaces_log->xy->wait_time[io_dspaces_log->xy->count-1] = wait_time;
-    //   io_dspaces_log->xy->time[io_dspaces_log->xy->count-1] = wait_time
-    //                               + io_dspaces_log->xy->api_time[io_dspaces_log->xy->count-1];
-    //   for(int i=0; i<dspaces_bufnum; i++) { 
-    //     free(xyslice_buf[i]);
-    //   }
-    //   free(xyslice_dspaces_put_req_list);
-    //   free(xyslice_buf);
-    // }
+    wait_time = 0.0;
+    if(io_rank == 1){
+      std::cout << "Rank:" << io_rank << "I'm alive before xy!" <<std::endl;
+    }
+    // 2D/XY_SLICE
+    if(io_dspaces_log->xy != NULL) {
+      for(int reqind=0; reqind<dspaces_bufnum; reqind++) {
+        clk = MPI_Wtime();
+        for(int j=0; j<xyslice_nslice; j++) {
+          // put() is only called in selected ranks with centain sub domain
+          if(xyslice_dspaces_put_req_list[reqind][j] != NULL) {
+            for(int i=0; i<xyslice_nslvar; i++) {
+              dspaces_check_put(ds_client, xyslice_dspaces_put_req_list[reqind][j][i], 1);
+            }
+            free(xyslice_dspaces_put_req_list[reqind][j]);
+          }
+        }
+        dspaces_check_time = MPI_Wtime() - clk;
+        if(dspaces_check_time > xyslice_nslvar*xyslice_nslice*dspaces_check_overhead) {
+          wait_time += MPI_Wtime() - clk - xyslice_nslvar*xyslice_nslice*dspaces_check_overhead;
+        }
+        free(xyslice_dspaces_put_req_list[reqind]);
+      }
+      if(io_rank == 0) {
+        io_dspaces_log->xy->wait_time[io_dspaces_log->xy->count-1] = wait_time;
+        io_dspaces_log->xy->time[io_dspaces_log->xy->count-1] = wait_time
+                                  + io_dspaces_log->xy->api_time[io_dspaces_log->xy->count-1];
+      }
+      for(int i=0; i<dspaces_bufnum; i++) { 
+        free(xyslice_buf[i]);
+      }
+      free(xyslice_dspaces_put_req_list);
+      free(xyslice_buf);
+    }
 
-    // wait_time = 0.0;
-    // if(io_rank == 1){
-    //   std::cout << "Rank:" << io_rank << "I'm alive before xz!" <<std::endl;
-    // }
-    // // 2D/XZ_SLICE
-    // if(io_dspaces_log->xz) {
-    //   for(int reqind=0; reqind<dspaces_bufnum; reqind++) {
-    //     clk = MPI_Wtime();
-    //     for(int j=0; j<xzslice_nslice; j++) {
-    //       // put() is only called in selected ranks with centain sub domain
-    //       if(xzslice_dspaces_put_req_list[reqind][j] != NULL) {
-    //         for(int i=0; i<xzslice_nslvar; i++) {
-    //           dspaces_check_put(ds_client, xzslice_dspaces_put_req_list[reqind][j][i], 1);
-    //         }
-    //         free(xzslice_dspaces_put_req_list[reqind][j]);
-    //       }
-    //     }
-    //     dspaces_check_time = MPI_Wtime() - clk;
-    //     if(dspaces_check_time > xzslice_nslvar*xzslice_nslice*dspaces_check_overhead) {
-    //       wait_time += MPI_Wtime() - clk - xzslice_nslvar*xzslice_nslice*dspaces_check_overhead;
-    //     }
-    //     free(xzslice_dspaces_put_req_list[reqind]);
-    //   }
-    //   io_dspaces_log->xz->wait_time[io_dspaces_log->xz->count-1] = wait_time;
-    //   io_dspaces_log->xz->time[io_dspaces_log->xz->count-1] = wait_time
-    //                               + io_dspaces_log->xz->api_time[io_dspaces_log->xz->count-1];
-    //   for(int i=0; i<dspaces_bufnum; i++) {
-    //     free(xzslice_buf[i]);
-    //   }
-    //   free(xzslice_dspaces_put_req_list);
-    //   free(xzslice_buf);
-    // }
+    wait_time = 0.0;
+    if(io_rank == 1){
+      std::cout << "Rank:" << io_rank << "I'm alive before xz!" <<std::endl;
+    }
+    // 2D/XZ_SLICE
+    if(io_dspaces_log->xz) {
+      for(int reqind=0; reqind<dspaces_bufnum; reqind++) {
+        clk = MPI_Wtime();
+        for(int j=0; j<xzslice_nslice; j++) {
+          // put() is only called in selected ranks with centain sub domain
+          if(xzslice_dspaces_put_req_list[reqind][j] != NULL) {
+            for(int i=0; i<xzslice_nslvar; i++) {
+              dspaces_check_put(ds_client, xzslice_dspaces_put_req_list[reqind][j][i], 1);
+            }
+            free(xzslice_dspaces_put_req_list[reqind][j]);
+          }
+        }
+        dspaces_check_time = MPI_Wtime() - clk;
+        if(dspaces_check_time > xzslice_nslvar*xzslice_nslice*dspaces_check_overhead) {
+          wait_time += MPI_Wtime() - clk - xzslice_nslvar*xzslice_nslice*dspaces_check_overhead;
+        }
+        free(xzslice_dspaces_put_req_list[reqind]);
+      }
+      if(io_rank == 0) {
+        io_dspaces_log->xz->wait_time[io_dspaces_log->xz->count-1] = wait_time;
+        io_dspaces_log->xz->time[io_dspaces_log->xz->count-1] = wait_time
+                                  + io_dspaces_log->xz->api_time[io_dspaces_log->xz->count-1];
+      }
+      for(int i=0; i<dspaces_bufnum; i++) {
+        free(xzslice_buf[i]);
+      }
+      free(xzslice_dspaces_put_req_list);
+      free(xzslice_buf);
+    }
 
-    // wait_time = 0.0;
-    // if(io_rank == 1){
-    //   std::cout << "Rank:" << io_rank << "I'm alive before corona!" <<std::endl;
-    // }
-    // // 2D/CORONA_EMISSION_XYZ at XCOL_ROOT, YCOL_ROOT, ZCOL_ROOT respectively
-    // if(io_dspaces_log->corona != NULL) {
-    //   for(int reqind=0; reqind<dspaces_bufnum; reqind++) {
-    //     if(coronaxz_dspaces_put_req_list[reqind] != NULL) {
-    //       clk = MPI_Wtime();
-    //       for(int j=0; j<corona_nout; j++) {
-    //         if(coronaxz_dspaces_put_req_list[reqind][j] != NULL) {
-    //           for(int i=0; i<corona_nslvar; i++) {
-    //             dspaces_check_put(ds_client, coronaxz_dspaces_put_req_list[reqind][j][i], 1);
-    //           }
-    //           free(coronaxz_dspaces_put_req_list[reqind][j]);
-    //         }
-    //       }
-    //       dspaces_check_time = MPI_Wtime() - clk;
-    //       if(dspaces_check_time > corona_nslvar*corona_nout*dspaces_check_overhead) {
-    //         wait_time += MPI_Wtime() - clk - corona_nslvar*corona_nout*dspaces_check_overhead;
-    //       }
-    //       free(coronaxz_dspaces_put_req_list[reqind]);
-    //     }
-    //     if(coronayz_dspaces_put_req_list[reqind] != NULL) {
-    //       clk = MPI_Wtime();
-    //       for(int j=0; j<corona_nout; j++) {
-    //         if(coronayz_dspaces_put_req_list[reqind][j]) {
-    //           for(int i=0; i<corona_nslvar; i++) {
-    //             dspaces_check_put(ds_client, coronayz_dspaces_put_req_list[reqind][j][i], 1);
-    //           }
-    //           free(coronayz_dspaces_put_req_list[reqind][j]);
-    //         }
-    //       }
-    //       dspaces_check_time = MPI_Wtime() - clk;
-    //       if(dspaces_check_time > corona_nslvar*corona_nout*dspaces_check_overhead) {
-    //         wait_time += MPI_Wtime() - clk - corona_nslvar*corona_nout*dspaces_check_overhead;
-    //       }
-    //       free(coronayz_dspaces_put_req_list[reqind]);
-    //     }
-    //     if(coronaxy_dspaces_put_req_list[reqind] != NULL) {
-    //       clk = MPI_Wtime();
-    //       for(int j=0; j<corona_nout; j++) {
-    //         if(coronaxy_dspaces_put_req_list[reqind][j] != NULL) {
-    //           for(int i=0; i<corona_nslvar; i++) {
-    //             dspaces_check_put(ds_client, coronaxy_dspaces_put_req_list[reqind][j][i], 1);
-    //           }
-    //           free(coronaxy_dspaces_put_req_list[reqind][j]);
-    //         }
-    //       }
-    //       dspaces_check_time = MPI_Wtime() - clk;
-    //       if(dspaces_check_time > corona_nslvar*corona_nout*dspaces_check_overhead) {
-    //         wait_time += MPI_Wtime() - clk - corona_nslvar*corona_nout*dspaces_check_overhead;
-    //       }
-    //       free(coronaxy_dspaces_put_req_list[reqind]);
-    //     }
-    //   }
-    //   io_dspaces_log->corona->wait_time[io_dspaces_log->corona->count-1] = wait_time;
-    //   io_dspaces_log->corona->time[io_dspaces_log->corona->count-1] = wait_time
-    //                               + io_dspaces_log->corona->api_time[io_dspaces_log->corona->count-1];
-
-    //   free(coronaxz_dspaces_put_req_list);
-    //   free(coronayz_dspaces_put_req_list);
-    //   free(coronaxy_dspaces_put_req_list);
-    //   // databuf exists in all ranks
-    //   for(int i=0; i<dspaces_bufnum; i++) {
-    //     free(coronaxy_buf[i]);
-    //     free(coronaxz_buf[i]);
-    //     free(coronayz_buf[i]);
-    //   }
-    //   free(coronaxy_buf);
-    //   free(coronaxz_buf);
-    //   free(coronayz_buf);
-    // }
-    // wait_time = 0.0;
+    wait_time = 0.0;
+    if(io_rank == 1){
+      std::cout << "Rank:" << io_rank << "I'm alive before corona!" <<std::endl;
+    }
+    // 2D/CORONA_EMISSION_XYZ at XCOL_ROOT, YCOL_ROOT, ZCOL_ROOT respectively
+    if(io_dspaces_log->corona != NULL) {
+      for(int reqind=0; reqind<dspaces_bufnum; reqind++) {
+        if(coronaxz_dspaces_put_req_list[reqind] != NULL) {
+          clk = MPI_Wtime();
+          for(int j=0; j<corona_nout; j++) {
+            if(coronaxz_dspaces_put_req_list[reqind][j] != NULL) {
+              for(int i=0; i<corona_nslvar; i++) {
+                dspaces_check_put(ds_client, coronaxz_dspaces_put_req_list[reqind][j][i], 1);
+              }
+              free(coronaxz_dspaces_put_req_list[reqind][j]);
+            }
+          }
+          dspaces_check_time = MPI_Wtime() - clk;
+          if(dspaces_check_time > corona_nslvar*corona_nout*dspaces_check_overhead) {
+            wait_time += MPI_Wtime() - clk - corona_nslvar*corona_nout*dspaces_check_overhead;
+          }
+          free(coronaxz_dspaces_put_req_list[reqind]);
+        }
+        if(coronayz_dspaces_put_req_list[reqind] != NULL) {
+          clk = MPI_Wtime();
+          for(int j=0; j<corona_nout; j++) {
+            if(coronayz_dspaces_put_req_list[reqind][j]) {
+              for(int i=0; i<corona_nslvar; i++) {
+                dspaces_check_put(ds_client, coronayz_dspaces_put_req_list[reqind][j][i], 1);
+              }
+              free(coronayz_dspaces_put_req_list[reqind][j]);
+            }
+          }
+          dspaces_check_time = MPI_Wtime() - clk;
+          if(dspaces_check_time > corona_nslvar*corona_nout*dspaces_check_overhead) {
+            wait_time += MPI_Wtime() - clk - corona_nslvar*corona_nout*dspaces_check_overhead;
+          }
+          free(coronayz_dspaces_put_req_list[reqind]);
+        }
+        if(coronaxy_dspaces_put_req_list[reqind] != NULL) {
+          clk = MPI_Wtime();
+          for(int j=0; j<corona_nout; j++) {
+            if(coronaxy_dspaces_put_req_list[reqind][j] != NULL) {
+              for(int i=0; i<corona_nslvar; i++) {
+                dspaces_check_put(ds_client, coronaxy_dspaces_put_req_list[reqind][j][i], 1);
+              }
+              free(coronaxy_dspaces_put_req_list[reqind][j]);
+            }
+          }
+          dspaces_check_time = MPI_Wtime() - clk;
+          if(dspaces_check_time > corona_nslvar*corona_nout*dspaces_check_overhead) {
+            wait_time += MPI_Wtime() - clk - corona_nslvar*corona_nout*dspaces_check_overhead;
+          }
+          free(coronaxy_dspaces_put_req_list[reqind]);
+        }
+      }
+      if(io_rank == 0) {
+        io_dspaces_log->corona->wait_time[io_dspaces_log->corona->count-1] = wait_time;
+        io_dspaces_log->corona->time[io_dspaces_log->corona->count-1] = wait_time
+                                  + io_dspaces_log->corona->api_time[io_dspaces_log->corona->count-1];
+      }
+      free(coronaxz_dspaces_put_req_list);
+      free(coronayz_dspaces_put_req_list);
+      free(coronaxy_dspaces_put_req_list);
+      // databuf exists in all ranks
+      for(int i=0; i<dspaces_bufnum; i++) {
+        free(coronaxy_buf[i]);
+        free(coronaxz_buf[i]);
+        free(coronayz_buf[i]);
+      }
+      free(coronaxy_buf);
+      free(coronaxz_buf);
+      free(coronayz_buf);
+    }
+    wait_time = 0.0;
     
-    //   std::cout << "Rank:" << io_rank << "I'm alive before analyzevp!" <<std::endl;
+      std::cout << "Rank:" << io_rank << "I'm alive before analyzevp!" <<std::endl;
     
-    // // 1D/ANALYZE_VP at YZ_ROOT only
-    // if(io_dspaces_log->analyze_vp != NULL) {
-    //   for(int reqind=0; reqind<dspaces_bufnum; reqind++) {
-    //     if(analyzevp_dspaces_put_req_list[reqind] != NULL) {
-    //       clk = MPI_Wtime();
-    //       for(int i=0; i<analyzevp_nvar; i++) {
-    //         dspaces_check_put(ds_client, analyzevp_dspaces_put_req_list[reqind][i], 1);
-    //       }
-    //       dspaces_check_time = MPI_Wtime() - clk;
-    //       if(dspaces_check_time > analyzevp_nvar*dspaces_check_overhead) {
-    //         wait_time += MPI_Wtime() - clk - analyzevp_nvar*dspaces_check_overhead;  
-    //       }
-    //     }
-    //     free(analyzevp_dspaces_put_req_list[reqind]);
-    //   }
-    //   if(wait_time > 1e-8) {
-    //     io_dspaces_log->analyze_vp->wait_time[io_dspaces_log->analyze_vp->count-1] = wait_time;
-    //     io_dspaces_log->analyze_vp->time[io_dspaces_log->analyze_vp->count-1] = wait_time
-    //                           + io_dspaces_log->analyze_vp->api_time[io_dspaces_log->analyze_vp->count-1];
-    //   }
-    //   free(analyzevp_dspaces_put_req_list);
+    // 1D/ANALYZE_VP at YZ_ROOT only
+    if(io_dspaces_log->analyze_vp != NULL) {
+      for(int reqind=0; reqind<dspaces_bufnum; reqind++) {
+        if(analyzevp_dspaces_put_req_list[reqind] != NULL) {
+          clk = MPI_Wtime();
+          for(int i=0; i<analyzevp_nvar; i++) {
+            dspaces_check_put(ds_client, analyzevp_dspaces_put_req_list[reqind][i], 1);
+          }
+          dspaces_check_time = MPI_Wtime() - clk;
+          if(dspaces_check_time > analyzevp_nvar*dspaces_check_overhead) {
+            wait_time += MPI_Wtime() - clk - analyzevp_nvar*dspaces_check_overhead;  
+          }
+        }
+        free(analyzevp_dspaces_put_req_list[reqind]);
+      }
+      if(wait_time > 1e-8 && yz_rank == 0 && xcol_rank == 0) {
+        io_dspaces_log->analyze_vp->wait_time[io_dspaces_log->analyze_vp->count-1] = wait_time;
+        io_dspaces_log->analyze_vp->time[io_dspaces_log->analyze_vp->count-1] = wait_time
+                              + io_dspaces_log->analyze_vp->api_time[io_dspaces_log->analyze_vp->count-1];
+      }
+      free(analyzevp_dspaces_put_req_list);
       
-    //   // databuf exist in all ranks
-    //   for(int i=0; i<dspaces_bufnum; i++) {
-    //     free(analyzevp_buf[i]);
-    //   }
-    //   free(analyzevp_buf);
-    // }
+      // databuf exist in all ranks
+      for(int i=0; i<dspaces_bufnum; i++) {
+        free(analyzevp_buf[i]);
+      }
+      free(analyzevp_buf);
+    }
 
     MPI_Barrier(io_comm);
 

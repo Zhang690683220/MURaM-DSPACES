@@ -405,7 +405,7 @@ void yz_slice(const RunData&  Run, const GridData& Grid,
   // }
   free(iobuf);
 
-  if(Run.rank == 0 && Run.verbose >0) {
+  if(Run.rank == 0) {
     io_file_log->yz->iter[io_file_log->yz->count] = Run.globiter;
 		io_file_log->yz->api_time[io_file_log->yz->count] = file_time;
 		io_file_log->yz->time[io_file_log->yz->count] = file_time;
