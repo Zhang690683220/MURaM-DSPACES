@@ -69,7 +69,7 @@ dspaces_put_req_t** eos_dspaces_put_req_list = NULL;
 // 3D/DIAG_OUTPUT
 float **diag_buf = NULL;
 int diag_nvar;
-dspaces_put_req_t*** diag_dspaces_put_req_list = NULL;
+dspaces_put_req_t** diag_dspaces_put_req_list = NULL;
 // 2D/TAU_SLICE
 extern float **tauslice_buf;
 extern int tauslice_nslice;
@@ -349,7 +349,7 @@ void log_entry_init(struct log_entry* le, char* name, int iters, int ndims, int*
     le->total_pp_time = 0.0;
     le->total_pure_api_time = 0.0;
     le->avg_pp_time = 0.0;
-    le->avg_pure_api_time 0.0;
+    le->avg_pure_api_time = 0.0;
   }
 }
 
@@ -419,7 +419,7 @@ void dspaces_log_entry_output(struct log_entry* le, char* prefix) {
     log << le->gsize[le->ndims-1] << std::endl;
   }
   log << "NVars," <<le->nvars << std::endl;
-  if(strcmp(le->name, "CORONA") == 0) == 0) {
+  if(strcmp(le->name, "CORONA") == 0) {
     log << "Iteration, Function_Time(s), Prepare_time(s), API_time(s), Wait_Time(s), Time(s)" << std::endl;
     for(int i=0; i<le->count; i++) {
       log << le->iter[i] << ", " << le->api_time[i] << ", " << le->pp_time[i] << ", "
@@ -1779,7 +1779,7 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
 
       eos_nvar = tot_vars;
       eos_dspaces_put_req_list = (dspaces_put_req_t**) malloc(dspaces_bufnum*sizeof(dspaces_put_req_t*));
-      eos_buf = (float**) malloc(dspaces_bufnum*sizeof(float*))
+      eos_buf = (float**) malloc(dspaces_bufnum*sizeof(float*));
       for(int i=0; i<dspaces_bufnum; i++) {
         eos_dspaces_put_req_list[i] = (dspaces_put_req_t*) malloc(tot_vars*sizeof(dspaces_put_req_t));
         eos_buf[i] = (float*) malloc(tot_vars*lsize*sizeof(float));
