@@ -380,10 +380,11 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
 		if(Run.use_dspaces_io) {
 			io_dspaces_log->analyze_vp->iter[io_dspaces_log->analyze_vp->count] = Run.globiter;
       io_dspaces_log->analyze_vp->api_time[io_dspaces_log->analyze_vp->count] = dspaces_time;
-      if(io_dspaces_log->analyze_vp->count > 0) {
-        io_dspaces_log->analyze_vp->wait_time[io_dspaces_log->analyze_vp->count-1] = dspaces_wait_time;
-        io_dspaces_log->analyze_vp->time[io_dspaces_log->analyze_vp->count-1] = dspaces_wait_time
-                                  + io_dspaces_log->analyze_vp->api_time[io_dspaces_log->analyze_vp->count-1];
+      if(io_dspaces_log->analyze_vp->count > dspaces_bufnum-1) {
+        io_dspaces_log->analyze_vp->wait_time[io_dspaces_log->analyze_vp->count-dspaces_bufnum] = 
+                                                                                  dspaces_wait_time;
+        io_dspaces_log->analyze_vp->time[io_dspaces_log->analyze_vp->count-dspaces_bufnum] =
+          dspaces_wait_time+ io_dspaces_log->analyze_vp->api_time[io_dspaces_log->analyze_vp->count-dspaces_bufnum];
       }
       io_dspaces_log->analyze_vp->count++ ;
 		}

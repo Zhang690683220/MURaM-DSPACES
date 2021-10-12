@@ -411,10 +411,10 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
 		if(Run.use_dspaces_io) {
 			io_dspaces_log->tau->iter[io_dspaces_log->tau->count] = Run.globiter;
       io_dspaces_log->tau->api_time[io_dspaces_log->tau->count] = dspaces_time;
-      if(io_dspaces_log->tau->count > 0) {
-        io_dspaces_log->tau->wait_time[io_dspaces_log->tau->count-1] = dspaces_wait_time;
-        io_dspaces_log->tau->time[io_dspaces_log->tau->count-1] = dspaces_wait_time
-                                    + io_dspaces_log->tau->api_time[io_dspaces_log->tau->count-1];
+      if(io_dspaces_log->tau->count > dspaces_bufnum-1) {
+        io_dspaces_log->tau->wait_time[io_dspaces_log->tau->count-dspaces_bufnum] = dspaces_wait_time;
+        io_dspaces_log->tau->time[io_dspaces_log->tau->count-dspaces_bufnum] = dspaces_wait_time
+                                  + io_dspaces_log->tau->api_time[io_dspaces_log->tau->count-dspaces_bufnum];
       }
 			io_dspaces_log->tau->count++ ;
 		}

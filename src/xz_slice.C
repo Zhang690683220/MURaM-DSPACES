@@ -399,10 +399,10 @@ void xz_slice(const RunData&  Run, const GridData& Grid,
 		if(Run.use_dspaces_io) {
 			io_dspaces_log->xz->iter[io_dspaces_log->xz->count] = Run.globiter;
       io_dspaces_log->xz->api_time[io_dspaces_log->xz->count] = dspaces_time;
-      if(io_dspaces_log->xz->count > 0) {
-        io_dspaces_log->xz->wait_time[io_dspaces_log->xz->count-1] = dspaces_wait_time;
-        io_dspaces_log->xz->time[io_dspaces_log->xz->count-1] = dspaces_wait_time
-                                    + io_dspaces_log->xz->api_time[io_dspaces_log->xz->count-1];
+      if(io_dspaces_log->xz->count > dspaces_bufnum-1) {
+        io_dspaces_log->xz->wait_time[io_dspaces_log->xz->count-dspaces_bufnum] = dspaces_wait_time;
+        io_dspaces_log->xz->time[io_dspaces_log->xz->count-dspaces_bufnum] = dspaces_wait_time
+                                    + io_dspaces_log->xz->api_time[io_dspaces_log->xz->count-dspaces_bufnum];
       }
 			io_dspaces_log->xz->count++;
 		}

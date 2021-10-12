@@ -413,10 +413,10 @@ void yz_slice(const RunData&  Run, const GridData& Grid,
 		if(Run.use_dspaces_io) {
 			io_dspaces_log->yz->iter[io_dspaces_log->yz->count] = Run.globiter;
       io_dspaces_log->yz->api_time[io_dspaces_log->yz->count] = dspaces_time;
-      if(io_dspaces_log->yz->count > 0) {
-        io_dspaces_log->yz->wait_time[io_dspaces_log->yz->count-1] = dspaces_wait_time;
-        io_dspaces_log->yz->time[io_dspaces_log->yz->count-1] = dspaces_wait_time
-                                    + io_dspaces_log->yz->api_time[io_dspaces_log->yz->count-1];
+      if(io_dspaces_log->yz->count > dspaces_bufnum-1) {
+        io_dspaces_log->yz->wait_time[io_dspaces_log->yz->count-dspaces_bufnum] = dspaces_wait_time;
+        io_dspaces_log->yz->time[io_dspaces_log->yz->count-dspaces_bufnum] = dspaces_wait_time
+                                    + io_dspaces_log->yz->api_time[io_dspaces_log->yz->count-dspaces_bufnum];
       }
       io_dspaces_log->yz->count++;
 		}

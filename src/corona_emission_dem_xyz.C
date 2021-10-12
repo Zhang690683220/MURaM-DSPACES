@@ -777,10 +777,10 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
       io_dspaces_log->corona->api_time[io_dspaces_log->corona->count] = dspaces_time;
 			io_dspaces_log->corona->pp_time[io_dspaces_log->corona->count] = dspaces_pp_time;
 			io_dspaces_log->corona->pure_api_time[io_dspaces_log->corona->count] = dspaces_api_time;
-      if(io_dspaces_log->corona->count > 0) {
-        io_dspaces_log->corona->wait_time[io_dspaces_log->corona->count-1] = dspaces_wait_time;
-        io_dspaces_log->corona->time[io_dspaces_log->corona->count-1] = dspaces_wait_time
-                                    + io_dspaces_log->corona->api_time[io_dspaces_log->corona->count-1];
+      if(io_dspaces_log->corona->count > dspaces_bufnum-1) {
+        io_dspaces_log->corona->wait_time[io_dspaces_log->corona->count-dspaces_bufnum] = dspaces_wait_time;
+        io_dspaces_log->corona->time[io_dspaces_log->corona->count-dspaces_bufnum] = dspaces_wait_time
+                            + io_dspaces_log->corona->api_time[io_dspaces_log->corona->count-dspaces_bufnum];
       }
 			io_dspaces_log->corona->count++ ;
 		}
