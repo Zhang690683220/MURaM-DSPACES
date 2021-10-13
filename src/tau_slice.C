@@ -25,7 +25,7 @@ extern dspaces_put_req_t* slice_write_dspaces(const GridData& Grid, const int ir
                                 int n1, char* filename, const int iter,
                                 const int ndim);
 
-int tau_dspaces_bufnum = 1;
+int tau_dspaces_bufnum = 2;
 float **tauslice_buf = NULL;
 int tauslice_nslice;
 int tauslice_nslvar;
@@ -126,8 +126,6 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
     ini_flag = 0;
   }
 
-	std::cout << "DEBUG: TAU Start  " << std::endl;
-
   iobuf = (float*) malloc(nslvar*localsize*sizeof(float));
   iosum = (float*) malloc(nslvar*localsize*sizeof(float));
 
@@ -227,7 +225,7 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
     //   free(dspaces_put_req_list);
     // }
 
-		std::cout << "DEBUG: TAU before check  " << std::endl;
+		std::cout << "IO RANK:" << io_rank << " DEBUG: TAU before check  " << std::endl;
 		// tauslice_dspaces_put_req_list != NULL is stronger than xcol_rank == root
 		if(Run.use_dspaces_io && tauslice_ref_count > tau_dspaces_bufnum-1 && xcol_rank == iroot) {
 			// int reqind = (tauslice_ref_count-1) % dspaces_bufnum;
@@ -240,9 +238,10 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
 				dspaces_wait_time += MPI_Wtime() - clk -nslvar*dspaces_check_overhead;
 			}
       free(tauslice_dspaces_put_req_list[bufind][nsl]);
+			std::cout << "IO RANK:" << io_rank << " DEBUG: TAU after check XCOL " << std::endl;
     }
 
-		std::cout << "DEBUG: TAU after check  " << std::endl;
+		std::cout << "IO RANK:" << io_rank << " DEBUG: TAU after check  " << std::endl;
 
 	// update iosum values
     MPI_Reduce(iobuf,iosum,nslvar*localsize,MPI_FLOAT,MPI_SUM,iroot,
@@ -367,9 +366,7 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
 						sprintf(vname, "%s_%d", ds_var_name, i);
 						dspaces_define_gdim(ds_client, vname, 2, gdim);
 					}
-					std::cout << "DEBUG: TAU SET GDIM  " << std::endl;
 				}
-				std::cout << "DEBUG: TAU before put  " << std::endl;
         clk = MPI_Wtime();
         tauslice_dspaces_put_req_list[bufind][nsl] = slice_write_dspaces(Grid, 0,
 																															&tauslice_buf[bufind][nsl*nslvar*localsize],
