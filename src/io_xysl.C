@@ -1616,6 +1616,9 @@ void diag_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phy
         std::cout<< "write " << filename << std::endl;
       }
       sprintf(ds_var_name, "%s%s", Run.path_3D,diag_names[var]);
+      if(diag_ref_count == 0) {
+        dspaces_define_gdim(ds_client, ds_var_name, 3, gsize);
+      }
       clk = MPI_Wtime();
       // no buf allocation, no check
       diag_dspaces_put_req_list[bufind][vi] = dspaces_iput(ds_client, ds_var_name, Run.globiter,
@@ -1891,6 +1894,9 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
         std::cout<< "write " << filename << std::endl;
       }
       sprintf(ds_var_name, "%s%s", Run.path_3D,eos_names[var]);
+      if(eos_ref_count == 0) {
+        dspaces_define_gdim(ds_client, ds_var_name, 3, gsize);
+      }
       clk = MPI_Wtime();
       // no buf allocation, no check
       eos_dspaces_put_req_list[bufind][vi] = dspaces_iput(ds_client, ds_var_name, Run.globiter,

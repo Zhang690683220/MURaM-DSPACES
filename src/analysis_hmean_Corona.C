@@ -42,6 +42,7 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
     w2[v]   =-1./(12.*Grid.dx[v]);
   }
 
+  int gsize[1];
   double clk, file_time, dspaces_time, dspaces_wait_time;
 	file_time = 0.0;
   int bufind;
@@ -82,7 +83,6 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
 			     MPI_FLOAT,&x_subarray);
     MPI_Type_commit(&x_subarray);
 
-    int gsize[1];
     gsize[0] = Grid.gsize[0];
     io_file_log->analyze_vp = (struct log_entry*) malloc(sizeof(struct log_entry));
     log_entry_init(io_file_log->analyze_vp, "ANALYZE_VP", est_total_slice_iters, 1, gsize, nvar);
@@ -333,6 +333,9 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
       ub[0] = lb[0] + Grid.lsize[0] - 1;
       for(int v=0; v<nvar; v++) {
         sprintf(ds_var_name, "%s%s_%d", Run.path_2D, "hmean1D", v);
+        if(analyzevp_ref_count == 0) {
+          dspaces_define_gdim(ds_client, ds_var_name, 1, gsize);
+        }
         clk = MPI_Wtime();
         analyzevp_dspaces_put_req_list[bufind][v] = dspaces_iput(ds_client, ds_var_name, Run.globiter,
                                                          sizeof(float), 1, lb, ub,

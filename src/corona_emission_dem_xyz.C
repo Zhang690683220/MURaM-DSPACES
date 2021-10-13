@@ -194,7 +194,13 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
     cout << "DEM: lgTmin = " << lgTmin <<  " lgTmax = " << lgTmax << ' ' << nslvar  << endl;
 
   FILE* fhandle=NULL;
-
+	int xygsize[2], xzgsize[2], yzgsize[2];
+	xygsize[0] = Grid.gsize[1];
+	xygsize[1] = Grid.gsize[0];
+	xzgsize[0] = Grid.gsize[2];
+	xzgsize[1] = Grid.gsize[0];
+	yzgsize[0] = Grid.gsize[1];
+	yzgsize[1] = Grid.gsize[2];
 	double clk, file_time, file_api_time, file_pp_time,
 					dspaces_time, dspaces_wait_time, dspaces_api_time, dspaces_pp_time;
 	int put_count;
@@ -447,6 +453,13 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 	    	fwrite(header,sizeof(float),6,hfhandle);
 				fclose(hfhandle);
 			}
+			if(corona_ref_count == 0) {
+				char vname[128];
+				for(int i=0; i<nslvar; i++) {
+					sprintf(vname, "%s_%d", filename, i);
+					dspaces_define_gdim(ds_client, vname, 2, yzgsize);
+				}
+			}
 			clk = MPI_Wtime();
 			coronayz_dspaces_put_req_list[bufind][v] = slice_write_rebin_dspaces(Grid, 0,
 																																&coronayz_buf[bufind][v*nslvar*localsize],
@@ -589,6 +602,13 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 	    	fwrite(header,sizeof(float),6,hfhandle);
 				fclose(hfhandle);
 			}
+			if(corona_ref_count == 0) {
+				char vname[128];
+				for(int i=0; i<nslvar; i++) {
+					sprintf(vname, "%s_%d", filename, i);
+					dspaces_define_gdim(ds_client, vname, 2, xzgsize);
+				}
+			}
 			clk = MPI_Wtime();
 			coronaxz_dspaces_put_req_list[bufind][v] = slice_write_rebin_dspaces(Grid, 0,
 																																&coronaxz_buf[bufind][v*nslvar*localsize], 
@@ -730,6 +750,13 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 	    	header[5] = (float) dellgT;
 	    	fwrite(header,sizeof(float),6,hfhandle);
 				fclose(hfhandle);
+			}
+			if(corona_ref_count == 0) {
+				char vname[128];
+				for(int i=0; i<nslvar; i++) {
+					sprintf(vname, "%s_%d", filename, i);
+					dspaces_define_gdim(ds_client, vname, 2, xygsize);
+				}
 			}
 			clk = MPI_Wtime();
 			coronaxy_dspaces_put_req_list[bufind][v] = slice_write_rebin_dspaces(Grid, 0,

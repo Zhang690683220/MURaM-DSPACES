@@ -51,6 +51,7 @@ void xz_slice(const RunData&  Run, const GridData& Grid,
   static int nslvar;
 
   FILE* fhandle=NULL;
+	int gsize[2];
 	double clk, file_time, dspaces_time, dspaces_wait_time;
 	file_time = 0.0;
 	int bufind;
@@ -84,7 +85,6 @@ void xz_slice(const RunData&  Run, const GridData& Grid,
       if (Physics.xz_var[v] == 1) nslvar+=1;
     }
 
-		int gsize[2];
     gsize[0] = Grid.gsize[2];
     gsize[1] = Grid.gsize[0];
 		io_file_log->xz = (struct log_entry*) malloc(sizeof(struct log_entry));
@@ -338,6 +338,13 @@ void xz_slice(const RunData&  Run, const GridData& Grid,
 	  if(Run.use_dspaces_io) {
         char ds_var_name[128];
         sprintf(ds_var_name, "%s%s_%04d", Run.path_2D,"xz_slice",ixpos[nsl]);
+				if(xzslice_ref_count == 0) {
+					char vname[128];
+					for(int i=0; i<nslvar; i++) {
+						sprintf(vname, "%s_%d", ds_var_name, i);
+						dspaces_define_gdim(ds_client, vname, 2, gsize);
+					}
+				}
         clk = MPI_Wtime();
         xzslice_dspaces_put_req_list[bufind][nsl] = slice_write_dspaces(Grid, 0, 
 																													&xzslice_buf[bufind][nsl*nslvar*localsize],

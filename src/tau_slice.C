@@ -60,6 +60,7 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
   static int nslvar;
 
   FILE* fhandle=NULL;
+	int gsize[2];
 	double clk, file_time, dspaces_time, dspaces_wait_time;
 	file_time = 0.0;
 	int bufind;
@@ -90,7 +91,6 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
       if (Physics.tau_var[v] == 1) nslvar+=1;
     }
 
-		int gsize[2];
     gsize[0] = Grid.gsize[1];
     gsize[1] = Grid.gsize[2];
 		io_file_log->tau = (struct log_entry*) malloc(sizeof(struct log_entry));
@@ -352,6 +352,13 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
         	sprintf(ds_var_name, "%s%s_%.3f", Run.path_2D,"tau_slice",tau_lev[nsl]);
 				else
 					sprintf(ds_var_name, "%s%s_%.6f", Run.path_2D,"tau_slice",tau_lev[nsl]);
+				if(tauslice_ref_count == 0) {
+					char vname[128];
+					for(int i=0; i<nslvar; i++) {
+						sprintf(vname, "%s_%d", ds_var_name, i);
+						dspaces_define_gdim(ds_client, vname, 2, gsize);
+					}
+				}
         clk = MPI_Wtime();
         tauslice_dspaces_put_req_list[bufind][nsl] = slice_write_dspaces(Grid, 0,
 																															&tauslice_buf[bufind][nsl*nslvar*localsize],
