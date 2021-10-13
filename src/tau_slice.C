@@ -25,7 +25,7 @@ extern dspaces_put_req_t* slice_write_dspaces(const GridData& Grid, const int ir
                                 int n1, char* filename, const int iter,
                                 const int ndim);
 
-int tau_dspaces_bufnum = 2;
+int tau_dspaces_bufnum = 1;
 float **tauslice_buf = NULL;
 int tauslice_nslice;
 int tauslice_nslvar;
