@@ -454,10 +454,14 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 				fclose(hfhandle);
 			}
 			if(corona_ref_count == 0) {
+				uint64_t gdim[2];
+        for(int i=0; i<2; i++) {
+          gdim[i] = yzgsize[i];
+        }
 				char vname[128];
 				for(int i=0; i<nslvar; i++) {
 					sprintf(vname, "%s_%d", filename, i);
-					dspaces_define_gdim(ds_client, vname, 2, yzgsize);
+					dspaces_define_gdim(ds_client, vname, 2, gdim);
 				}
 			}
 			clk = MPI_Wtime();
@@ -603,10 +607,14 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 				fclose(hfhandle);
 			}
 			if(corona_ref_count == 0) {
+				uint64_t gdim[2];
+        for(int i=0; i<2; i++) {
+          gdim[i] = xzgsize[i];
+        }
 				char vname[128];
 				for(int i=0; i<nslvar; i++) {
 					sprintf(vname, "%s_%d", filename, i);
-					dspaces_define_gdim(ds_client, vname, 2, xzgsize);
+					dspaces_define_gdim(ds_client, vname, 2, gdim);
 				}
 			}
 			clk = MPI_Wtime();
@@ -752,10 +760,14 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 				fclose(hfhandle);
 			}
 			if(corona_ref_count == 0) {
+				uint64_t gdim[2];
+        for(int i=0; i<2; i++) {
+          gdim[i] = xygsize[i];
+        }
 				char vname[128];
 				for(int i=0; i<nslvar; i++) {
 					sprintf(vname, "%s_%d", filename, i);
-					dspaces_define_gdim(ds_client, vname, 2, xygsize);
+					dspaces_define_gdim(ds_client, vname, 2, gdim);
 				}
 			}
 			clk = MPI_Wtime();

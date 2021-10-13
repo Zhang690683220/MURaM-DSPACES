@@ -1617,7 +1617,11 @@ void diag_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phy
       }
       sprintf(ds_var_name, "%s%s", Run.path_3D,diag_names[var]);
       if(diag_ref_count == 0) {
-        dspaces_define_gdim(ds_client, ds_var_name, 3, gsize);
+        uint64_t gdim[3];
+        for(int i=0; i<3; i++) {
+          gdim[i] = Grid.gsize[i];
+        }
+        dspaces_define_gdim(ds_client, ds_var_name, 3, gdim);
       }
       clk = MPI_Wtime();
       // no buf allocation, no check
@@ -1895,7 +1899,11 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
       }
       sprintf(ds_var_name, "%s%s", Run.path_3D,eos_names[var]);
       if(eos_ref_count == 0) {
-        dspaces_define_gdim(ds_client, ds_var_name, 3, gsize);
+        uint64_t gdim[3];
+        for(int i=0; i<3; i++) {
+          gdim[i] = Grid.gsize[i];
+        }
+        dspaces_define_gdim(ds_client, ds_var_name, 3, gdim);
       }
       clk = MPI_Wtime();
       // no buf allocation, no check

@@ -336,10 +336,14 @@ void xy_slice(const RunData&  Run, const GridData& Grid,
         char ds_var_name[128];
         sprintf(ds_var_name, "%s%s_%04d", Run.path_2D,"xy_slice",ixpos[nsl]);
 				if(xyslice_ref_count == 0) {
+					uint64_t gdim[2];
+          for(int i=0; i<2; i++) {
+            gdim[i] = gsize[i];
+          }
 					char vname[128];
 					for(int i=0; i<nslvar; i++) {
 						sprintf(vname, "%s_%d", ds_var_name, i);
-						dspaces_define_gdim(ds_client, vname, 2, gsize);
+						dspaces_define_gdim(ds_client, vname, 2, gdim);
 					}
 				}
         clk = MPI_Wtime();

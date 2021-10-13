@@ -334,7 +334,11 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
       for(int v=0; v<nvar; v++) {
         sprintf(ds_var_name, "%s%s_%d", Run.path_2D, "hmean1D", v);
         if(analyzevp_ref_count == 0) {
-          dspaces_define_gdim(ds_client, ds_var_name, 1, gsize);
+          uint64_t gdim[1];
+          for(int i=0; i<1; i++) {
+            gdim[i] = gsize[i];
+          }
+          dspaces_define_gdim(ds_client, ds_var_name, 1, gdim);
         }
         clk = MPI_Wtime();
         analyzevp_dspaces_put_req_list[bufind][v] = dspaces_iput(ds_client, ds_var_name, Run.globiter,
