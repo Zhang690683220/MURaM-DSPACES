@@ -15,7 +15,7 @@ using namespace std;
 extern est_total_slice_iters;
 extern struct log *io_file_log, *io_dspaces_log;
 
-// extern const int dspaces_bufnum;
+int analyzevp_dspaces_bufnum = 2;
 float **analyzevp_buf = NULL;
 int analyzevp_nvar;
 dspaces_put_req_t** analyzevp_dspaces_put_req_list = NULL;
@@ -49,7 +49,7 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
 	if(Run.use_dspaces_io) {
 		dspaces_time = 0.0;
     dspaces_wait_time = 0.0;
-    bufind = analyzevp_ref_count % dspaces_bufnum;
+    bufind = analyzevp_ref_count % analyzevp_dspaces_bufnum;
     // dspaces_put_req_list = NULL;
 	}
 
@@ -91,10 +91,10 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
       log_entry_init(io_dspaces_log->analyze_vp, "ANALYZE_VP", est_total_slice_iters, 1, gsize, nvar);
       
       analyzevp_nvar = nvar;
-      analyzevp_dspaces_put_req_list = (dspaces_put_req_t**) malloc(dspaces_bufnum *
+      analyzevp_dspaces_put_req_list = (dspaces_put_req_t**) malloc(analyzevp_dspaces_bufnum *
                                                                     sizeof(dspaces_put_req_t*));
-      analyzevp_buf = (float**) malloc(dspaces_bufnum*sizeof(float*));
-      for(int i=0; i<dspaces_bufnum; i++) {
+      analyzevp_buf = (float**) malloc(analyzevp_dspaces_bufnum*sizeof(float*));
+      for(int i=0; i<analyzevp_dspaces_bufnum; i++) {
         // dspaces_iput() is only called in ranks whose yz_rank == iroot
 			  // so the dspaces_put_req_list is only malloced there
         if(yz_rank == 0) {
@@ -278,7 +278,7 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
       glo[ind+12*ioff] *= b_unit*b_unit;
     }
 
-    if(Run.use_dspaces_io && analyzevp_ref_count > dspaces_bufnum-1) {
+    if(Run.use_dspaces_io && analyzevp_ref_count > analyzevp_dspaces_bufnum-1) {
       // int reqind = (analyzevp_ref_count-1) % dspaces_bufnum;
       clk = MPI_Wtime();
       for(int i=0; i<nvar; i++) {
@@ -380,11 +380,12 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
 		if(Run.use_dspaces_io) {
 			io_dspaces_log->analyze_vp->iter[io_dspaces_log->analyze_vp->count] = Run.globiter;
       io_dspaces_log->analyze_vp->api_time[io_dspaces_log->analyze_vp->count] = dspaces_time;
-      if(io_dspaces_log->analyze_vp->count > dspaces_bufnum-1) {
-        io_dspaces_log->analyze_vp->wait_time[io_dspaces_log->analyze_vp->count-dspaces_bufnum] = 
+      if(io_dspaces_log->analyze_vp->count > analyzevp_dspaces_bufnum-1) {
+        io_dspaces_log->analyze_vp->wait_time[io_dspaces_log->analyze_vp->count-analyzevp_dspaces_bufnum] = 
                                                                                   dspaces_wait_time;
-        io_dspaces_log->analyze_vp->time[io_dspaces_log->analyze_vp->count-dspaces_bufnum] =
-          dspaces_wait_time+ io_dspaces_log->analyze_vp->api_time[io_dspaces_log->analyze_vp->count-dspaces_bufnum];
+        io_dspaces_log->analyze_vp->time[io_dspaces_log->analyze_vp->count-analyzevp_dspaces_bufnum] =
+          dspaces_wait_time + 
+          io_dspaces_log->analyze_vp->api_time[io_dspaces_log->analyze_vp->count-analyzevp_dspaces_bufnum];
       }
       io_dspaces_log->analyze_vp->count++ ;
 		}

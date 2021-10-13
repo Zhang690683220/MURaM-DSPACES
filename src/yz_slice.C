@@ -23,7 +23,7 @@ extern dspaces_put_req_t* slice_write_dspaces(const GridData& Grid, const int ir
                                 int n1, char* filename, const int iter,
                                 const int ndim);
 
-// extern const int dspaces_bufnum;
+int yz_dspaces_bufnum = 2;
 float **yzslice_buf = NULL;
 int yzslice_nslice;
 int yzslice_nslvar;
@@ -60,7 +60,7 @@ void yz_slice(const RunData&  Run, const GridData& Grid,
 		dspaces_time = 0.0;
     dspaces_wait_time = 0.0;
     // dspaces_put_req_list = NULL;
-    bufind = yzslice_ref_count % dspaces_bufnum;
+    bufind = yzslice_ref_count % yz_dspaces_bufnum;
 	}
 
   //MPI_File fhandle_mpi;
@@ -96,10 +96,10 @@ void yz_slice(const RunData&  Run, const GridData& Grid,
 
       yzslice_nslice = nslice;
       yzslice_nslvar = nslvar;
-      yzslice_dspaces_put_req_list = (dspaces_put_req_t***) malloc(dspaces_bufnum *
+      yzslice_dspaces_put_req_list = (dspaces_put_req_t***) malloc(yz_dspaces_bufnum *
                                                                 sizeof(dspaces_put_req_t**));
-      yzslice_buf = (float**) malloc(dspaces_bufnum*sizeof(float*));
-      for(int j=0; j<dspaces_bufnum; j++) {
+      yzslice_buf = (float**) malloc(yz_dspaces_bufnum*sizeof(float*));
+      for(int j=0; j<yz_dspaces_bufnum; j++) {
         yzslice_dspaces_put_req_list[j] = (dspaces_put_req_t**) malloc(nslice*sizeof(dspaces_put_req_t*));
         // prevent non-NULL pointer exists when the rank is not in the selected domain
         for(int i=0; i<nslice; i++) {
@@ -128,7 +128,7 @@ void yz_slice(const RunData&  Run, const GridData& Grid,
       //   free(dspaces_put_req_list);
       // }
 
-      if(Run.use_dspaces_io && yzslice_ref_count > dspaces_bufnum-1) {
+      if(Run.use_dspaces_io && yzslice_ref_count > yz_dspaces_bufnum-1) {
         // int reqind = (yzslice_ref_count-1) % dspaces_bufnum;
         clk = MPI_Wtime();
         for(int i=0; i<nslvar; i++) {
@@ -413,10 +413,10 @@ void yz_slice(const RunData&  Run, const GridData& Grid,
 		if(Run.use_dspaces_io) {
 			io_dspaces_log->yz->iter[io_dspaces_log->yz->count] = Run.globiter;
       io_dspaces_log->yz->api_time[io_dspaces_log->yz->count] = dspaces_time;
-      if(io_dspaces_log->yz->count > dspaces_bufnum-1) {
-        io_dspaces_log->yz->wait_time[io_dspaces_log->yz->count-dspaces_bufnum] = dspaces_wait_time;
-        io_dspaces_log->yz->time[io_dspaces_log->yz->count-dspaces_bufnum] = dspaces_wait_time
-                                    + io_dspaces_log->yz->api_time[io_dspaces_log->yz->count-dspaces_bufnum];
+      if(io_dspaces_log->yz->count > yz_dspaces_bufnum-1) {
+        io_dspaces_log->yz->wait_time[io_dspaces_log->yz->count-yz_dspaces_bufnum] = dspaces_wait_time;
+        io_dspaces_log->yz->time[io_dspaces_log->yz->count-yz_dspaces_bufnum] = dspaces_wait_time
+                                + io_dspaces_log->yz->api_time[io_dspaces_log->yz->count-yz_dspaces_bufnum];
       }
       io_dspaces_log->yz->count++;
 		}

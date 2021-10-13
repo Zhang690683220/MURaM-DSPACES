@@ -22,7 +22,7 @@ extern dspaces_put_req_t* slice_write_dspaces(const GridData& Grid, const int ir
                                 int n1, char* filename, const int iter,
                                 const int ndim);
 
-// extern const int dspaces_bufnum;
+int xz_dspaces_bufnum = 2;
 float **xzslice_buf = NULL;
 int xzslice_nslice;
 int xzslice_nslvar;
@@ -59,7 +59,7 @@ void xz_slice(const RunData&  Run, const GridData& Grid,
 		dspaces_time = 0.0;
     dspaces_wait_time = 0.0;
     // dspaces_put_req_list = NULL;
-		bufind = xzslice_ref_count % dspaces_bufnum;
+		bufind = xzslice_ref_count % xz_dspaces_bufnum;
 	}
 
   //MPI_File fhandle_mpi;
@@ -95,10 +95,10 @@ void xz_slice(const RunData&  Run, const GridData& Grid,
 
 			xzslice_nslice = nslice;
 			xzslice_nslvar = nslvar;
-			xzslice_dspaces_put_req_list = (dspaces_put_req_t***) malloc(dspaces_bufnum *
+			xzslice_dspaces_put_req_list = (dspaces_put_req_t***) malloc(xz_dspaces_bufnum *
 																															sizeof(dspaces_put_req_t**));
-			xzslice_buf = (float**) malloc(dspaces_bufnum*sizeof(float*));
-			for(int j=0; j<dspaces_bufnum; j++) {
+			xzslice_buf = (float**) malloc(xz_dspaces_bufnum*sizeof(float*));
+			for(int j=0; j<xz_dspaces_bufnum; j++) {
 				xzslice_dspaces_put_req_list[j] = (dspaces_put_req_t**) malloc(nslice*sizeof(dspaces_put_req_t*));
 			// prevent non-NULL pointer exists when the rank is not in the selected domain
       	for(int i=0; i<nslice; i++) {
@@ -128,7 +128,7 @@ void xz_slice(const RunData&  Run, const GridData& Grid,
       // }
 
 
-			if(Run.use_dspaces_io && xzslice_ref_count > dspaces_bufnum-1) {
+			if(Run.use_dspaces_io && xzslice_ref_count > xz_dspaces_bufnum-1) {
 				// int reqind = (xzslice_ref_count-1) % dspaces_bufnum;
 				clk = MPI_Wtime();
         for(int i=0; i<nslvar; i++) {
@@ -399,10 +399,10 @@ void xz_slice(const RunData&  Run, const GridData& Grid,
 		if(Run.use_dspaces_io) {
 			io_dspaces_log->xz->iter[io_dspaces_log->xz->count] = Run.globiter;
       io_dspaces_log->xz->api_time[io_dspaces_log->xz->count] = dspaces_time;
-      if(io_dspaces_log->xz->count > dspaces_bufnum-1) {
-        io_dspaces_log->xz->wait_time[io_dspaces_log->xz->count-dspaces_bufnum] = dspaces_wait_time;
-        io_dspaces_log->xz->time[io_dspaces_log->xz->count-dspaces_bufnum] = dspaces_wait_time
-                                    + io_dspaces_log->xz->api_time[io_dspaces_log->xz->count-dspaces_bufnum];
+      if(io_dspaces_log->xz->count > xz_dspaces_bufnum-1) {
+        io_dspaces_log->xz->wait_time[io_dspaces_log->xz->count-xz_dspaces_bufnum] = dspaces_wait_time;
+        io_dspaces_log->xz->time[io_dspaces_log->xz->count-xz_dspaces_bufnum] = dspaces_wait_time
+                                + io_dspaces_log->xz->api_time[io_dspaces_log->xz->count-xz_dspaces_bufnum];
       }
 			io_dspaces_log->xz->count++;
 		}

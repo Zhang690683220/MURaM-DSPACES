@@ -25,7 +25,7 @@ extern dspaces_put_req_t* slice_write_dspaces(const GridData& Grid, const int ir
                                 int n1, char* filename, const int iter,
                                 const int ndim);
 
-// extern const int dspaces_bufnum;
+int tau_dspaces_bufnum = 2;
 float **tauslice_buf = NULL;
 int tauslice_nslice;
 int tauslice_nslvar;
@@ -66,7 +66,7 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
 	if(Run.use_dspaces_io) {
 		dspaces_time = 0.0;
     dspaces_wait_time = 0.0;
-		bufind = tauslice_ref_count % dspaces_bufnum;
+		bufind = tauslice_ref_count % tau_dspaces_bufnum;
 	}
 
   //MPI_File fhandle_mpi;
@@ -101,12 +101,12 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
 
 			tauslice_nslice = nslice;
 			tauslice_nslvar = nslvar;
-			tauslice_dspaces_put_req_list = (dspaces_put_req_t***) malloc(dspaces_bufnum *
+			tauslice_dspaces_put_req_list = (dspaces_put_req_t***) malloc(tau_dspaces_bufnum *
 																															sizeof(dspaces_put_req_t**));
-			tauslice_buf = (float**) malloc(dspaces_bufnum*sizeof(float*));
+			tauslice_buf = (float**) malloc(tau_dspaces_bufnum*sizeof(float*));
 			// dspaces_iput() is only called in ranks whose xcol_rank == iroot
 			// so the dspaces_put_req_list is only malloced there
-			for(int j=0; j<dspaces_bufnum; j++) {
+			for(int j=0; j<tau_dspaces_bufnum; j++) {
 				if(xcol_rank == iroot) {
 					tauslice_dspaces_put_req_list[j] = (dspaces_put_req_t**) malloc(nslice*
 																																					sizeof(dspaces_put_req_t*));
@@ -226,7 +226,7 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
     // }
 
 		// tauslice_dspaces_put_req_list != NULL is stronger than xcol_rank == root
-		if(Run.use_dspaces_io && tauslice_ref_count > dspaces_bufnum-1 && xcol_rank == iroot) {
+		if(Run.use_dspaces_io && tauslice_ref_count > tau_dspaces_bufnum-1 && xcol_rank == iroot) {
 			// int reqind = (tauslice_ref_count-1) % dspaces_bufnum;
 			clk = MPI_Wtime();
       for(int i=0; i<nslvar; i++) {
@@ -411,10 +411,10 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
 		if(Run.use_dspaces_io) {
 			io_dspaces_log->tau->iter[io_dspaces_log->tau->count] = Run.globiter;
       io_dspaces_log->tau->api_time[io_dspaces_log->tau->count] = dspaces_time;
-      if(io_dspaces_log->tau->count > dspaces_bufnum-1) {
-        io_dspaces_log->tau->wait_time[io_dspaces_log->tau->count-dspaces_bufnum] = dspaces_wait_time;
-        io_dspaces_log->tau->time[io_dspaces_log->tau->count-dspaces_bufnum] = dspaces_wait_time
-                                  + io_dspaces_log->tau->api_time[io_dspaces_log->tau->count-dspaces_bufnum];
+      if(io_dspaces_log->tau->count > tau_dspaces_bufnum-1) {
+        io_dspaces_log->tau->wait_time[io_dspaces_log->tau->count-tau_dspaces_bufnum] = dspaces_wait_time;
+        io_dspaces_log->tau->time[io_dspaces_log->tau->count-tau_dspaces_bufnum] = dspaces_wait_time
+                              + io_dspaces_log->tau->api_time[io_dspaces_log->tau->count-tau_dspaces_bufnum];
       }
 			io_dspaces_log->tau->count++ ;
 		}
