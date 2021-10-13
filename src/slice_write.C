@@ -169,7 +169,7 @@ dspaces_put_req_t* slice_write_dspaces(const GridData& Grid, const int iroot,
     clk = MPI_Wtime();
     // no allocation, no check
 		dspaces_put_req_list[v] = dspaces_iput(ds_client, ds_var_name, iter, sizeof(float),
-                                           ndim, lb, ub, &vloc[v*localsize]);
+                                           ndim, lb, ub, &vloc[v*localsize], 0 ,0);
     ds_time = MPI_Wtime() - clk;
 	}
 
