@@ -1627,7 +1627,7 @@ void diag_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phy
       // no buf allocation, no check
       diag_dspaces_put_req_list[bufind][vi] = dspaces_iput(ds_client, ds_var_name, Run.globiter,
                                                            sizeof(float), Grid.NDIM, lb, ub, 
-                                                           &diag_buf[bufind][vi*lsize], 0, 0);
+                                                           &diag_buf[bufind][vi*lsize]);
       dspaces_time += MPI_Wtime() - clk;
     }
     // if(Run.iteration > 0){
@@ -1909,7 +1909,7 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
       // no buf allocation, no check
       eos_dspaces_put_req_list[bufind][vi] = dspaces_iput(ds_client, ds_var_name, Run.globiter,
                                                           sizeof(float), Grid.NDIM, lb, ub,
-                                                          &eos_buf[bufind][vi*lsize], 0, 0);
+                                                          &eos_buf[bufind][vi*lsize]);
       dspaces_time += MPI_Wtime() - clk;
     }
 
