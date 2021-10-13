@@ -367,6 +367,7 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
 						sprintf(vname, "%s_%d", ds_var_name, i);
 						dspaces_define_gdim(ds_client, vname, 2, gdim);
 					}
+					std::cout << "DEBUG: TAU SET GDIM  " << std::endl;
 				}
 				std::cout << "DEBUG: TAU before put  " << std::endl;
         clk = MPI_Wtime();
