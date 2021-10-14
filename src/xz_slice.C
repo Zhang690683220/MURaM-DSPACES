@@ -22,7 +22,7 @@ extern dspaces_put_req_t* slice_write_dspaces(const GridData& Grid, const int ir
                                 int n1, char* filename, const int iter,
                                 const int ndim);
 
-int xz_dspaces_bufnum = 2;
+int xz_dspaces_bufnum = 1;
 float **xzslice_buf = NULL;
 int xzslice_nslice;
 int xzslice_nslvar;
