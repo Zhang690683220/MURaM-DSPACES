@@ -15,7 +15,7 @@ using namespace std;
 extern est_total_slice_iters;
 extern struct log *io_file_log, *io_dspaces_log;
 
-int analyzevp_dspaces_bufnum = 2;
+int analyzevp_dspaces_bufnum = 3;
 float **analyzevp_buf = NULL;
 int analyzevp_nvar;
 dspaces_put_req_t** analyzevp_dspaces_put_req_list = NULL;

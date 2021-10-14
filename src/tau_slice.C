@@ -26,7 +26,7 @@ extern dspaces_put_req_t* slice_write_dspaces(const GridData& Grid, const int ir
                                 const int ndim);
 extern io_rank;
 
-int tau_dspaces_bufnum = 2;
+int tau_dspaces_bufnum = 3;
 float **tauslice_buf = NULL;
 int tauslice_nslice;
 int tauslice_nslvar;
