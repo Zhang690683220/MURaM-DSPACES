@@ -31,7 +31,7 @@ extern dspaces_put_req_t* slice_write_rebin_dspaces(const GridData& Grid,
            											char* filename, const int iter, const int ndim,
 																double* pp_time, double* api_time);
 
-int corona_dspaces_bufnum = 3;
+int corona_dspaces_bufnum = 1;
 float **coronaxy_buf = NULL;
 float **coronaxz_buf = NULL;
 float **coronayz_buf = NULL;
