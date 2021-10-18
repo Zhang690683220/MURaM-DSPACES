@@ -135,7 +135,8 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 			io_dspaces_log->corona->corona_gsize[2][1] = Grid.gsize[0];
 
 			corona_nout = nout;
-			corona_nslvar = nslvar;
+			// corona_nslvar = nslvar;
+			corona_nslvar = 1;
 			coronaxy_dspaces_put_req_list = (dspaces_put_req_t***) malloc(corona_dspaces_bufnum *
 																		sizeof(dspaces_put_req_t**));
 			coronaxz_dspaces_put_req_list = (dspaces_put_req_t***) malloc(corona_dspaces_bufnum *
