@@ -12,7 +12,7 @@
 
 using namespace std;
 
-extern est_total_slice_iters;
+extern int est_total_slice_iters;
 extern struct log *io_file_log, *io_dspaces_log;
 
 int analyzevp_dspaces_bufnum = 1;

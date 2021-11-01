@@ -12,7 +12,7 @@
     
 using namespace std;
 
-extern est_total_slice_iters;
+extern int est_total_slice_iters;
 extern struct log *io_file_log, *io_dspaces_log;
 
 extern void slice_write(const GridData&,const int,float*,int,int,const int,

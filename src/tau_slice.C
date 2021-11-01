@@ -14,7 +14,7 @@ using namespace std;
 
 typedef double realtype;
 
-extern est_total_slice_iters;
+extern int est_total_slice_iters;
 extern struct log *io_file_log, *io_dspaces_log;
 
 extern void slice_write(const GridData&,const int,float*,int,int,const int,
@@ -24,7 +24,7 @@ extern dspaces_put_req_t* slice_write_dspaces(const GridData& Grid, const int ir
                                 float* vloc, int nloc, int nvar,int n0,
                                 int n1, char* filename, const int iter,
                                 const int ndim);
-extern io_rank;
+extern int io_rank;
 
 int tau_dspaces_bufnum = 1;
 float **tauslice_buf = NULL;
