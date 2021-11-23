@@ -98,9 +98,9 @@ extern int xzslice_nslvar;
 extern dspaces_put_req_t*** xzslice_dspaces_put_req_list;
 // 2D/CORONA_EMISSION_XYZ
 extern int corona_dspaces_bufnum;
-extern float **coronaxy_buf;
-extern float **coronaxz_buf;
-extern float **coronayz_buf;
+// extern float **coronaxy_buf;
+// extern float **coronaxz_buf;
+// extern float **coronayz_buf;
 extern int corona_nout;
 extern int corona_nslvar;
 extern dspaces_put_req_t*** coronaxy_dspaces_put_req_list;
@@ -1009,14 +1009,14 @@ void IO_Finalize() {
       free(coronayz_dspaces_put_req_list);
       free(coronaxy_dspaces_put_req_list);
       // databuf exists in all ranks
-      for(int i=0; i<corona_dspaces_bufnum; i++) {
-        free(coronaxy_buf[i]);
-        free(coronaxz_buf[i]);
-        free(coronayz_buf[i]);
-      }
-      free(coronaxy_buf);
-      free(coronaxz_buf);
-      free(coronayz_buf);
+      // for(int i=0; i<corona_dspaces_bufnum; i++) {
+      //   free(coronaxy_buf[i]);
+      //   free(coronaxz_buf[i]);
+      //   free(coronayz_buf[i]);
+      // }
+      // free(coronaxy_buf);
+      // free(coronaxz_buf);
+      // free(coronayz_buf);
     }
     wait_time = 0.0;
     
