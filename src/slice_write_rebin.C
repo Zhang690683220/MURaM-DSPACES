@@ -363,7 +363,7 @@ dspaces_put_req_t* slice_write_rebin_dspaces(const GridData& Grid,
       sprintf(ds_var_name, "%s", filename);
       clk = MPI_Wtime();
       // allocate memory, no check
-		  dspaces_put_req_list = dspaces_iput(ds_client, ds_var_name, iter, sizeof(float),
+		  dspaces_put_req_list[v] = dspaces_iput(ds_client, ds_var_name, iter, sizeof(float),
                                              ndim, lb, ub, &vloc[v*localsize], 1, 0);
       // dspaces_put_req_list[0] = dspaces_iput(ds_client, ds_var_name, iter, sizeof(float),
       //                                        3, lb, ub, vloc, 0, 0);
