@@ -775,7 +775,8 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 	}
       }
 	
-    }
+    sleep(5);
+	}
     
     delete[] los_sum_loc;
     delete[] los_sum;
