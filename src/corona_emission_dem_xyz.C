@@ -479,6 +479,8 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 	  clk = MPI_Wtime();
 	}
       }
+
+	sleep(30);  
     }
     
     if(d1 == 1){    
@@ -629,8 +631,7 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
       }
     }
       
-    if(d1 == 2){
-		sleep(5);   
+    if(d1 == 2){ 
       MPI_Reduce(los_sum_loc,los_sum,nout*nslvar*localsize,MPI_DOUBLE,MPI_SUM,iroot,
 		 ZCOL_COMM);
     
@@ -775,7 +776,6 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 	}
       }
 	
-    sleep(5);
 	}
     
     delete[] los_sum_loc;
