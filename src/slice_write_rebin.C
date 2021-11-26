@@ -356,19 +356,37 @@ dspaces_put_req_t* slice_write_rebin_dspaces(const GridData& Grid,
 	  ub[0] = lb[0] + Grid.lsize[n0] - 1;
 	  ub[1] = lb[1] + Grid.lsize[n1] - 1;
     // ub[2] = nvar-1;
+
+    int loc;
+
+    int sizex=Grid.lend[n0]-Grid.lbeg[n0]+1;
+    int sizey=Grid.lend[n1]-Grid.lbeg[n1]+1;
+    int lsize=sizex*sizey;
+    float *io_buf = (float*) malloc(lsize*sizeof(float));
     
     *pp_time += MPI_Wtime() - clk;
     for(v=0; v<nvar; v++) {
+
+      for(k=0; k<sizey; k++){
+        for(i=0; i<sizex; i++){
+          loc = i+Grid.ghosts[n0]+(k+Grid.ghosts[n1]) *(sizex+2*Grid.ghosts[n0]);
+          io_buf[i+k*sizex] = &vloc[v*localsize+loc];
+        }
+      }
+
       sprintf(ds_var_name, "%s_%d", filename, v);
       sprintf(ds_var_name, "%s", filename);
       clk = MPI_Wtime();
       // allocate memory, no check
-		  dspaces_put_req_list[v] = dspaces_iput(ds_client, ds_var_name, iter, sizeof(float),
-                                             ndim, lb, ub, &vloc[v*localsize], 1, 0);
+      dspaces_put_req_list[v] = dspaces_iput(ds_client, ds_var_name, iter, sizeof(float),
+                                             ndim, lb, ub, iobuf, 1, 0);
+		  // dspaces_put_req_list[v] = dspaces_iput(ds_client, ds_var_name, iter, sizeof(float),
+      //                                        ndim, lb, ub, &vloc[v*localsize], 1, 0);
       // dspaces_put_req_list[0] = dspaces_iput(ds_client, ds_var_name, iter, sizeof(float),
       //                                        3, lb, ub, vloc, 0, 0);
       *api_time += MPI_Wtime() - clk;
 	  }
+    free(iobuf);
   }
   // if(rank == 0) {
   //   std::cout << "DSpaces IO API Call (Corona_XYZ) in " << ds_time << " seconds" << std::endl;
