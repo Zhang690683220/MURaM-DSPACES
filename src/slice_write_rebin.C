@@ -370,7 +370,7 @@ dspaces_put_req_t* slice_write_rebin_dspaces(const GridData& Grid,
       for(k=0; k<sizey; k++){
         for(i=0; i<sizex; i++){
           loc = i+Grid.ghosts[n0]+(k+Grid.ghosts[n1]) *(sizex+2*Grid.ghosts[n0]);
-          io_buf[i+k*sizex] = &vloc[v*localsize+loc];
+          io_buf[i+k*sizex] = vloc[v*localsize+loc];
         }
       }
 
