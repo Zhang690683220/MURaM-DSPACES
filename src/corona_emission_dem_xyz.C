@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include "io.H"
 #include "comm_split.H"
+#include "unistd.h"
 
 using namespace std;
 
