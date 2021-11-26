@@ -61,7 +61,7 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
   
   const int nout = 4;
   
-  const int rebin[3] = {3,1,1};
+  const int rebin[3] = {3,3,1};
   
   register int i, j, k, node1, node2, ind, v, v1, v2, ind1, d, d1, d2, d3;
   
