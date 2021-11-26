@@ -61,7 +61,7 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
   
   const int nout = 4;
   
-  const int rebin[3] = {3,3,1};
+  const int rebin[3] = {3,1,1};
   
   register int i, j, k, node1, node2, ind, v, v1, v2, ind1, d, d1, d2, d3;
   
@@ -628,7 +628,8 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
       }
     }
       
-    if(d1 == 2){    
+    if(d1 == 2){
+		sleep(5);   
       MPI_Reduce(los_sum_loc,los_sum,nout*nslvar*localsize,MPI_DOUBLE,MPI_SUM,iroot,
 		 ZCOL_COMM);
     
