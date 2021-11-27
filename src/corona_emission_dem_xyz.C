@@ -32,6 +32,13 @@ extern dspaces_put_req_t* slice_write_rebin_dspaces(const GridData& Grid,
            											char* filename, const int iter, const int ndim,
 																double* pp_time, double* api_time);
 
+extern dspaces_put_req_t* slice_write_rebin_dspaces_old(const GridData& Grid,
+           											const int iroot, float* vloc,
+		       										const int nloc,const int nvar,const int n0,
+		       										const int n1,const int sm_x,const int sm_y,
+           											char* filename, const int iter, const int ndim,
+																double* pp_time, double* api_time);
+
 int corona_dspaces_bufnum = 1;
 // corona buffer is allocated in dspaces_iput
 // and should be freed by dspaces_check_put()
@@ -465,7 +472,7 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 				}
 			}
 			clk = MPI_Wtime();
-			coronayz_dspaces_put_req_list[bufind][v] = slice_write_rebin_dspaces(Grid, 0,
+			coronayz_dspaces_put_req_list[bufind][v] = slice_write_rebin_dspaces_old(Grid, 0,
 															&io_buf[v*nslvar*localsize],
 															localsize, nslvar, d2, d3, rebin[d2],
 															rebin[d3], filename, Run.globiter, 2,
@@ -615,7 +622,7 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 				}
 			}
 			clk = MPI_Wtime();
-			coronaxz_dspaces_put_req_list[bufind][v] = slice_write_rebin_dspaces(Grid, 0,
+			coronaxz_dspaces_put_req_list[bufind][v] = slice_write_rebin_dspaces_old(Grid, 0,
 																&io_buf[v*nslvar*localsize], 
 															 	localsize, nslvar, d2, d3, rebin[d2],
 															 	rebin[d3], filename, Run.globiter, 2,
@@ -761,7 +768,7 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 				}
 			}
 			clk = MPI_Wtime();
-			coronaxy_dspaces_put_req_list[bufind][v] = slice_write_rebin_dspaces(Grid, 0,
+			coronaxy_dspaces_put_req_list[bufind][v] = slice_write_rebin_dspaces_old(Grid, 0,
 														&io_buf[v*nslvar*localsize],
 														localsize, nslvar, d2, d3, rebin[d2],
 														rebin[d3], filename, Run.globiter, 2,
