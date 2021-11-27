@@ -486,8 +486,6 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 	  clk = MPI_Wtime();
 	}
       }
-
-	sleep(30);  
     }
     
     if(d1 == 1){    

@@ -226,7 +226,6 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
     //   free(dspaces_put_req_list);
     // }
 
-		std::cout << "IO RANK:" << io_rank << " DEBUG: TAU before check  " << std::endl;
 		// tauslice_dspaces_put_req_list != NULL is stronger than xcol_rank == root
 		if(Run.use_dspaces_io && tauslice_ref_count > tau_dspaces_bufnum-1 && xcol_rank == iroot) {
 			// int reqind = (tauslice_ref_count-1) % dspaces_bufnum;
@@ -239,10 +238,8 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
 				dspaces_wait_time += MPI_Wtime() - clk -nslvar*dspaces_check_overhead;
 			}
       free(tauslice_dspaces_put_req_list[bufind][nsl]);
-			std::cout << "IO RANK:" << io_rank << " DEBUG: TAU after check XCOL " << std::endl;
     }
 
-		std::cout << "IO RANK:" << io_rank << " DEBUG: TAU after check  " << std::endl;
 
 	// update iosum values
     MPI_Reduce(iobuf,iosum,nslvar*localsize,MPI_FLOAT,MPI_SUM,iroot,
