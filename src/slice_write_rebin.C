@@ -512,8 +512,8 @@ dspaces_put_req_t* slice_write_rebin_dspaces_old(const GridData& Grid,
         }
 
         if (sm_x*sm_y > 1) {
-          lb[0] = 0；
-	        lb[1] = 0；
+          lb[0] = 0;
+	        lb[1] = 0;
 	        ub[0] = Grid.gsize[n0]/sm_x - 1; // zoom bbox
 	        ub[1] = Grid.gsize[n1]/sm_y - 1; // zoom bbox
 
@@ -543,8 +543,8 @@ dspaces_put_req_t* slice_write_rebin_dspaces_old(const GridData& Grid,
         *api_time += MPI_Wtime() - clk;
 
         } else {
-          lb[0] = 0；
-	        lb[1] = 0；
+          lb[0] = 0;
+	        lb[1] = 0;
 	        ub[0] = Grid.gsize[n0] - 1; // zoom bbox
 	        ub[1] = Grid.gsize[n1] - 1; // zoom bbox
 
