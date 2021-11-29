@@ -756,6 +756,9 @@ void IO_Finalize() {
 
     // 3D/EOS_OUTPUT
     if(io_dspaces_log->eos != NULL) {
+      if(io_rank ==0) {
+      std::cout<< "3D/EOS Finalize..." << std::endl;
+    }
       for(int j=0; j<eos_dspaces_bufnum; j++) {
         int reqind = (io_dspaces_log->eos->count+j) % eos_dspaces_bufnum;
         clk = MPI_Wtime();
@@ -782,6 +785,9 @@ void IO_Finalize() {
 
     // 3D/DIAG_OUTPUT
     if(io_dspaces_log->diag != NULL) { 
+      if(io_rank ==0) {
+      std::cout<< "3D/DIAG Finalize..." << std::endl;
+    }
       for(int j=0; j<diag_dspaces_bufnum; j++) {
         int reqind = (io_dspaces_log->diag->count+j) % diag_dspaces_bufnum;
         clk = MPI_Wtime();
@@ -808,6 +814,9 @@ void IO_Finalize() {
     
     // 2D/TAU_SLICE at XCOL_ROOT only 
     if(io_dspaces_log->tau != NULL) {
+      if(io_rank ==0) {
+      std::cout<< "2D/TAU Finalize..." << std::endl;
+    }
       for(int k=0; k<tau_dspaces_bufnum; k++) {
         int reqind = (io_dspaces_log->tau->count+k) % tau_dspaces_bufnum;
         if(tauslice_dspaces_put_req_list[reqind] != NULL) {
@@ -841,8 +850,13 @@ void IO_Finalize() {
 
     wait_time = 0.0;
 
+    
+
     // 2D/YZ_SLICE
     if(io_dspaces_log->yz != NULL) {
+      if(io_rank ==0) {
+      std::cout<< "2D/YZ Finalize..." << std::endl;
+    }
       for(int k=0; k<yz_dspaces_bufnum; k++) {
         int reqind = (io_dspaces_log->yz->count+k) % yz_dspaces_bufnum;
         clk = MPI_Wtime();
@@ -876,8 +890,13 @@ void IO_Finalize() {
 
     wait_time = 0.0;
 
+    
+
     // 2D/XY_SLICE
     if(io_dspaces_log->xy != NULL) {
+      if(io_rank ==0) {
+      std::cout<< "2D/XY Finalize..." << std::endl;
+    }
       for(int k=0; k<xy_dspaces_bufnum; k++) {
         int reqind = (io_dspaces_log->xy->count+k) % xy_dspaces_bufnum;
         clk = MPI_Wtime();
@@ -911,8 +930,13 @@ void IO_Finalize() {
 
     wait_time = 0.0;
 
+    
+
     // 2D/XZ_SLICE
     if(io_dspaces_log->xz) {
+      if(io_rank ==0) {
+      std::cout<< "2D/XZ Finalize..." << std::endl;
+    }
       for(int k=0; k<xz_dspaces_bufnum; k++) {
         int reqind = (io_dspaces_log->xz->count+k) % xz_dspaces_bufnum;
         clk = MPI_Wtime();
@@ -946,8 +970,13 @@ void IO_Finalize() {
 
     wait_time = 0.0;
 
+    
+
     // 2D/CORONA_EMISSION_XYZ at XCOL_ROOT, YCOL_ROOT, ZCOL_ROOT respectively
     if(io_dspaces_log->corona != NULL) {
+      if(io_rank ==0) {
+      std::cout<< "2D/CORONA Finalize..." << std::endl;
+    }
       for(int k=0; k<corona_dspaces_bufnum; k++) {
         int reqind = (io_dspaces_log->corona->count+k) % corona_dspaces_bufnum;
         if(coronaxz_dspaces_put_req_list[reqind] != NULL) {
@@ -1020,8 +1049,16 @@ void IO_Finalize() {
     }
     wait_time = 0.0;
     
+    if(io_rank ==0) {
+      std::cout<< "1D/ANALYZE_VP Finalize..." << std::endl;
+    }
+
     // 1D/ANALYZE_VP at YZ_ROOT only
     if(io_dspaces_log->analyze_vp != NULL) {
+      if(io_rank ==0) {
+      std::cout<< "1D/ANALYZE_VP Finalize..." << std::endl;
+    }
+
       for(int j=0; j<analyzevp_dspaces_bufnum; j++) {
         int reqind = (io_dspaces_log->analyze_vp->count+j) % analyzevp_dspaces_bufnum;
         if(analyzevp_dspaces_put_req_list[reqind] != NULL) {
@@ -1162,7 +1199,7 @@ void OutputSolution(const RunData& Run,const GridData& Grid,const PhysicsData& P
       var = v1*v2_max + v2;       
       if (zcol_rank == v2){
 	sprintf(filename,"%s%s_%s_%d.%06d",Run.path_3D,Run.resfile,"prim",var,Run.globiter);
-	if(xy_rank == 0) cout << "write " << filename << endl;
+	if(xy_rank == 0) cout << " " << filename << endl;
 	if(mpi_io_out == 0){
 	  if(xy_rank == 0){
 	    fh=fopen(filename,"w");
