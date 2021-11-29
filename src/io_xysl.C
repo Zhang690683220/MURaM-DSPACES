@@ -25,7 +25,7 @@ struct log *io_file_log, *io_dspaces_log;
 const int io_proc_num = 8;
 
 int mpi_io_in     = 1;
-int mpi_io_out    = 1;
+int mpi_io_out    = 0;
 int blocksize     = 8; // has only effect for mpi_io = 0 !
 
 int nblocks,blsz;
