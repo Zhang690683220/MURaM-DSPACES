@@ -761,6 +761,10 @@ void IO_Finalize() {
     }
       for(int j=0; j<eos_dspaces_bufnum; j++) {
         int reqind = (io_dspaces_log->eos->count+j) % eos_dspaces_bufnum;
+
+        if(io_rank ==0) {
+      std::cout<< "3D/EOS Finalize 1... bufnum = " << j << std::endl;
+    }
         clk = MPI_Wtime();
         for(int i=0; i<eos_nvar; i++) {
           dspaces_check_put(ds_client, eos_dspaces_put_req_list[reqind][i], 1);
@@ -769,7 +773,13 @@ void IO_Finalize() {
         if(dspaces_check_time > eos_nvar*dspaces_check_overhead) {
           wait_time += MPI_Wtime() - clk - eos_nvar*dspaces_check_overhead;
         }
+        if(io_rank ==0) {
+      std::cout<< "3D/EOS Finalize 2... bufnum = " << j << std::endl;
+    }
         free(eos_dspaces_put_req_list[reqind]);
+        if(io_rank ==0) {
+      std::cout<< "3D/EOS Finalize 3... bufnum = " << j << std::endl;
+    }
         free(eos_buf[reqind]);
         if(io_rank == 0) {
           io_dspaces_log->eos->wait_time[io_dspaces_log->eos->count-eos_dspaces_bufnum+j] = wait_time;
@@ -777,6 +787,9 @@ void IO_Finalize() {
                           + io_dspaces_log->eos->api_time[io_dspaces_log->eos->count-eos_dspaces_bufnum+j];
         }
       }
+      if(io_rank ==0) {
+      std::cout<< "3D/EOS Finalize 4 ..." << std::endl;
+    }
       free(eos_dspaces_put_req_list);
       free(eos_buf);
     }
