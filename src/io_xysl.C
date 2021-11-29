@@ -63,12 +63,12 @@ enum io_group {XY_ROOT, XZ_ROOT, YZ_ROOT, XCOL_ROOT, YCOL_ROOT, ZCOL_ROOT, ALL_I
 
 // extern const int dspaces_bufnum = 2;
 // 3D/EOS_OUTPUT
-int eos_dspaces_bufnum = 2;
+int eos_dspaces_bufnum = 1;
 float **eos_buf = NULL;
 int eos_nvar;
 dspaces_put_req_t** eos_dspaces_put_req_list = NULL;
 // 3D/DIAG_OUTPUT
-int diag_dspaces_bufnum = 2;
+int diag_dspaces_bufnum = 1;
 float **diag_buf = NULL;
 int diag_nvar;
 dspaces_put_req_t** diag_dspaces_put_req_list = NULL;
