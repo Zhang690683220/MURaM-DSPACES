@@ -763,10 +763,13 @@ void IO_Finalize() {
         int reqind = (io_dspaces_log->eos->count+j) % eos_dspaces_bufnum;
 
         if(io_rank ==0) {
-      std::cout<< "3D/EOS Finalize 1... bufnum = " << j << std::endl;
+      std::cout<< "3D/EOS Finalize 1... bufnum = " << reqind << std::endl;
     }
         clk = MPI_Wtime();
         for(int i=0; i<eos_nvar; i++) {
+          if(io_rank ==0) {
+      std::cout<< "3D/EOS Finalize 1.1... vidx = " << i << std::endl;
+    }
           dspaces_check_put(ds_client, eos_dspaces_put_req_list[reqind][i], 1);
         }
         dspaces_check_time = MPI_Wtime() - clk;
