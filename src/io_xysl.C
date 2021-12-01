@@ -24,8 +24,8 @@ struct log *io_file_log, *io_dspaces_log;
 // 2D: TAU-2, YZ-3, XY-4, XZ-5, CORONA-6, ANALYZE_VP-7
 const int io_proc_num = 8;
 
-int mpi_io_in     = 1;
-int mpi_io_out    = 1;
+const int mpi_io_in     = 0;
+const int mpi_io_out    = 0;
 int blocksize     = 8; // has only effect for mpi_io = 0 !
 
 int nblocks,blsz;
@@ -1222,7 +1222,7 @@ void OutputSolution(const RunData& Run,const GridData& Grid,const PhysicsData& P
       var = v1*v2_max + v2;       
       if (zcol_rank == v2){
 	sprintf(filename,"%s%s_%s_%d.%06d",Run.path_3D,Run.resfile,"prim",var,Run.globiter);
-	if(xy_rank == 0) cout << " " << filename << endl;
+	if(xy_rank == 0) cout << " " << filename << "mpi_out = " <<mpi_io_out << endl;
 	if(mpi_io_out == 0){
 	  if(xy_rank == 0){
 	    fh=fopen(filename,"w");
