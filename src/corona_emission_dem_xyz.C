@@ -61,6 +61,10 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 
   static int ini_flag = 1;
 	static int corona_ref_count = 0;
+
+if(Run.rank ==0) {
+      std::cout<< "3D/Corona_ref count = " << corona_ref_count << std::endl;
+}
   
   const int iroot = 0;
   
@@ -385,6 +389,7 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 			// slice_write_rebin() sometimes has all involved ranks write
 			// sometimes gather the data to the root rank
 			if(coronayz_dspaces_put_req_list[bufind][v] != NULL) {
+				std::cout<< "2D/CORONA YZ Check ... " << std::endl;
 				for(int i=0; i<nslvar; i++) {				
 					dspaces_check_put(ds_client, coronayz_dspaces_put_req_list[bufind][v][i], 1);
 				}
@@ -533,6 +538,7 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 			// slice_write_rebin() sometimes has all involved ranks write
 			// sometimes gather the data to the root rank
 			if(coronaxz_dspaces_put_req_list[bufind][v] != NULL) {
+				std::cout<< "2D/CORONA XZ Check ... " << std::endl;
 				for(int i=0; i<nslvar; i++) {
 					dspaces_check_put(ds_client, coronaxz_dspaces_put_req_list[bufind][v][i], 1);
 				}
@@ -680,6 +686,7 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 			// slice_write_rebin() sometimes has all involved ranks write
 			// sometimes gather the data to the root rank
 			if(coronaxy_dspaces_put_req_list[bufind][v] != NULL) {
+				std::cout<< "2D/CORONA XY Check ... " << std::endl;
 				for(int i=0; i<nslvar; i++) {
 					dspaces_check_put(ds_client, coronaxy_dspaces_put_req_list[bufind][v][i], 1);	
 				}
