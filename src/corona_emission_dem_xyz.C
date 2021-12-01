@@ -538,8 +538,9 @@ if(Run.rank ==0) {
 			// slice_write_rebin() sometimes has all involved ranks write
 			// sometimes gather the data to the root rank
 			if(coronaxz_dspaces_put_req_list[bufind][v] != NULL) {
-				std::cout<< "2D/CORONA XZ Check ... " << std::endl;
+				std::cout<< "2D/CORONA XZ Check ... bufind =  " << bufind << "v = " << v << std::endl;
 				for(int i=0; i<nslvar; i++) {
+					std::cout<< "2D/CORONA XZ Check ... i = " << i << std::endl;
 					dspaces_check_put(ds_client, coronaxz_dspaces_put_req_list[bufind][v][i], 1);
 				}
 				// dspaces_check_put(ds_client, coronaxz_dspaces_put_req_list[bufind][v][0], 1);
