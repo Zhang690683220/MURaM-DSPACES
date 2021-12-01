@@ -710,12 +710,19 @@ void IO_Init(const GridData& Grid, const RunData& Run) {
     lb[2] = Grid.beg[2]-Grid.gbeg[2];
     ub[2] = lb[2] + Grid.lsize[2] - 1;
     
+    if(io_rank == 0) {
+      std::cout<< "DataSpaces initialize ..." << std::endl;
+    }
 
     if(Run.dspaces_manual_listen_addr) {
       sprintf(listen_addr_str, "%s", Run.dspaces_client_listen_addr);
       dspaces_init(dspaces_rank, &ds_client, listen_addr_str);
     } else {
       dspaces_init(dspaces_rank, &ds_client, NULL);
+    }
+
+    if(io_rank == 0) {
+      std::cout<< "DataSpaces initialize Done !" << std::endl;
     }
 
     // io_log init
