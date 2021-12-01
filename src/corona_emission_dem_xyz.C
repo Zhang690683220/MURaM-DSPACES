@@ -61,10 +61,6 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 
   static int ini_flag = 1;
 	static int corona_ref_count = 0;
-
-if(Run.rank ==0) {
-      std::cout<< "3D/Corona_ref count = " << corona_ref_count << std::endl;
-}
   
   const int iroot = 0;
   
@@ -120,6 +116,10 @@ if(Run.rank ==0) {
   del0=1.0/dellgT;
   
   int nslvar = (int) ((lgTmax-lgTmin)/dellgT + 1);
+
+  if(Run.rank ==0) {
+      std::cout<< "3D/Corona_ref count = " << corona_ref_count  << "nslvar = " << nslvar << std::endl;
+}
    
   double* tlev = new double[nslvar+1];
   
