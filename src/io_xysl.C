@@ -102,7 +102,7 @@ extern int corona_dspaces_bufnum;
 // extern float **coronaxz_buf;
 // extern float **coronayz_buf;
 extern int corona_nout;
-extern int corona_nslvar;
+extern int corona_nslvar_record;
 extern dspaces_put_req_t*** coronaxy_dspaces_put_req_list;
 extern dspaces_put_req_t*** coronaxz_dspaces_put_req_list;
 extern dspaces_put_req_t*** coronayz_dspaces_put_req_list;
@@ -1006,15 +1006,15 @@ void IO_Finalize() {
           clk = MPI_Wtime();
           for(int j=0; j<corona_nout; j++) {
             if(coronaxz_dspaces_put_req_list[reqind][j] != NULL) {
-              for(int i=0; i<corona_nslvar; i++) {
+              for(int i=0; i<corona_nslvar_record; i++) {
                 dspaces_check_put(ds_client, coronaxz_dspaces_put_req_list[reqind][j][i], 1);
               }
               free(coronaxz_dspaces_put_req_list[reqind][j]);
             }
           }
           dspaces_check_time = MPI_Wtime() - clk;
-          if(dspaces_check_time > corona_nslvar*corona_nout*dspaces_check_overhead) {
-            wait_time += MPI_Wtime() - clk - corona_nslvar*corona_nout*dspaces_check_overhead;
+          if(dspaces_check_time > corona_nslvar_record*corona_nout*dspaces_check_overhead) {
+            wait_time += MPI_Wtime() - clk - corona_nslvar_record*corona_nout*dspaces_check_overhead;
           }
           free(coronaxz_dspaces_put_req_list[reqind]);
         }
@@ -1022,15 +1022,15 @@ void IO_Finalize() {
           clk = MPI_Wtime();
           for(int j=0; j<corona_nout; j++) {
             if(coronayz_dspaces_put_req_list[reqind][j]) {
-              for(int i=0; i<corona_nslvar; i++) {
+              for(int i=0; i<corona_nslvar_record; i++) {
                 dspaces_check_put(ds_client, coronayz_dspaces_put_req_list[reqind][j][i], 1);
               }
               free(coronayz_dspaces_put_req_list[reqind][j]);
             }
           }
           dspaces_check_time = MPI_Wtime() - clk;
-          if(dspaces_check_time > corona_nslvar*corona_nout*dspaces_check_overhead) {
-            wait_time += MPI_Wtime() - clk - corona_nslvar*corona_nout*dspaces_check_overhead;
+          if(dspaces_check_time > corona_nslvar_record*corona_nout*dspaces_check_overhead) {
+            wait_time += MPI_Wtime() - clk - corona_nslvar_record*corona_nout*dspaces_check_overhead;
           }
           free(coronayz_dspaces_put_req_list[reqind]);
         }
@@ -1038,15 +1038,15 @@ void IO_Finalize() {
           clk = MPI_Wtime();
           for(int j=0; j<corona_nout; j++) {
             if(coronaxy_dspaces_put_req_list[reqind][j] != NULL) {
-              for(int i=0; i<corona_nslvar; i++) {
+              for(int i=0; i<corona_nslvar_record; i++) {
                 dspaces_check_put(ds_client, coronaxy_dspaces_put_req_list[reqind][j][i], 1);
               }
               free(coronaxy_dspaces_put_req_list[reqind][j]);
             }
           }
           dspaces_check_time = MPI_Wtime() - clk;
-          if(dspaces_check_time > corona_nslvar*corona_nout*dspaces_check_overhead) {
-            wait_time += MPI_Wtime() - clk - corona_nslvar*corona_nout*dspaces_check_overhead;
+          if(dspaces_check_time > corona_nslvar_record*corona_nout*dspaces_check_overhead) {
+            wait_time += MPI_Wtime() - clk - corona_nslvar_record*corona_nout*dspaces_check_overhead;
           }
           free(coronaxy_dspaces_put_req_list[reqind]);
         }

@@ -46,7 +46,8 @@ int corona_dspaces_bufnum = 1;
 // float **coronaxz_buf = NULL;
 // float **coronayz_buf = NULL;
 int corona_nout;
-int corona_nslvar;
+int corona_nslvar_record;
+int corona_nslvar_max = 0;
 // but we still need manual put requst check
 // because we don't want to use up memory
 dspaces_put_req_t*** coronaxy_dspaces_put_req_list = NULL;
@@ -151,8 +152,6 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 			io_dspaces_log->corona->corona_gsize[2][1] = Grid.gsize[0];
 
 			corona_nout = nout;
-			// corona_nslvar = nslvar;
-			corona_nslvar = 1;
 			coronaxy_dspaces_put_req_list = (dspaces_put_req_t***) malloc(corona_dspaces_bufnum *
 																		sizeof(dspaces_put_req_t**));
 			coronaxz_dspaces_put_req_list = (dspaces_put_req_t***) malloc(corona_dspaces_bufnum *
@@ -390,13 +389,13 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 			// sometimes gather the data to the root rank
 			if(coronayz_dspaces_put_req_list[bufind][v] != NULL) {
 				std::cout<< "2D/CORONA YZ Check ... " << std::endl;
-				for(int i=0; i<nslvar; i++) {				
+				for(int i=0; i<corona_nslvar_record; i++) {				
 					dspaces_check_put(ds_client, coronayz_dspaces_put_req_list[bufind][v][i], 1);
 				}
 				// dspaces_check_put(ds_client, coronayz_dspaces_put_req_list[bufind][v][0], 1);
 				double dspaces_check_time = MPI_Wtime() - clk;
-				if(dspaces_check_time > nslvar*dspaces_check_overhead) {
-					dspaces_wait_time += MPI_Wtime() - clk - nslvar*dspaces_check_overhead;
+				if(dspaces_check_time > corona_nslvar_record*dspaces_check_overhead) {
+					dspaces_wait_time += MPI_Wtime() - clk - corona_nslvar_record*dspaces_check_overhead;
 				}
 				free(coronayz_dspaces_put_req_list[bufind][v]);
 			}
@@ -475,6 +474,16 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 					sprintf(vname, "%s_%d", filename, i);
 					dspaces_define_gdim(ds_client, vname, 2, gdim);
 				}
+			} else if(nslvar > corona_nslvar_max) {
+				uint64_t gdim[2];
+        for(int i=0; i<2; i++) {
+          gdim[i] = yzgsize[i];
+        }
+				char vname[128];
+				for(int i=corona_nslvar_max; i<nslvar; i++) {
+					sprintf(vname, "%s_%d", filename, i);
+					dspaces_define_gdim(ds_client, vname, 2, gdim);
+				}
 			}
 			clk = MPI_Wtime();
 			coronayz_dspaces_put_req_list[bufind][v] = slice_write_rebin_dspaces_old(Grid, 0,
@@ -539,14 +548,14 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 			// sometimes gather the data to the root rank
 			if(coronaxz_dspaces_put_req_list[bufind][v] != NULL) {
 				std::cout<< "2D/CORONA XZ Check ... bufind =  " << bufind << "v = " << v << std::endl;
-				for(int i=0; i<nslvar; i++) {
+				for(int i=0; i<corona_nslvar_record; i++) {
 					std::cout<< "2D/CORONA XZ Check ... i = " << i << std::endl;
 					dspaces_check_put(ds_client, coronaxz_dspaces_put_req_list[bufind][v][i], 1);
 				}
 				// dspaces_check_put(ds_client, coronaxz_dspaces_put_req_list[bufind][v][0], 1);
 				double dspaces_check_time = MPI_Wtime() - clk;
-				if(dspaces_check_time > nslvar*dspaces_check_overhead) {
-					dspaces_wait_time += MPI_Wtime() - clk - nslvar*dspaces_check_overhead;
+				if(dspaces_check_time > corona_nslvar_record*dspaces_check_overhead) {
+					dspaces_wait_time += MPI_Wtime() - clk - corona_nslvar_record*dspaces_check_overhead;
 				}
 				free(coronaxz_dspaces_put_req_list[bufind][v]);
 			}
@@ -625,6 +634,16 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 					sprintf(vname, "%s_%d", filename, i);
 					dspaces_define_gdim(ds_client, vname, 2, gdim);
 				}
+			} else if(nslvar > corona_nslvar_max) {
+				uint64_t gdim[2];
+        for(int i=0; i<2; i++) {
+          gdim[i] = yzgsize[i];
+        }
+				char vname[128];
+				for(int i=corona_nslvar_max; i<nslvar; i++) {
+					sprintf(vname, "%s_%d", filename, i);
+					dspaces_define_gdim(ds_client, vname, 2, gdim);
+				}
 			}
 			clk = MPI_Wtime();
 			coronaxz_dspaces_put_req_list[bufind][v] = slice_write_rebin_dspaces_old(Grid, 0,
@@ -688,13 +707,13 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 			// sometimes gather the data to the root rank
 			if(coronaxy_dspaces_put_req_list[bufind][v] != NULL) {
 				std::cout<< "2D/CORONA XY Check ... " << std::endl;
-				for(int i=0; i<nslvar; i++) {
+				for(int i=0; i<corona_nslvar_record; i++) {
 					dspaces_check_put(ds_client, coronaxy_dspaces_put_req_list[bufind][v][i], 1);	
 				}
 				// dspaces_check_put(ds_client, coronaxy_dspaces_put_req_list[bufind][v][0], 1);	
 				double dspaces_check_time = MPI_Wtime() - clk;
-				if(dspaces_check_time > nslvar*dspaces_check_overhead) {
-					dspaces_wait_time += MPI_Wtime() - clk - nslvar*dspaces_check_overhead;
+				if(dspaces_check_time > corona_nslvar_record*dspaces_check_overhead) {
+					dspaces_wait_time += MPI_Wtime() - clk - corona_nslvar_record*dspaces_check_overhead;
 				}
 				free(coronaxy_dspaces_put_req_list[bufind][v]);
 			}
@@ -772,6 +791,16 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 					sprintf(vname, "%s_%d", filename, i);
 					dspaces_define_gdim(ds_client, vname, 2, gdim);
 				}
+			} else if(nslvar > corona_nslvar_max) {
+				uint64_t gdim[2];
+        for(int i=0; i<2; i++) {
+          gdim[i] = yzgsize[i];
+        }
+				char vname[128];
+				for(int i=corona_nslvar_max; i<nslvar; i++) {
+					sprintf(vname, "%s_%d", filename, i);
+					dspaces_define_gdim(ds_client, vname, 2, gdim);
+				}
 			}
 			clk = MPI_Wtime();
 			coronaxy_dspaces_put_req_list[bufind][v] = slice_write_rebin_dspaces_old(Grid, 0,
@@ -838,6 +867,10 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 			}
 		}
 	}
+	if(nslvar>corona_nslvar_max) {
+		corona_nslvar_max = nslvar;
+	}
+	corona_nslvar_record = nslvar;
 	corona_ref_count++;
 }
 
