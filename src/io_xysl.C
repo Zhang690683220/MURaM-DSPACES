@@ -1223,7 +1223,7 @@ void OutputSolution(const RunData& Run,const GridData& Grid,const PhysicsData& P
       if (zcol_rank == v2){
 	sprintf(filename,"%s%s_%s_%d.%06d",Run.path_3D,Run.resfile,"prim",var,Run.globiter);
 	if(xy_rank == 0) cout << " " << filename << "mpi_out = " <<mpi_io_out << endl;
-	if(mpi_io_out == 0){
+	// if(mpi_io_out == 0){
 	  if(xy_rank == 0){
 	    fh=fopen(filename,"w");
 	    if(fh == NULL){
@@ -1233,12 +1233,12 @@ void OutputSolution(const RunData& Run,const GridData& Grid,const PhysicsData& P
 	  }
 	  for (k=0;k<nblocks;k++) xy_slice_write(Grid,0,&(iobuf_glo[k*blsz*sizex*sizey]),sizex*sizey,fh);
 	  if(xy_rank == 0) fclose(fh);
-	}else{
-	  MPI_File_open(io_xy_comm,filename,MPI_MODE_CREATE | MPI_MODE_WRONLY,io_info,&mfh);
-	  MPI_File_set_view(mfh,0,MPI_FLOAT,io_subarray,(char *)"native",io_info);
-	  MPI_File_write_all(mfh,iobuf_glo,gsize,MPI_FLOAT,MPI_STATUS_IGNORE);
-	  MPI_File_close(&mfh);      
-	}
+	// }else{
+	//   MPI_File_open(io_xy_comm,filename,MPI_MODE_CREATE | MPI_MODE_WRONLY,io_info,&mfh);
+	//   MPI_File_set_view(mfh,0,MPI_FLOAT,io_subarray,(char *)"native",io_info);
+	//   MPI_File_write_all(mfh,iobuf_glo,gsize,MPI_FLOAT,MPI_STATUS_IGNORE);
+	//   MPI_File_close(&mfh);      
+	// }
       }
     }
   }
@@ -1398,7 +1398,7 @@ void RestoreSolution(RunData& Run,GridData& Grid,const PhysicsData& Physics){
 	sprintf(filename,"%s%s_%s_%d.%06d",Run.path_3D,Run.resfile,
 		"prim",var,Run.globiter);
 	if(xy_rank == 0) cout << "restore " << filename << endl;
-	if(mpi_io_in == 0) {
+	// if(mpi_io_in == 0) {
 	  if(xy_rank == 0){
 	    fh=fopen(filename,"r");
 	    if(fh == NULL){
@@ -1410,14 +1410,14 @@ void RestoreSolution(RunData& Run,GridData& Grid,const PhysicsData& Physics){
 	    xy_slice_read(Grid,0,&(iobuf_glo[k*blsz*sizex*sizey]),sizex*sizey,
 			  fh);
 	  if(xy_rank == 0) fclose(fh);
-	} else {
-	  MPI_File_open(io_xy_comm,filename,MPI_MODE_RDONLY,MPI_INFO_NULL,&mfh);
-	  MPI_File_set_view(mfh,0,MPI_FLOAT,io_subarray,(char *) "native",
-			    io_info);
-	  MPI_File_read_all(mfh,iobuf_glo,gsize,MPI_FLOAT,
-			    MPI_STATUS_IGNORE);
-	  MPI_File_close(&mfh);
-	}
+	// } else {
+	//   MPI_File_open(io_xy_comm,filename,MPI_MODE_RDONLY,MPI_INFO_NULL,&mfh);
+	//   MPI_File_set_view(mfh,0,MPI_FLOAT,io_subarray,(char *) "native",
+	// 		    io_info);
+	//   MPI_File_read_all(mfh,iobuf_glo,gsize,MPI_FLOAT,
+	// 		    MPI_STATUS_IGNORE);
+	//   MPI_File_close(&mfh);
+	// }
       }
     }
     
@@ -1599,7 +1599,7 @@ void diag_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phy
       if (zcol_rank == v2){
 	sprintf(filename,"%s%s.%06d",Run.path_3D,diag_names[var],Run.globiter);
 	if(xy_rank == 0) cout << "write " << filename << endl;
-	if(mpi_io_out == 0) {
+	// if(mpi_io_out == 0) {
     clk = MPI_Wtime(); 
 	  if(xy_rank == 0){
 	    fh=fopen(filename,"w");
@@ -1613,16 +1613,16 @@ void diag_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phy
 			   fh);
 	  if(xy_rank == 0) fclose(fh);
     file_time += MPI_Wtime() -clk;
-	} else {
-    clk = MPI_Wtime();
-	  MPI_File_open(io_xy_comm,filename,MPI_MODE_CREATE | MPI_MODE_WRONLY,
-			io_info,&mfh);
-	  MPI_File_set_view(mfh,0,MPI_FLOAT,io_subarray,(char *) "native",
-			    io_info);
-	  MPI_File_write_all(mfh,iobuf_glo,gsize,MPI_FLOAT,MPI_STATUS_IGNORE);
-	  MPI_File_close(&mfh);
-    file_time += MPI_Wtime() -clk;
-	}
+	// } else {
+  //   clk = MPI_Wtime();
+	//   MPI_File_open(io_xy_comm,filename,MPI_MODE_CREATE | MPI_MODE_WRONLY,
+	// 		io_info,&mfh);
+	//   MPI_File_set_view(mfh,0,MPI_FLOAT,io_subarray,(char *) "native",
+	// 		    io_info);
+	//   MPI_File_write_all(mfh,iobuf_glo,gsize,MPI_FLOAT,MPI_STATUS_IGNORE);
+	//   MPI_File_close(&mfh);
+  //   file_time += MPI_Wtime() -clk;
+	// }
       }
     }
   }
@@ -1881,7 +1881,7 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
       if (zcol_rank == v2){
 	sprintf(filename,"%s%s.%06d",Run.path_3D,eos_names[var],Run.globiter);
 	if(xy_rank == 0) cout << "write " << filename << endl;
-	if(mpi_io_out == 0) {
+	// if(mpi_io_out == 0) {
     clk = MPI_Wtime();
 	  if(xy_rank == 0){
 	    fh=fopen(filename,"w");
@@ -1895,16 +1895,16 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
 			   fh);
 	  if(xy_rank == 0) fclose(fh);
     file_time += MPI_Wtime() -clk;
-	} else {
-    clk = MPI_Wtime();
-	  MPI_File_open(io_xy_comm,filename,MPI_MODE_CREATE | MPI_MODE_WRONLY,
-			io_info,&mfh);
-	  MPI_File_set_view(mfh,0,MPI_FLOAT,io_subarray,(char *) "native",
-			    io_info);
-	  MPI_File_write_all(mfh,iobuf_glo,gsize,MPI_FLOAT,MPI_STATUS_IGNORE);
-	  MPI_File_close(&mfh);
-    file_time += MPI_Wtime() - clk;
-	}
+	// } else {
+  //   clk = MPI_Wtime();
+	//   MPI_File_open(io_xy_comm,filename,MPI_MODE_CREATE | MPI_MODE_WRONLY,
+	// 		io_info,&mfh);
+	//   MPI_File_set_view(mfh,0,MPI_FLOAT,io_subarray,(char *) "native",
+	// 		    io_info);
+	//   MPI_File_write_all(mfh,iobuf_glo,gsize,MPI_FLOAT,MPI_STATUS_IGNORE);
+	//   MPI_File_close(&mfh);
+  //   file_time += MPI_Wtime() - clk;
+	// }
       }
     }
   }
