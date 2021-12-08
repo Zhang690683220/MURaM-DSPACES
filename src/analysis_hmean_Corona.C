@@ -343,7 +343,7 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
         clk = MPI_Wtime();
         analyzevp_dspaces_put_req_list[bufind][v] = dspaces_iput(ds_client, ds_var_name, Run.globiter,
                                                          sizeof(float), 1, lb, ub,
-                                                         &analyzevp_buf[bufind][v*Grid.lsize[0]], 0, 0);
+                                                         &analyzevp_buf[bufind][v*Grid.lsize[0]], 0, 0, 0);
         dspaces_time += MPI_Wtime() - clk;
       }
       char header_name[128];

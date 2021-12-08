@@ -716,9 +716,11 @@ void IO_Init(const GridData& Grid, const RunData& Run) {
 
     if(Run.dspaces_manual_listen_addr) {
       sprintf(listen_addr_str, "%s", Run.dspaces_client_listen_addr);
-      dspaces_init(dspaces_rank, &ds_client, listen_addr_str);
+      // dspaces_init(dspaces_rank, &ds_client, listen_addr_str);
+      dspaces_init(dspaces_rank, &ds_client);
     } else {
-      dspaces_init(dspaces_rank, &ds_client, NULL);
+      // dspaces_init(dspaces_rank, &ds_client, NULL);
+      dspaces_init(dspaces_rank, &ds_client);
     }
 
     if(io_rank == 0) {
@@ -1684,10 +1686,10 @@ void diag_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phy
         dspaces_define_gdim(ds_client, ds_var_name, 3, gdim);
       }
       clk = MPI_Wtime();
-      // no buf allocation, no check
+      // no buf allocation, no check, no free
       diag_dspaces_put_req_list[bufind][vi] = dspaces_iput(ds_client, ds_var_name, Run.globiter,
                                                            sizeof(float), Grid.NDIM, lb, ub, 
-                                                           &diag_buf[bufind][vi*lsize], 0, 0);
+                                                           &diag_buf[bufind][vi*lsize], 0, 0, 0);
       dspaces_time += MPI_Wtime() - clk;
     }
     // if(Run.iteration > 0){
@@ -1966,10 +1968,10 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
         dspaces_define_gdim(ds_client, ds_var_name, 3, gdim);
       }
       clk = MPI_Wtime();
-      // no buf allocation, no check
+      // no buf allocation, no check, no free
       eos_dspaces_put_req_list[bufind][vi] = dspaces_iput(ds_client, ds_var_name, Run.globiter,
                                                           sizeof(float), Grid.NDIM, lb, ub,
-                                                          &eos_buf[bufind][vi*lsize], 0, 0);
+                                                          &eos_buf[bufind][vi*lsize], 0, 0, 0);
       dspaces_time += MPI_Wtime() - clk;
     }
 
