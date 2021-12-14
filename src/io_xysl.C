@@ -1117,9 +1117,9 @@ void IO_Finalize() {
   }
   
   // write log
-  log_output(io_file_log, io_log_path);
-  log_summary_print(io_file_log);
-  log_free(io_file_log);
+  // log_output(io_file_log, io_log_path);
+  // log_summary_print(io_file_log);
+  // log_free(io_file_log);
   if(ds_io) {
     dspaces_log_output(io_dspaces_log, io_log_path);
     log_summary_print(io_dspaces_log);
