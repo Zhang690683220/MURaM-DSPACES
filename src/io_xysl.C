@@ -24,8 +24,8 @@ struct log *io_file_log, *io_dspaces_log;
 // 2D: TAU-2, YZ-3, XY-4, XZ-5, CORONA-6, ANALYZE_VP-7
 const int io_proc_num = 8;
 
-const int mpi_io_in     = 0;
-const int mpi_io_out    = 0;
+int mpi_io_in     = 0;
+int mpi_io_out    = 0;
 int blocksize     = 8; // has only effect for mpi_io = 0 !
 
 int nblocks,blsz;
@@ -1126,7 +1126,7 @@ void IO_Finalize() {
     log_free(io_dspaces_log);
     free(lb);
     free(ub);
-    if(ds_terminate) {
+    if(ds_terminate && io_rank == 0) {
       dspaces_kill(ds_client);
     }
     dspaces_fini(ds_client);
@@ -1224,17 +1224,17 @@ void OutputSolution(const RunData& Run,const GridData& Grid,const PhysicsData& P
       var = v1*v2_max + v2;       
       if (zcol_rank == v2){
 	sprintf(filename,"%s%s_%s_%d.%06d",Run.path_3D,Run.resfile,"prim",var,Run.globiter);
-	if(xy_rank == 0) cout << " " << filename << "mpi_out = " <<mpi_io_out << endl;
+	if(xy_rank == 0) cout << " " << filename << endl;
 	// if(mpi_io_out == 0){
-	  if(xy_rank == 0){
-	    fh=fopen(filename,"w");
-	    if(fh == NULL){
-	      cout << "Error opening " << filename << ". Aborting ... " << endl;
-	      MPI_Abort(MPI_COMM_WORLD,1);
-	    }
-	  }
-	  for (k=0;k<nblocks;k++) xy_slice_write(Grid,0,&(iobuf_glo[k*blsz*sizex*sizey]),sizex*sizey,fh);
-	  if(xy_rank == 0) fclose(fh);
+	  // if(xy_rank == 0){
+	  //   fh=fopen(filename,"w");
+	  //   if(fh == NULL){
+	  //     cout << "Error opening " << filename << ". Aborting ... " << endl;
+	  //     MPI_Abort(MPI_COMM_WORLD,1);
+	  //   }
+	  // }
+	  // for (k=0;k<nblocks;k++) xy_slice_write(Grid,0,&(iobuf_glo[k*blsz*sizex*sizey]),sizex*sizey,fh);
+	  // if(xy_rank == 0) fclose(fh);
 	// }else{
 	//   MPI_File_open(io_xy_comm,filename,MPI_MODE_CREATE | MPI_MODE_WRONLY,io_info,&mfh);
 	//   MPI_File_set_view(mfh,0,MPI_FLOAT,io_subarray,(char *)"native",io_info);
@@ -1602,19 +1602,19 @@ void diag_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phy
 	sprintf(filename,"%s%s.%06d",Run.path_3D,diag_names[var],Run.globiter);
 	if(xy_rank == 0) cout << "write " << filename << endl;
 	// if(mpi_io_out == 0) {
-    clk = MPI_Wtime(); 
-	  if(xy_rank == 0){
-	    fh=fopen(filename,"w");
-	    if(fh == NULL){
-	      cout << "Error opening " << filename << ". Aborting ... " << endl;
-		MPI_Abort(MPI_COMM_WORLD,1);
-	    }
-	  }
-	  for (k=0;k<nblocks;k++)
-	    xy_slice_write(Grid,0,&(iobuf_glo[k*blsz*sizex*sizey]),sizex*sizey,
-			   fh);
-	  if(xy_rank == 0) fclose(fh);
-    file_time += MPI_Wtime() -clk;
+    // clk = MPI_Wtime(); 
+	  // if(xy_rank == 0){
+	  //   fh=fopen(filename,"w");
+	  //   if(fh == NULL){
+	  //     cout << "Error opening " << filename << ". Aborting ... " << endl;
+		// MPI_Abort(MPI_COMM_WORLD,1);
+	  //   }
+	  // }
+	  // for (k=0;k<nblocks;k++)
+	  //   xy_slice_write(Grid,0,&(iobuf_glo[k*blsz*sizex*sizey]),sizex*sizey,
+		// 	   fh);
+	  // if(xy_rank == 0) fclose(fh);
+    // file_time += MPI_Wtime() -clk;
 	// } else {
   //   clk = MPI_Wtime();
 	//   MPI_File_open(io_xy_comm,filename,MPI_MODE_CREATE | MPI_MODE_WRONLY,
@@ -1884,19 +1884,19 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
 	sprintf(filename,"%s%s.%06d",Run.path_3D,eos_names[var],Run.globiter);
 	if(xy_rank == 0) cout << "write " << filename << endl;
 	// if(mpi_io_out == 0) {
-    clk = MPI_Wtime();
-	  if(xy_rank == 0){
-	    fh=fopen(filename,"w");
-	    if(fh == NULL){
-	      cout << "Error opening " << filename << ". Aborting ... " << endl;
-	      MPI_Abort(MPI_COMM_WORLD,1);
-	    }
-	  }
-	  for (k=0;k<nblocks;k++)
-	    xy_slice_write(Grid,0,&(iobuf_glo[k*blsz*sizex*sizey]),sizex*sizey,
-			   fh);
-	  if(xy_rank == 0) fclose(fh);
-    file_time += MPI_Wtime() -clk;
+    // clk = MPI_Wtime();
+	  // if(xy_rank == 0){
+	  //   fh=fopen(filename,"w");
+	  //   if(fh == NULL){
+	  //     cout << "Error opening " << filename << ". Aborting ... " << endl;
+	  //     MPI_Abort(MPI_COMM_WORLD,1);
+	  //   }
+	  // }
+	  // for (k=0;k<nblocks;k++)
+	  //   xy_slice_write(Grid,0,&(iobuf_glo[k*blsz*sizex*sizey]),sizex*sizey,
+		// 	   fh);
+	  // if(xy_rank == 0) fclose(fh);
+    // file_time += MPI_Wtime() -clk;
 	// } else {
   //   clk = MPI_Wtime();
 	//   MPI_File_open(io_xy_comm,filename,MPI_MODE_CREATE | MPI_MODE_WRONLY,
