@@ -1008,9 +1008,9 @@ void IO_Finalize() {
           clk = MPI_Wtime();
           for(int j=0; j<corona_nout; j++) {
             if(coronaxz_dspaces_put_req_list[reqind][j] != NULL) {
-              for(int i=0; i<corona_nslvar_record; i++) {
+              // for(int i=0; i<corona_nslvar_record; i++) {
                 dspaces_check_put(ds_client, coronaxz_dspaces_put_req_list[reqind][j][i], 1);
-              }
+              // }
               free(coronaxz_dspaces_put_req_list[reqind][j]);
             }
           }
@@ -1024,9 +1024,9 @@ void IO_Finalize() {
           clk = MPI_Wtime();
           for(int j=0; j<corona_nout; j++) {
             if(coronayz_dspaces_put_req_list[reqind][j]) {
-              for(int i=0; i<corona_nslvar_record; i++) {
+              // for(int i=0; i<corona_nslvar_record; i++) {
                 dspaces_check_put(ds_client, coronayz_dspaces_put_req_list[reqind][j][i], 1);
-              }
+              // }
               free(coronayz_dspaces_put_req_list[reqind][j]);
             }
           }
@@ -1040,9 +1040,9 @@ void IO_Finalize() {
           clk = MPI_Wtime();
           for(int j=0; j<corona_nout; j++) {
             if(coronaxy_dspaces_put_req_list[reqind][j] != NULL) {
-              for(int i=0; i<corona_nslvar_record; i++) {
+              // for(int i=0; i<corona_nslvar_record; i++) {
                 dspaces_check_put(ds_client, coronaxy_dspaces_put_req_list[reqind][j][i], 1);
-              }
+              // }
               free(coronaxy_dspaces_put_req_list[reqind][j]);
             }
           }
