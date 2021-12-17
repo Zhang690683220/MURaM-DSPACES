@@ -436,8 +436,8 @@ void yz_slice(const RunData&  Run, const GridData& Grid,
       if(Run.use_dspaces_io) {
         std::cout << "DataSpaces API Call (YZ_SLICE) in " << dspaces_time
                   << " seconds" <<  " Bin: " << bufind << std::endl;
-        // std::cout << "DataSpaces Wait (YZ_SLICE) in " << dspaces_wait_time
-        //            << " seconds" << std::endl;
+        std::cout << "DataSpaces Wait (YZ_SLICE) in " << dspaces_wait_time
+                   << " seconds" << std::endl;
         // std::cout << "DataSpaces Output (YZ_SLICE) in " << dspaces_time
         //           << " seconds" << std::endl;
       }

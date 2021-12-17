@@ -401,8 +401,8 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
       if(Run.use_dspaces_io) {
         std::cout << "DataSpaces API Call (ANALYZE_VP) in " << dspaces_time
                   << " seconds" << " Bin: " << bufind << std::endl;
-        // std::cout << "DataSpaces Wait (ANALYZE_VP) in " << dspaces_wait_time
-        //           << " seconds" << std::endl;
+        std::cout << "DataSpaces Wait (ANALYZE_VP) in " << dspaces_wait_time
+                  << " seconds" << std::endl;
         // std::cout << "DataSpaces Output (ANALYZE_VP) in " << dspaces_time
         //           << " seconds" << std::endl;
       }
