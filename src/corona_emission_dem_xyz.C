@@ -402,9 +402,10 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 				// }
 				// dspaces_check_put(ds_client, coronayz_dspaces_put_req_list[bufind][v][0], 1);
 				double dspaces_check_time = MPI_Wtime() - clk;
-				if(dspaces_check_time > dspaces_check_overhead) {
-					dspaces_wait_time += MPI_Wtime() - clk - dspaces_check_overhead;
-				}
+				// if(dspaces_check_time > dspaces_check_overhead) {
+				// 	dspaces_wait_time += MPI_Wtime() - clk - dspaces_check_overhead;
+				// }
+				dspaces_wait_time += MPI_Wtime() - clk;
 				free(coronayz_dspaces_put_req_list[bufind][v]);
 			}
 		}
@@ -548,9 +549,10 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 				// }
 				// dspaces_check_put(ds_client, coronaxz_dspaces_put_req_list[bufind][v][0], 1);
 				double dspaces_check_time = MPI_Wtime() - clk;
-				if(dspaces_check_time > dspaces_check_overhead) {
-					dspaces_wait_time += MPI_Wtime() - clk - dspaces_check_overhead;
-				}
+				// if(dspaces_check_time > dspaces_check_overhead) {
+				// 	dspaces_wait_time += MPI_Wtime() - clk - dspaces_check_overhead;
+				// }
+				dspaces_wait_time += MPI_Wtime() - clk;
 				free(coronaxz_dspaces_put_req_list[bufind][v]);
 			}
 		}
@@ -693,9 +695,10 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 				// }
 				// dspaces_check_put(ds_client, coronaxy_dspaces_put_req_list[bufind][v][0], 1);	
 				double dspaces_check_time = MPI_Wtime() - clk;
-				if(dspaces_check_time > dspaces_check_overhead) {
-					dspaces_wait_time += MPI_Wtime() - clk - dspaces_check_overhead;
-				}
+				// if(dspaces_check_time > dspaces_check_overhead) {
+				// 	dspaces_wait_time += MPI_Wtime() - clk - dspaces_check_overhead;
+				// }
+				dspaces_wait_time += MPI_Wtime() - clk;
 				free(coronaxy_dspaces_put_req_list[bufind][v]);
 			}
 		}

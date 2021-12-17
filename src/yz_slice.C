@@ -135,9 +135,10 @@ void yz_slice(const RunData&  Run, const GridData& Grid,
           dspaces_check_put(ds_client, yzslice_dspaces_put_req_list[bufind][nsl][i], 1);
         }
         double dspaces_check_time = MPI_Wtime() - clk;
-        if(dspaces_check_time > nslvar*dspaces_check_overhead) {
-          dspaces_wait_time += MPI_Wtime() - clk - nslvar*dspaces_check_overhead;
-        }
+        // if(dspaces_check_time > nslvar*dspaces_check_overhead) {
+        //   dspaces_wait_time += MPI_Wtime() - clk - nslvar*dspaces_check_overhead;
+        // }
+        dspaces_wait_time += MPI_Wtime() - clk;
         free(yzslice_dspaces_put_req_list[bufind][nsl]);
       }
 

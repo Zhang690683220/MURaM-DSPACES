@@ -128,18 +128,19 @@ void xz_slice(const RunData&  Run, const GridData& Grid,
       // }
 
 
-			if(Run.use_dspaces_io && xzslice_ref_count > xz_dspaces_bufnum-1) {
-				// int reqind = (xzslice_ref_count-1) % dspaces_bufnum;
-				clk = MPI_Wtime();
-        for(int i=0; i<nslvar; i++) {
-          dspaces_check_put(ds_client, xzslice_dspaces_put_req_list[bufind][nsl][i], 1);
-        }
-				double dspaces_check_time = MPI_Wtime() - clk;
-				if(dspaces_check_time > nslvar*dspaces_check_overhead) {
-					dspaces_wait_time += MPI_Wtime() - clk - nslvar*dspaces_check_overhead;
-				}
-        free(xzslice_dspaces_put_req_list[bufind][nsl]);
-      }
+		if(Run.use_dspaces_io && xzslice_ref_count > xz_dspaces_bufnum-1) {
+			// int reqind = (xzslice_ref_count-1) % dspaces_bufnum;
+			clk = MPI_Wtime();
+        	for(int i=0; i<nslvar; i++) {
+          		dspaces_check_put(ds_client, xzslice_dspaces_put_req_list[bufind][nsl][i], 1);
+        	}
+			double dspaces_check_time = MPI_Wtime() - clk;
+			// if(dspaces_check_time > nslvar*dspaces_check_overhead) {
+			// 	dspaces_wait_time += MPI_Wtime() - clk - nslvar*dspaces_check_overhead;
+			// }
+			dspaces_wait_time += MPI_Wtime() - clk;
+        	free(xzslice_dspaces_put_req_list[bufind][nsl]);
+      	}
 
 			if(Run.use_dspaces_io) {
 

@@ -1661,9 +1661,10 @@ void diag_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phy
         clk = MPI_Wtime();
         dspaces_check_put(ds_client, diag_dspaces_put_req_list[bufind][vi], 1);
         double dspaces_check_time = MPI_Wtime() - clk;
-        if(dspaces_check_time > tot_vars*dspaces_check_overhead) {
-          dspaces_wait_time += MPI_Wtime() - clk - tot_vars*dspaces_check_overhead;
-        }
+        // if(dspaces_check_time > tot_vars*dspaces_check_overhead) {
+        //   dspaces_wait_time += MPI_Wtime() - clk - tot_vars*dspaces_check_overhead;
+        // }
+        dspaces_wait_time += MPI_Wtime() - clk;
       }
       for(k=0;k<sizez;k++){
 	      for(j=0;j<sizey;j++){
@@ -1943,9 +1944,10 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
         clk = MPI_Wtime();
         dspaces_check_put(ds_client, eos_dspaces_put_req_list[bufind][vi], 1);
         double dspaces_check_time = MPI_Wtime() - clk;
-        if(dspaces_check_time > tot_vars*dspaces_check_overhead) {
-          dspaces_wait_time += MPI_Wtime() - clk - tot_vars*dspaces_check_overhead;
-        }
+        // if(dspaces_check_time > tot_vars*dspaces_check_overhead) {
+        //   dspaces_wait_time += MPI_Wtime() - clk - tot_vars*dspaces_check_overhead;
+        // }
+        dspaces_wait_time += MPI_Wtime() - clk;
       }
       for(k=0; k<sizez; k++) {
         for(j=0; j<sizey; j++){

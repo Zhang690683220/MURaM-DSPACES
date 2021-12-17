@@ -230,15 +230,16 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
 		if(Run.use_dspaces_io && tauslice_ref_count > tau_dspaces_bufnum-1 && xcol_rank == iroot) {
 			// int reqind = (tauslice_ref_count-1) % dspaces_bufnum;
 			clk = MPI_Wtime();
-      for(int i=0; i<nslvar; i++) {
-        dspaces_check_put(ds_client, tauslice_dspaces_put_req_list[bufind][nsl][i], 1);
-      }
+      		for(int i=0; i<nslvar; i++) {
+        		dspaces_check_put(ds_client, tauslice_dspaces_put_req_list[bufind][nsl][i], 1);
+      		}
 			double dspaces_check_time = MPI_Wtime() - clk;
-			if(dspaces_check_time > nslvar*dspaces_check_overhead) {
-				dspaces_wait_time += MPI_Wtime() - clk -nslvar*dspaces_check_overhead;
-			}
-      free(tauslice_dspaces_put_req_list[bufind][nsl]);
-    }
+			// if(dspaces_check_time > nslvar*dspaces_check_overhead) {
+			// 	dspaces_wait_time += MPI_Wtime() - clk -nslvar*dspaces_check_overhead;
+			// }
+			dspaces_wait_time += MPI_Wtime() - clk;
+      		free(tauslice_dspaces_put_req_list[bufind][nsl]);
+    	}
 
 
 	// update iosum values
