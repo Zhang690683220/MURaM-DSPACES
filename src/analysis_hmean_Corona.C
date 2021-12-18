@@ -12,13 +12,20 @@
 
 using namespace std;
 
-extern est_total_slice_iters;
+extern int est_total_slice_iters;
 extern struct log *io_file_log, *io_dspaces_log;
 
+int analyzevp_dspaces_bufnum = 1;
+float **analyzevp_buf = NULL;
+int analyzevp_nvar;
+dspaces_put_req_t** analyzevp_dspaces_put_req_list = NULL;
+
+//======================================================================
 void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
 		        const PhysicsData& Physics, RTS * rts) {
 
   static int ini_flag = 1;
+  static int analyzevp_ref_count = 0;
 
   static MPI_Datatype x_subarray;
 
@@ -35,13 +42,16 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
     w2[v]   =-1./(12.*Grid.dx[v]);
   }
 
+  int gsize[1];
   double clk, file_time, dspaces_time, dspaces_wait_time;
 	file_time = 0.0;
-	dspaces_put_req_t* dspaces_put_req_list;
+  int bufind;
+	// dspaces_put_req_t* dspaces_put_req_list;
 	if(Run.use_dspaces_io) {
 		dspaces_time = 0.0;
     dspaces_wait_time = 0.0;
-    dspaces_put_req_list = NULL;
+    bufind = analyzevp_ref_count % analyzevp_dspaces_bufnum;
+    // dspaces_put_req_list = NULL;
 	}
 
   char filename[128];
@@ -73,13 +83,27 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
 			     MPI_FLOAT,&x_subarray);
     MPI_Type_commit(&x_subarray);
 
-    int gsize[1];
     gsize[0] = Grid.gsize[0];
     io_file_log->analyze_vp = (struct log_entry*) malloc(sizeof(struct log_entry));
     log_entry_init(io_file_log->analyze_vp, "ANALYZE_VP", est_total_slice_iters, 1, gsize, nvar);
 		if(Run.use_dspaces_io) {
       io_dspaces_log->analyze_vp = (struct log_entry*) malloc(sizeof(struct log_entry));
       log_entry_init(io_dspaces_log->analyze_vp, "ANALYZE_VP", est_total_slice_iters, 1, gsize, nvar);
+      
+      analyzevp_nvar = nvar;
+      analyzevp_dspaces_put_req_list = (dspaces_put_req_t**) malloc(analyzevp_dspaces_bufnum *
+                                                                    sizeof(dspaces_put_req_t*));
+      analyzevp_buf = (float**) malloc(analyzevp_dspaces_bufnum*sizeof(float*));
+      for(int i=0; i<analyzevp_dspaces_bufnum; i++) {
+        // dspaces_iput() is only called in ranks whose yz_rank == iroot
+			  // so the dspaces_put_req_list is only malloced there
+        if(yz_rank == 0) {
+          analyzevp_dspaces_put_req_list[i] = (dspaces_put_req_t*) malloc(nvar*sizeof(dspaces_put_req_t));
+        } else {
+          analyzevp_dspaces_put_req_list[i] = NULL;
+        }
+        analyzevp_buf[i] = (float*) malloc(nvar*Grid.lsize[0]*sizeof(float));
+      }
     }
 
     ini_flag = 0;
@@ -238,7 +262,7 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
   
   if(yz_rank==0){ // MPI_Reduce results are only meaningful on rank 0!
 
-    dspaces_put_req_list = (dspaces_put_req_t*) malloc(nvar*sizeof(dspaces_put_req_t));
+    // dspaces_put_req_list = (dspaces_put_req_t*) malloc(nvar*sizeof(dspaces_put_req_t));
     
     for(ind=0;ind<bufsz;ind++){
       glo[ind] *=  ihsz;
@@ -253,9 +277,28 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
       glo[ind+11*ioff] *= b_unit;
       glo[ind+12*ioff] *= b_unit*b_unit;
     }
-      
-    for(ind=0;ind<bufsz;ind++){ 
-      iobuf[ind] = (float) glo[ind];
+
+    if(Run.use_dspaces_io && analyzevp_ref_count > analyzevp_dspaces_bufnum-1) {
+      // int reqind = (analyzevp_ref_count-1) % dspaces_bufnum;
+      clk = MPI_Wtime();
+      for(int i=0; i<nvar; i++) {
+        dspaces_check_put(ds_client, analyzevp_dspaces_put_req_list[bufind][i], 1);
+      }
+      double dspaces_check_time = MPI_Wtime() - clk;
+      // if(dspaces_check_time > nvar*dspaces_check_overhead) {
+      //   dspaces_wait_time += MPI_Wtime() - clk - nvar*dspaces_check_overhead;
+      // }
+      dspaces_wait_time += MPI_Wtime() - clk;
+    }
+    if(Run.use_dspaces_io) {
+      for(ind=0;ind<bufsz;ind++){ 
+        iobuf[ind] = (float) glo[ind];
+        analyzevp_buf[bufind][ind] = (float) glo[ind];
+      }
+    } else {
+      for(ind=0;ind<bufsz;ind++){ 
+        iobuf[ind] = (float) glo[ind];
+      }
     }
 
     sprintf(filename,"%s%s.%06d",Run.path_2D,"hmean1D",Run.globiter);
@@ -291,12 +334,19 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
       ub[0] = lb[0] + Grid.lsize[0] - 1;
       for(int v=0; v<nvar; v++) {
         sprintf(ds_var_name, "%s%s_%d", Run.path_2D, "hmean1D", v);
+        if(analyzevp_ref_count == 0) {
+          uint64_t gdim[1];
+          for(int i=0; i<1; i++) {
+            gdim[i] = gsize[i];
+          }
+          dspaces_define_gdim(ds_client, ds_var_name, 1, gdim);
+        }
         clk = MPI_Wtime();
-        dspaces_put_req_list[v] = dspaces_iput(ds_client, ds_var_name, Run.globiter, sizeof(float),
-                                            1, lb, ub, &iobuf[v*Grid.lsize[0]], 0, 0);
+        analyzevp_dspaces_put_req_list[bufind][v] = dspaces_iput(ds_client, ds_var_name, Run.globiter,
+                                                         sizeof(float), 1, lb, ub,
+                                                         &analyzevp_buf[bufind][v*Grid.lsize[0]], 0, 0, 0);
         dspaces_time += MPI_Wtime() - clk;
       }
-      clk = MPI_Wtime();
       char header_name[128];
       FILE * hfhandle = NULL;
       if( xcol_rank == 0 ){
@@ -319,15 +369,15 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
   delete[] loc;
   delete[] glo;
 
-  if(yz_rank == 0 && Run.use_dspaces_io) {
-    double dspaces_overlap_time = MPI_Wtime() - clk;
-    clk = MPI_Wtime();
-    for(int i=0; i<nvar; i++) {
-      dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
-    }
-    dspaces_wait_time += MPI_Wtime() - clk;
-    free(dspaces_put_req_list);
-  }
+  // if(yz_rank == 0 && Run.use_dspaces_io) {
+  //   double dspaces_overlap_time = MPI_Wtime() - clk;
+  //   clk = MPI_Wtime();
+  //   for(int i=0; i<nvar; i++) {
+  //     dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
+  //   }
+  //   dspaces_wait_time += MPI_Wtime() - clk;
+  //   free(dspaces_put_req_list);
+  // }
   delete[] iobuf;
 
   if(yz_rank == 0 && xcol_rank == 0) {
@@ -338,21 +388,26 @@ void AnalyzeSolution_VP(const RunData& Run,const GridData& Grid,
 		if(Run.use_dspaces_io) {
 			io_dspaces_log->analyze_vp->iter[io_dspaces_log->analyze_vp->count] = Run.globiter;
       io_dspaces_log->analyze_vp->api_time[io_dspaces_log->analyze_vp->count] = dspaces_time;
-      io_dspaces_log->analyze_vp->wait_time[io_dspaces_log->analyze_vp->count] = dspaces_wait_time;
-      io_dspaces_log->analyze_vp->time[io_dspaces_log->analyze_vp->count] = dspaces_time+dspaces_wait_time;
+      if(io_dspaces_log->analyze_vp->count > analyzevp_dspaces_bufnum-1) {
+        io_dspaces_log->analyze_vp->wait_time[io_dspaces_log->analyze_vp->count-analyzevp_dspaces_bufnum] = 
+                                                                                  dspaces_wait_time;
+        io_dspaces_log->analyze_vp->time[io_dspaces_log->analyze_vp->count-analyzevp_dspaces_bufnum] =
+          dspaces_wait_time + 
+          io_dspaces_log->analyze_vp->api_time[io_dspaces_log->analyze_vp->count-analyzevp_dspaces_bufnum];
+      }
       io_dspaces_log->analyze_vp->count++ ;
 		}
     if(Run.verbose > 0) {
       std::cout << "File Output (ANALYZE_VP) in " << file_time << " seconds" << std::endl;
       if(Run.use_dspaces_io) {
         std::cout << "DataSpaces API Call (ANALYZE_VP) in " << dspaces_time
-                  << " seconds" << std::endl;
+                  << " seconds" << " Bin: " << bufind << std::endl;
         std::cout << "DataSpaces Wait (ANALYZE_VP) in " << dspaces_wait_time
                   << " seconds" << std::endl;
-        std::cout << "DataSpaces Output (ANALYZE_VP) in " << dspaces_time+dspaces_wait_time
-                  << " seconds" << std::endl;
+        // std::cout << "DataSpaces Output (ANALYZE_VP) in " << dspaces_time
+        //           << " seconds" << std::endl;
       }
     }
   }
-  
+  analyzevp_ref_count++;
 }

@@ -11,7 +11,7 @@
 
 using namespace std;
 
-extern est_total_slice_iters;
+extern int est_total_slice_iters;
 extern struct log *io_file_log, *io_dspaces_log;
 
 extern void slice_write(const GridData&,const int,float*,int,int,const int,
@@ -22,10 +22,18 @@ extern dspaces_put_req_t* slice_write_dspaces(const GridData& Grid, const int ir
                                 int n1, char* filename, const int iter,
                                 const int ndim);
 
+int xy_dspaces_bufnum = 1;
+float **xyslice_buf = NULL;
+int xyslice_nslice;
+int xyslice_nslvar;
+dspaces_put_req_t*** xyslice_dspaces_put_req_list = NULL;
+
+//======================================================================
 void xy_slice(const RunData&  Run, const GridData& Grid, 
 	      const PhysicsData& Physics) {
 
   static int ini_flag = 1;
+	static int xyslice_ref_count = 0;
 
   register int i, j, k, node, ind, nsl, v;
 
@@ -43,13 +51,16 @@ void xy_slice(const RunData&  Run, const GridData& Grid,
   static int nslvar;
 
   FILE* fhandle=NULL;
+	int gsize[2];
 	double clk, file_time, dspaces_time, dspaces_wait_time;
 	file_time = 0.0;
-	dspaces_put_req_t* dspaces_put_req_list;
+	int bufind;
+	// dspaces_put_req_t* dspaces_put_req_list;
 	if(Run.use_dspaces_io) {
 		dspaces_time = 0.0;
     dspaces_wait_time = 0.0;
-    dspaces_put_req_list = NULL;
+    // dspaces_put_req_list = NULL;
+		bufind = xyslice_ref_count % xy_dspaces_bufnum;
 	}
 
   //MPI_File fhandle_mpi;
@@ -74,7 +85,6 @@ void xy_slice(const RunData&  Run, const GridData& Grid,
       if (Physics.xy_var[v] == 1) nslvar+=1;
     }
 
-		int gsize[2];
     gsize[0] = Grid.gsize[1];
     gsize[1] = Grid.gsize[0];
 		io_file_log->xy = (struct log_entry*) malloc(sizeof(struct log_entry));
@@ -82,6 +92,20 @@ void xy_slice(const RunData&  Run, const GridData& Grid,
 		if(Run.use_dspaces_io) {
       io_dspaces_log->xy = (struct log_entry*) malloc(sizeof(struct log_entry));
       log_entry_init(io_dspaces_log->xy, "XY", est_total_slice_iters, 2, gsize, nslice*nslvar);
+
+			xyslice_nslice = nslice;
+			xyslice_nslvar = nslvar;
+			xyslice_dspaces_put_req_list = (dspaces_put_req_t***) malloc(xy_dspaces_bufnum *
+																																		sizeof(dspaces_put_req_t**));
+			xyslice_buf = (float**) malloc(xy_dspaces_bufnum*sizeof(float*));
+			for(int j=0; j<xy_dspaces_bufnum; j++) {
+				xyslice_dspaces_put_req_list[j] = (dspaces_put_req_t**) malloc(nslice*sizeof(dspaces_put_req_t*));
+				// prevent non-NULL pointer exists when the rank is not in the selected domain
+      	for(int i=0; i<nslice; i++) {
+        	xyslice_dspaces_put_req_list[j][i] = NULL;
+      	}
+    		xyslice_buf[j] = (float*) malloc(nslice*nslvar*localsize*sizeof(float));
+			}
     }
 
     ini_flag = 0;
@@ -95,15 +119,99 @@ void xy_slice(const RunData&  Run, const GridData& Grid,
          (Grid.end[2] >= ixpos[nsl]+Grid.gbeg[2] )){
 
 	  // check dspaces_iput() except for the first iter
-      if(Run.use_dspaces_io && nsl > 0) {
-        for(int i=0; i<nslvar; i++) {
-          dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
-        }
-        dspaces_wait_time += MPI_Wtime() - clk;
-        free(dspaces_put_req_list);
-      }
+      // if(Run.use_dspaces_io && nsl > 0) {
+      //   for(int i=0; i<nslvar; i++) {
+      //     dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
+      //   }
+      //   dspaces_wait_time += MPI_Wtime() - clk;
+      //   free(dspaces_put_req_list);
+      // }
+
+		if(Run.use_dspaces_io && xyslice_ref_count > xy_dspaces_bufnum-1) {
+			// int reqind = (xyslice_ref_count-1) % dspaces_bufnum;
+			clk = MPI_Wtime();
+        	for(int i=0; i<nslvar; i++) {
+          		dspaces_check_put(ds_client, xyslice_dspaces_put_req_list[bufind][nsl][i], 1);
+        	}
+			double dspaces_check_time = MPI_Wtime() - clk;
+			// if(dspaces_check_time > nslvar*dspaces_check_overhead) {
+			// 	dspaces_wait_time += MPI_Wtime() - clk -nslvar*dspaces_check_overhead;
+			// }
+			dspaces_wait_time += MPI_Wtime() - clk;
+        	free(xyslice_dspaces_put_req_list[bufind][nsl]);
+      	}
+
+		if(Run.use_dspaces_io) {
 
       for (i=ibeg; i<=iend; i++){
+        for (j=jbeg; j<=jend; j++){
+          ind  = j-jbeg + (i-ibeg)*Grid.lsize[1];
+          k    = Grid.lbeg[2]+ixpos[nsl]+Grid.gbeg[2]-Grid.beg[2];
+          node = Grid.node(i,j,k);
+
+	  if (Physics.xy_var[0] == 1){
+	    iobuf[ind] = (float) Grid.U[node].d;
+			xyslice_buf[bufind][ind+nsl*nslvar*localsize] = (float) Grid.U[node].d;
+	    ind += localsize;
+	  }
+	  if (Physics.xy_var[1] == 1){
+	    iobuf[ind] = (float) Grid.U[node].M.x;
+			xyslice_buf[bufind][ind+nsl*nslvar*localsize] = (float) Grid.U[node].M.x;
+	    ind += localsize;
+	  }
+	  if (Physics.xy_var[2] == 1){
+	    iobuf[ind] = (float) Grid.U[node].M.y; 
+			xyslice_buf[bufind][ind+nsl*nslvar*localsize] = (float) Grid.U[node].M.y; 
+	    ind += localsize;
+	  }
+	  if (Physics.xy_var[3] == 1){
+	    iobuf[ind] = (float) Grid.U[node].M.z;
+			xyslice_buf[bufind][ind+nsl*nslvar*localsize] = (float) Grid.U[node].M.z;
+	    ind += localsize;
+	  }
+	  if (Physics.xy_var[4] == 1){
+	    iobuf[ind] = (float) (Grid.U[node].e/Grid.U[node].d);
+			xyslice_buf[bufind][ind+nsl*nslvar*localsize] = (float) (Grid.U[node].e/Grid.U[node].d);
+	    ind += localsize;
+	  }
+	  if (Physics.xy_var[5] == 1){
+	    iobuf[ind] = (float) Grid.U[node].B.x;
+			xyslice_buf[bufind][ind+nsl*nslvar*localsize] = (float) Grid.U[node].B.x;
+	    ind += localsize;
+	  }
+	  if (Physics.xy_var[6] == 1){
+	    iobuf[ind] = (float) Grid.U[node].B.y;  
+			xyslice_buf[bufind][ind+nsl*nslvar*localsize] = (float) Grid.U[node].B.y;
+	    ind += localsize;
+	  }
+	  if (Physics.xy_var[7] == 1){
+	    iobuf[ind] = (float) Grid.U[node].B.z;
+			xyslice_buf[bufind][ind+nsl*nslvar*localsize] = (float) Grid.U[node].B.z;
+	    ind += localsize;
+	  }
+	  if (Physics.xy_var[8] == 1){
+	    iobuf[ind] = (float) sqrt(Grid.U[node].M.sqr());
+			xyslice_buf[bufind][ind+nsl*nslvar*localsize] = (float) sqrt(Grid.U[node].M.sqr());
+	    ind += localsize;
+	  }
+	  if (Physics.xy_var[9] == 1){
+	    iobuf[ind] = (float) sqrt(Grid.U[node].B.sqr());
+			xyslice_buf[bufind][ind+nsl*nslvar*localsize] = (float) sqrt(Grid.U[node].B.sqr());
+	    ind += localsize;
+	  }
+	  if (Physics.xy_var[10] == 1){
+	    iobuf[ind] = (float) Grid.temp[node];
+			xyslice_buf[bufind][ind+nsl*nslvar*localsize] = (float) Grid.temp[node];
+	    ind += localsize;
+	  }
+	  if (Physics.xy_var[11] == 1){
+	    iobuf[ind] = (float) Grid.pres[node];
+			xyslice_buf[bufind][ind+nsl*nslvar*localsize] = (float) Grid.pres[node];
+	  }
+	}
+      }
+	} else {
+		for (i=ibeg; i<=iend; i++){
         for (j=jbeg; j<=jend; j++){
           ind  = j-jbeg + (i-ibeg)*Grid.lsize[1];
           k    = Grid.lbeg[2]+ixpos[nsl]+Grid.gbeg[2]-Grid.beg[2];
@@ -158,6 +266,7 @@ void xy_slice(const RunData&  Run, const GridData& Grid,
 	  }
 	}
       }
+	}
 
       if(Physics.slice[i_sl_collect] == 0) {
 	if(xy_rank == 0) { 
@@ -227,9 +336,22 @@ void xy_slice(const RunData&  Run, const GridData& Grid,
 	  if(Run.use_dspaces_io) {
         char ds_var_name[128];
         sprintf(ds_var_name, "%s%s_%04d", Run.path_2D,"xy_slice",ixpos[nsl]);
+				if(xyslice_ref_count == 0) {
+					uint64_t gdim[2];
+          for(int i=0; i<2; i++) {
+            gdim[i] = gsize[i];
+          }
+					char vname[128];
+					for(int i=0; i<nslvar; i++) {
+						sprintf(vname, "%s_%d", ds_var_name, i);
+						dspaces_define_gdim(ds_client, vname, 2, gdim);
+					}
+				}
         clk = MPI_Wtime();
-        dspaces_put_req_list = slice_write_dspaces(Grid, 0, iobuf, localsize, nslvar, 1, 0, ds_var_name,
-												 	Run.globiter, 2);
+        xyslice_dspaces_put_req_list[bufind][nsl] = slice_write_dspaces(Grid, 0,
+																													&xyslice_buf[bufind][nsl*nslvar*localsize],
+																																localsize, nslvar, 1, 0, ds_var_name,
+												 																				Run.globiter, 2);
         dspaces_time += MPI_Wtime() - clk;
         char header_filename[128];
         if(xy_rank == 0) {
@@ -261,22 +383,21 @@ void xy_slice(const RunData&  Run, const GridData& Grid,
           fptr << Run.globiter << ' ' << Run.time << endl;
           fptr.close(); 
         }
-		clk = MPI_Wtime();
       }
     }   
   }
 
   // check if put finish for the last dspaces_iput() before iobuf free
-  if ( (Grid.beg[2] <= ixpos[nsl]+Grid.gbeg[2] ) and 
-         (Grid.end[2] >= ixpos[nsl]+Grid.gbeg[2] )){
-	if(Run.use_dspaces_io) {
-      for(int i=0; i<nslvar; i++) {
-        dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
-      }
-      dspaces_wait_time += MPI_Wtime() - clk;
-      free(dspaces_put_req_list);
-    }
-  }
+  // if ( (Grid.beg[2] <= ixpos[nsl]+Grid.gbeg[2] ) and 
+  //        (Grid.end[2] >= ixpos[nsl]+Grid.gbeg[2] )){
+	// if(Run.use_dspaces_io) {
+  //     for(int i=0; i<nslvar; i++) {
+  //       dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
+  //     }
+  //     dspaces_wait_time += MPI_Wtime() - clk;
+  //     free(dspaces_put_req_list);
+  //   }
+  // }
   free(iobuf);
 
 	if(Run.rank == 0) {
@@ -287,21 +408,25 @@ void xy_slice(const RunData&  Run, const GridData& Grid,
 		if(Run.use_dspaces_io) {
 			io_dspaces_log->xy->iter[io_dspaces_log->xy->count] = Run.globiter;
       io_dspaces_log->xy->api_time[io_dspaces_log->xy->count] = dspaces_time;
-      io_dspaces_log->xy->wait_time[io_dspaces_log->xy->count] = dspaces_wait_time;
-      io_dspaces_log->xy->time[io_dspaces_log->xy->count] = dspaces_time+dspaces_wait_time;
+      if(io_dspaces_log->xy->count > xy_dspaces_bufnum-1) {
+        io_dspaces_log->xy->wait_time[io_dspaces_log->xy->count-xy_dspaces_bufnum] = dspaces_wait_time;
+        io_dspaces_log->xy->time[io_dspaces_log->xy->count-xy_dspaces_bufnum] = dspaces_wait_time
+                                + io_dspaces_log->xy->api_time[io_dspaces_log->xy->count-xy_dspaces_bufnum];
+      }
 			io_dspaces_log->xy->count++ ;
 		}
 		if(Run.verbose > 0) {
 			std::cout << "File Output (XY_SLICE) in " << file_time << " seconds" << std::endl;
 			if(Run.use_dspaces_io) {
 				std::cout << "DataSpaces API Call (XY_SLICE) in " << dspaces_time
-									<< " seconds" << std::endl;
+									<< " seconds" <<  " Bin: " << bufind << std::endl;
     		std::cout << "DataSpaces Wait (XY_SLICE) in " << dspaces_wait_time
 									<< " seconds" << std::endl;
-    		std::cout << "DataSpaces Output (XY_SLICE) in " << dspaces_time+dspaces_wait_time
-									<< " seconds" << std::endl;
+    		// std::cout << "DataSpaces Output (XY_SLICE) in " << dspaces_time
+				// 					<< " seconds" << std::endl;
 			}
 		}
 	}
+	xyslice_ref_count++;
 }
 

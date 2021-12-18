@@ -14,7 +14,7 @@ using namespace std;
 
 typedef double realtype;
 
-extern est_total_slice_iters;
+extern int est_total_slice_iters;
 extern struct log *io_file_log, *io_dspaces_log;
 
 extern void slice_write(const GridData&,const int,float*,int,int,const int,
@@ -24,12 +24,20 @@ extern dspaces_put_req_t* slice_write_dspaces(const GridData& Grid, const int ir
                                 float* vloc, int nloc, int nvar,int n0,
                                 int n1, char* filename, const int iter,
                                 const int ndim);
+extern int io_rank;
+
+int tau_dspaces_bufnum = 1;
+float **tauslice_buf = NULL;
+int tauslice_nslice;
+int tauslice_nslvar;
+dspaces_put_req_t*** tauslice_dspaces_put_req_list = NULL;
 
 //======================================================================
 void tau_slice(const RunData&  Run, const GridData& Grid, 
 	      const PhysicsData& Physics,RTS *rts) {
 
   static int ini_flag = 1;
+	static int tauslice_ref_count = 0;
 
   const int iroot = 0;
 
@@ -53,13 +61,14 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
   static int nslvar;
 
   FILE* fhandle=NULL;
+	int gsize[2];
 	double clk, file_time, dspaces_time, dspaces_wait_time;
 	file_time = 0.0;
-	dspaces_put_req_t* dspaces_put_req_list;
+	int bufind;
 	if(Run.use_dspaces_io) {
 		dspaces_time = 0.0;
     dspaces_wait_time = 0.0;
-    dspaces_put_req_list = NULL;
+		bufind = tauslice_ref_count % tau_dspaces_bufnum;
 	}
 
   //MPI_File fhandle_mpi;
@@ -83,7 +92,6 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
       if (Physics.tau_var[v] == 1) nslvar+=1;
     }
 
-		int gsize[2];
     gsize[0] = Grid.gsize[1];
     gsize[1] = Grid.gsize[2];
 		io_file_log->tau = (struct log_entry*) malloc(sizeof(struct log_entry));
@@ -91,6 +99,29 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
 		if(Run.use_dspaces_io) {
       io_dspaces_log->tau = (struct log_entry*) malloc(sizeof(struct log_entry));
       log_entry_init(io_dspaces_log->tau, "TAU", est_total_slice_iters, 2, gsize, nslice*nslvar);
+
+			tauslice_nslice = nslice;
+			tauslice_nslvar = nslvar;
+			tauslice_dspaces_put_req_list = (dspaces_put_req_t***) malloc(tau_dspaces_bufnum *
+																		sizeof(dspaces_put_req_t**));
+			tauslice_buf = (float**) malloc(tau_dspaces_bufnum*sizeof(float*));
+			// dspaces_iput() is only called in ranks whose xcol_rank == iroot
+			// so the dspaces_put_req_list is only malloced there
+			for(int j=0; j<tau_dspaces_bufnum; j++) {
+				if(xcol_rank == iroot) {
+					tauslice_dspaces_put_req_list[j] = (dspaces_put_req_t**) malloc(nslice*
+																		sizeof(dspaces_put_req_t*));
+					// prevent non-NULL pointer exists in case that the rank is not in the selected domain
+					// although in tau this case does not happens
+      		for(int i=0; i<nslice; i++) {
+        		tauslice_dspaces_put_req_list[j][i] = NULL;
+      		}
+				} else {
+					// non-XCOL_ROOT rank has to set the ptr that is not used to NULL
+					tauslice_dspaces_put_req_list[j] = NULL;
+				}
+    		tauslice_buf[j] = (float*) malloc(nslice*nslvar*localsize*sizeof(float));
+			}
     }
 
     ini_flag = 0;
@@ -181,23 +212,44 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
     }
 
 	// check dspaces_iput() except for the first iter
-    if(xcol_rank == iroot && Run.use_dspaces_io && nsl > 0) {
-	  double dspaces_overlap_time = MPI_Wtime() - clk;
-      clk = MPI_Wtime();
-      for(int i=0; i<nslvar; i++) {
-        dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
-      }
-	  double dspaces_wait_time = MPI_Wtime() - clk;
-	  if(dspaces_wait_time > 1e-6) {
-		dspaces_wait_time += dspaces_wait_time + dspaces_overlap_time;
-	  }
+    // if(xcol_rank == iroot && Run.use_dspaces_io && nsl > 0) {
+	  // double dspaces_overlap_time = MPI_Wtime() - clk;
+    //   clk = MPI_Wtime();
+    //   for(int i=0; i<nslvar; i++) {
+    //     dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
+    //   }
+	  // double dspaces_wait_time = MPI_Wtime() - clk;
+	  // if(dspaces_wait_time > 1e-6) {
+		// dspaces_wait_time += dspaces_wait_time + dspaces_overlap_time;
+	  // }
       
-      free(dspaces_put_req_list);
-    }
+    //   free(dspaces_put_req_list);
+    // }
+
+		// tauslice_dspaces_put_req_list != NULL is stronger than xcol_rank == root
+		if(Run.use_dspaces_io && tauslice_ref_count > tau_dspaces_bufnum-1 && xcol_rank == iroot) {
+			// int reqind = (tauslice_ref_count-1) % dspaces_bufnum;
+			clk = MPI_Wtime();
+      		for(int i=0; i<nslvar; i++) {
+        		dspaces_check_put(ds_client, tauslice_dspaces_put_req_list[bufind][nsl][i], 1);
+      		}
+			double dspaces_check_time = MPI_Wtime() - clk;
+			// if(dspaces_check_time > nslvar*dspaces_check_overhead) {
+			// 	dspaces_wait_time += MPI_Wtime() - clk -nslvar*dspaces_check_overhead;
+			// }
+			dspaces_wait_time += MPI_Wtime() - clk;
+      		free(tauslice_dspaces_put_req_list[bufind][nsl]);
+    	}
+
 
 	// update iosum values
     MPI_Reduce(iobuf,iosum,nslvar*localsize,MPI_FLOAT,MPI_SUM,iroot,
 		  XCOL_COMM);
+
+		if(Run.use_dspaces_io) {
+			MPI_Reduce(iobuf, &tauslice_buf[bufind][nsl*nslvar*localsize], nslvar*localsize, MPI_FLOAT,
+								 MPI_SUM, iroot, XCOL_COMM);
+		}
 
     if (xcol_rank == iroot){
 
@@ -303,9 +355,22 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
         	sprintf(ds_var_name, "%s%s_%.3f", Run.path_2D,"tau_slice",tau_lev[nsl]);
 				else
 					sprintf(ds_var_name, "%s%s_%.6f", Run.path_2D,"tau_slice",tau_lev[nsl]);
+				if(tauslice_ref_count == 0) {
+					uint64_t gdim[2];
+          for(int i=0; i<2; i++) {
+            gdim[i] = gsize[i];
+          }
+					char vname[128];
+					for(int i=0; i<nslvar; i++) {
+						sprintf(vname, "%s_%d", ds_var_name, i);
+						dspaces_define_gdim(ds_client, vname, 2, gdim);
+					}
+				}
         clk = MPI_Wtime();
-        dspaces_put_req_list = slice_write_dspaces(Grid, 0, &(iosum[0]), localsize, nslvar, 1, 2,
-													ds_var_name, Run.globiter, 2);
+        tauslice_dspaces_put_req_list[bufind][nsl] = slice_write_dspaces(Grid, 0,
+																															&tauslice_buf[bufind][nsl*nslvar*localsize],
+																															localsize, nslvar, 1, 2,
+																															ds_var_name, Run.globiter, 2);
         dspaces_time += MPI_Wtime() - clk;
         char header_filename[128];
         if(yz_rank == 0) {
@@ -337,20 +402,19 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
           fptr << Run.globiter << ' ' << Run.time << endl;
           fptr.close(); 
         }
-		clk = MPI_Wtime();
       }
 
     }
   }
 
   free(iobuf);
-  if(xcol_rank == iroot && Run.use_dspaces_io) {
-    for(int i=0; i<nslvar; i++) {
-      dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
-    }
-    dspaces_wait_time += MPI_Wtime() - clk;
-    free(dspaces_put_req_list);
-  }
+  // if(xcol_rank == iroot && Run.use_dspaces_io) {
+  //   for(int i=0; i<nslvar; i++) {
+  //     dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
+  //   }
+  //   dspaces_wait_time += MPI_Wtime() - clk;
+  //   free(dspaces_put_req_list);
+  // }
   free(iosum);
 
 	if(xcol_rank == 0 && yz_rank == 0) {
@@ -361,21 +425,25 @@ void tau_slice(const RunData&  Run, const GridData& Grid,
 		if(Run.use_dspaces_io) {
 			io_dspaces_log->tau->iter[io_dspaces_log->tau->count] = Run.globiter;
       io_dspaces_log->tau->api_time[io_dspaces_log->tau->count] = dspaces_time;
-      io_dspaces_log->tau->wait_time[io_dspaces_log->tau->count] = dspaces_wait_time;
-      io_dspaces_log->tau->time[io_dspaces_log->tau->count] = dspaces_time+dspaces_wait_time;
+      if(io_dspaces_log->tau->count > tau_dspaces_bufnum-1) {
+        io_dspaces_log->tau->wait_time[io_dspaces_log->tau->count-tau_dspaces_bufnum] = dspaces_wait_time;
+        io_dspaces_log->tau->time[io_dspaces_log->tau->count-tau_dspaces_bufnum] = dspaces_wait_time
+                              + io_dspaces_log->tau->api_time[io_dspaces_log->tau->count-tau_dspaces_bufnum];
+      }
 			io_dspaces_log->tau->count++ ;
 		}
 		if(Run.verbose >0) {
 			std::cout << "File Output (TAU_SLICE) in " << file_time << " seconds" << std::endl;
 			if(Run.use_dspaces_io) {
     		std::cout << "DataSpaces API Call (TAU_SLICE) in " << dspaces_time
-									<< " seconds" << std::endl;
+									<< " seconds" <<  " Bin: " << bufind << std::endl;
     		std::cout << "DataSpaces Wait (TAU_SLICE) in " << dspaces_wait_time
 									<< " seconds" << std::endl;
-    		std::cout << "DataSpaces Output (TAU_SLICE) in " << dspaces_time+dspaces_wait_time
-									<< " seconds" << std::endl;
+    		// std::cout << "DataSpaces Output (TAU_SLICE) in " << dspaces_time
+				// 					<< " seconds" << std::endl;
 			}
 		}
 	}
+	tauslice_ref_count++;
 }
 

@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include "io.H"
 #include "comm_split.H"
+#include "unistd.h"
 
 using namespace std;
 
@@ -18,17 +19,48 @@ using namespace std;
 //extern void slice_write(const GridData&,const int,float*,int,int,const int,
 //			const int,FILE*);
 
-extern est_total_slice_iters;
+extern int est_total_slice_iters;
 extern struct log *io_file_log, *io_dspaces_log;
 
 extern double slice_write_rebin(const GridData&,const int,float*,const int,const int,
-                              const int,const int,const int,const int,FILE*);
+                              const int,const int,const int,const int,FILE*, double*, double*);
+
+
+extern dspaces_put_req_t *slice_write_rebin_ds2(const GridData& Grid,
+                                                                                                const int iroot, float* vloc,
+                                                                                                const int nloc,const int nvar,const int n0,
+                                                                                                const int n1,const int sm_x,const int sm_y,
+                                                                                                const char* filename, const int iter,
+                                                                                                                                double* pp_time, double* api_time);
 
 extern dspaces_put_req_t* slice_write_rebin_dspaces(const GridData& Grid,
            											const int iroot, float* vloc,
 		       										const int nloc,const int nvar,const int n0,
 		       										const int n1,const int sm_x,const int sm_y,
-           											char* filename, const int iter, const int ndim);
+           											char* filename, const int iter, const int ndim,
+																double* pp_time, double* api_time);
+
+extern dspaces_put_req_t* slice_write_rebin_dspaces_old(const GridData& Grid,
+           											const int iroot, float* vloc,
+		       										const int nloc,const int nvar,const int n0,
+		       										const int n1,const int sm_x,const int sm_y,
+           											char* filename, const int iter, const int ndim,
+																double* pp_time, double* api_time);
+
+int corona_dspaces_bufnum = 1;
+// corona buffer is allocated in dspaces_iput
+// and should be freed by dspaces_check_put()
+// float **coronaxy_buf = NULL;
+// float **coronaxz_buf = NULL;
+// float **coronayz_buf = NULL;
+int corona_nout;
+int corona_nslvar_record;
+int corona_nslvar_max = 0;
+// but we still need manual put requst check
+// because we don't want to use up memory
+dspaces_put_req_t*** coronaxy_dspaces_put_req_list = NULL;
+dspaces_put_req_t*** coronaxz_dspaces_put_req_list = NULL;
+dspaces_put_req_t*** coronayz_dspaces_put_req_list = NULL;
 
 inline int imin(int a, int b) { return a < b ? a : b; }
 inline int imax(int a, int b) { return a > b ? a : b; }
@@ -37,6 +69,7 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 		               const PhysicsData& Physics) {
 
   static int ini_flag = 1;
+	static int corona_ref_count = 0;
   
   const int iroot = 0;
   
@@ -92,6 +125,10 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
   del0=1.0/dellgT;
   
   int nslvar = (int) ((lgTmax-lgTmin)/dellgT + 1);
+
+  if(Run.rank ==0) {
+      std::cout<< "3D/Corona_ref count = " << corona_ref_count  << "nslvar = " << nslvar << std::endl;
+}
    
   double* tlev = new double[nslvar+1];
   
@@ -121,7 +158,59 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 			io_dspaces_log->corona->corona_gsize[1][1] = Grid.gsize[2];
 			io_dspaces_log->corona->corona_gsize[2][0] = Grid.gsize[1];
 			io_dspaces_log->corona->corona_gsize[2][1] = Grid.gsize[0];
+
+			corona_nout = nout;
+			coronaxy_dspaces_put_req_list = (dspaces_put_req_t***) malloc(corona_dspaces_bufnum *
+																		sizeof(dspaces_put_req_t**));
+			coronaxz_dspaces_put_req_list = (dspaces_put_req_t***) malloc(corona_dspaces_bufnum *
+																		sizeof(dspaces_put_req_t**));
+			coronayz_dspaces_put_req_list = (dspaces_put_req_t***) malloc(corona_dspaces_bufnum *
+																		sizeof(dspaces_put_req_t**));
+			// coronaxy_buf = (float**) malloc(corona_dspaces_bufnum*sizeof(float*));
+			// coronaxz_buf = (float**) malloc(corona_dspaces_bufnum*sizeof(float*));
+			// coronayz_buf = (float**) malloc(corona_dspaces_bufnum*sizeof(float*));
+			for(int j=0; j<corona_dspaces_bufnum; j++) {
+				// dspaces_iput() is only called in ranks whose xcol_rank == iroot, ycol_rank == iroot,
+				// zcol_rank == iroot, so the according dspaces_put_req_list is only malloced there
+				if(zcol_rank == iroot) {
+					coronaxy_dspaces_put_req_list[j] = (dspaces_put_req_t**) malloc(nout *
+																		sizeof(dspaces_put_req_t*));
+					// prevent non-NULL pointer exists in case that the rank is not in the selected domain
+					// although in corona this case does not happens
+      		for(int i=0; i<nout; i++) {
+        		coronaxy_dspaces_put_req_list[j][i] = NULL;
+      		}
+				} else {
+					coronaxy_dspaces_put_req_list[j] = NULL;
+				}
+				if(ycol_rank == iroot) {
+					coronaxz_dspaces_put_req_list[j] = (dspaces_put_req_t**) malloc(nout *
+																			sizeof(dspaces_put_req_t*));
+					// prevent non-NULL pointer exists in case that the rank is not in the selected domain
+					// although in corona this case does not happens
+      		for(int i=0; i<nout; i++) {
+        		coronaxz_dspaces_put_req_list[j][i] = NULL;
+      		}
+				} else {
+					coronaxz_dspaces_put_req_list[j] = NULL;
+				}
+				if(xcol_rank == iroot) {
+					coronayz_dspaces_put_req_list[j] = (dspaces_put_req_t**) malloc(nout *
+																			sizeof(dspaces_put_req_t*));
+					// prevent non-NULL pointer exists in case that the rank is not in the selected domain
+					// although in corona this case does not happens
+      		for(int i=0; i<nout; i++) {
+        		coronayz_dspaces_put_req_list[j][i] = NULL;
+      		}
+				} else {
+					coronayz_dspaces_put_req_list[j] = NULL;
+				}
+    		// coronaxy_buf[j] = (float*) malloc(nout*nslvar*Grid.lsize[1]*Grid.lsize[0]*sizeof(float));
+			// 	coronaxz_buf[j] = (float*) malloc(nout*nslvar*Grid.lsize[2]*Grid.lsize[0]*sizeof(float));
+			// 	coronayz_buf[j] = (float*) malloc(nout*nslvar*Grid.lsize[1]*Grid.lsize[2]*sizeof(float));
+			}
     }
+
     ini_flag = 0;
   }
 
@@ -129,18 +218,31 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
     cout << "DEM: lgTmin = " << lgTmin <<  " lgTmax = " << lgTmax << ' ' << nslvar  << endl;
 
   FILE* fhandle=NULL;
-
-	double clk, file_time, dspaces_time, dspaces_wait_time;
+	int xygsize[2], xzgsize[2], yzgsize[2];
+	xygsize[0] = Grid.gsize[1];
+	xygsize[1] = Grid.gsize[0];
+	xzgsize[0] = Grid.gsize[2];
+	xzgsize[1] = Grid.gsize[0];
+	yzgsize[0] = Grid.gsize[1];
+	yzgsize[1] = Grid.gsize[2];
+	double clk, file_time, file_api_time, file_pp_time,
+					dspaces_time, dspaces_wait_time, dspaces_api_time, dspaces_pp_time;
 	int put_count;
 	enum rank_group {X_COL, Y_COL, Z_COL};
 	enum rank_group rank_history;
 	file_time = 0.0;
-	dspaces_put_req_t* dspaces_put_req_list;
+	file_api_time = 0.0;
+	file_pp_time = 0.0;
+	int bufind;
+	// dspaces_put_req_t* dspaces_put_req_list;
 	if(Run.use_dspaces_io) {
 	  dspaces_time = 0.0;
 	  dspaces_wait_time = 0.0;
-      dspaces_put_req_list = NULL;
+		dspaces_api_time = 0.0;
+		dspaces_pp_time = 0.0;
+      // dspaces_put_req_list = NULL;
 	  put_count = 0;
+		bufind = corona_ref_count % corona_dspaces_bufnum;
 	}
 
   for(d=0;d<Grid.NDIM;d++){
@@ -152,13 +254,12 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
  
     los_sum_loc = new double[nout*nslvar*localsize];
     los_sum     = new double[nout*nslvar*localsize];
-    // io_buf      = new float[nout*nslvar*localsize];
+    io_buf      = new float[nout*nslvar*localsize];
      
     for(v=0;v<nout*nslvar*localsize;v++){
       los_sum_loc[v] = 0.0;
       los_sum[v]     = 0.0;
-	  // we don't have to initialze it since it will be over write afterwards
-      //io_buf[v]      = 0.0;
+      io_buf[v]      = 0.0;
     }
     
     str = stride[d1];
@@ -260,29 +361,59 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
       }
 
 	  // check dspaces_iput() except for the first iter
-	  if(Run.use_dspaces_io && dspaces_put_req_list != NULL) {
-			double dspaces_overlap_time = MPI_Wtime() - clk;
-    	clk = MPI_Wtime();
-	  	for(int i=0; i<nslvar; i++) {
-		  	dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
-	  	}
-	  	double dspaces_wait_time = MPI_Wtime() - clk;
-	  	if(dspaces_wait_time > 1e-6) {
-		  	dspaces_wait_time += dspaces_wait_time + dspaces_overlap_time;
-	  	}
-	  	free(dspaces_put_req_list);
-	  }
-	  if(d == 0) {
-		io_buf = (float*) malloc(nout*nslvar*localsize*sizeof(float));
-	  } else {
-		io_buf = (float*) realloc(io_buf,nout*nslvar*localsize*sizeof(float));
-	  }
+	  // if(Run.use_dspaces_io && dspaces_put_req_list != NULL) {
+		// 	double dspaces_overlap_time = MPI_Wtime() - clk;
+    // 	clk = MPI_Wtime();
+	  // 	for(int i=0; i<nslvar; i++) {
+		//   	dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
+	  // 	}
+	  // 	double dspaces_wait_time = MPI_Wtime() - clk;
+	  // 	if(dspaces_wait_time > 1e-6) {
+		//   	dspaces_wait_time += dspaces_wait_time + dspaces_overlap_time;
+	  // 	}
+	  // 	free(dspaces_put_req_list);
+	  // }
+
+		// if(corona_ref_count > 0) {
+		// 	for(int j=0; j<nout; j++) {
+		// 		for(int i=0; i<nslvar; i++) {
+		// 			dspaces_check_put(ds_client, coronayz_dspaces_put_req_list[j][i], 1);
+		// 		}
+		// 	}
+		// }
+	
 	  // update io_buf values
-      for(v=0;v<nout*nslvar*localsize;v++)
-	io_buf[v] = (float) los_sum[v];
-      
+      // for(v=0;v<nout*nslvar*localsize;v++) {
+			// 	io_buf[v] = (float) los_sum[v];
+			// 	coronayz_buf[v] = (float) los_sum[v];
+			// }
       if (xcol_rank == iroot){
 	for (v=0;v<nout;v++){
+
+		if(Run.use_dspaces_io && corona_ref_count > corona_dspaces_bufnum-1) {
+			// int reqind = (corona_ref_count-1) % dspaces_bufnum;
+			clk = MPI_Wtime();
+			// slice_write_rebin() sometimes has all involved ranks write
+			// sometimes gather the data to the root rank
+			if(coronayz_dspaces_put_req_list[bufind][v] != NULL) {
+				std::cout<< "2D/CORONA YZ Check ... " << std::endl;
+				// for(int i=0; i<corona_nslvar_record; i++) {				
+					dspaces_check_put(ds_client, coronayz_dspaces_put_req_list[bufind][v][0], 1);
+				// }
+				// dspaces_check_put(ds_client, coronayz_dspaces_put_req_list[bufind][v][0], 1);
+				double dspaces_check_time = MPI_Wtime() - clk;
+				// if(dspaces_check_time > dspaces_check_overhead) {
+				// 	dspaces_wait_time += MPI_Wtime() - clk - dspaces_check_overhead;
+				// }
+				dspaces_wait_time += MPI_Wtime() - clk;
+				free(coronayz_dspaces_put_req_list[bufind][v]);
+			}
+		}
+
+		for(int i=0; i<nslvar*localsize; i++) {
+			io_buf[i+v*nslvar*localsize] = (float) los_sum[i+v*nslvar*localsize];
+		}
+
 	  if(yz_rank == 0) {
 	    if(v == 0)
 	      sprintf(filename,"%s%s.%06d",Run.path_2D,"corona_emission_adj_fil_x",Run.globiter);
@@ -307,7 +438,8 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 	
 	  //slice_write(Grid,0,&(io_buf[v*nslvar*localsize]),localsize,nslvar,d2,d3,fhandle);
 		clk = MPI_Wtime();
-	  slice_write_rebin(Grid,0,&(io_buf[v*nslvar*localsize]),localsize,nslvar,d2,d3,rebin[d2],rebin[d3],fhandle);
+	  slice_write_rebin(Grid,0,&(io_buf[v*nslvar*localsize]),localsize,nslvar,d2,d3,rebin[d2],rebin[d3],
+											fhandle, &file_pp_time, &file_api_time);
 	  file_time += MPI_Wtime() - clk;
 
 	  if(yz_rank == 0)
@@ -341,10 +473,20 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 	    	fwrite(header,sizeof(float),6,hfhandle);
 				fclose(hfhandle);
 			}
+			if(corona_ref_count == 0 || nslvar > corona_nslvar_max) {
+				uint64_t gdim[3];
+        		for(int i=0; i<2; i++) {
+          		gdim[i] = yzgsize[i];
+        		}
+				gdim[2] = nslvar;
+				dspaces_define_gdim(ds_client, filename, 3, gdim);
+			}
 			clk = MPI_Wtime();
-			dspaces_put_req_list = slice_write_rebin_dspaces(Grid, 0, &(io_buf[v*nslvar*localsize]),
-															 localsize, nslvar, d2, d3, rebin[d2],
-															 rebin[d3], filename, Run.globiter, 2);
+			coronayz_dspaces_put_req_list[bufind][v] = slice_write_rebin_ds2(Grid, 0,
+															&io_buf[v*nslvar*localsize],
+															localsize, nslvar, d2, d3, rebin[d2],
+															rebin[d3], filename, Run.globiter,
+															&dspaces_pp_time, &dspaces_api_time);
 			dspaces_time += MPI_Wtime() - clk;
 		}
 	}
@@ -374,29 +516,51 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
       }
 
 	  // check dspaces_iput() except for the first iter
-	  if(Run.use_dspaces_io && dspaces_put_req_list != NULL) {
-			double dspaces_overlap_time = MPI_Wtime() - clk;
-    	clk = MPI_Wtime();
-	  	for(int i=0; i<nslvar; i++) {
-		  	dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
-	  	}
-	  	double dspaces_wait_time = MPI_Wtime() - clk;
-	  	if(dspaces_wait_time > 1e-6) {
-		  	dspaces_wait_time += dspaces_wait_time + dspaces_overlap_time;
-	  	}
-	  	free(dspaces_put_req_list);
-	  }
-	  if(d == 0) {
-		io_buf = (float*) malloc(nout*nslvar*localsize*sizeof(float));
-	  } else {
-		io_buf = (float*) realloc(io_buf,nout*nslvar*localsize*sizeof(float));
-	  }
+	  // if(Run.use_dspaces_io && dspaces_put_req_list != NULL) {
+		// 	double dspaces_overlap_time = MPI_Wtime() - clk;
+    // 	clk = MPI_Wtime();
+	  // 	for(int i=0; i<nslvar; i++) {
+		//   	dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
+	  // 	}
+	  // 	double dspaces_wait_time = MPI_Wtime() - clk;
+	  // 	if(dspaces_wait_time > 1e-6) {
+		//   	dspaces_wait_time += dspaces_wait_time + dspaces_overlap_time;
+	  // 	}
+	  // 	free(dspaces_put_req_list);
+	  // }
+	  
 	  // update io_buf values
-      for(v=0;v<nout*nslvar*localsize;v++)
-	io_buf[v] = (float) los_sum[v];
+      // for(v=0;v<nout*nslvar*localsize;v++) {
+			// 	io_buf[v] = (float) los_sum[v];
+			// 	coronaxz_buf = (float) los_sum[v];
+			// }
       
       if (ycol_rank == iroot){
 	for (v=0;v<nout;v++){
+		if(Run.use_dspaces_io && corona_ref_count > corona_dspaces_bufnum-1) {
+			// int reqind = (corona_ref_count-1) % dspaces_bufnum;
+			clk = MPI_Wtime();
+			// slice_write_rebin() sometimes has all involved ranks write
+			// sometimes gather the data to the root rank
+			if(coronaxz_dspaces_put_req_list[bufind][v] != NULL) {
+				std::cout<< "2D/CORONA XZ Check ... bufind =  " << bufind << "v = " << v << std::endl;
+				// for(int i=0; i<corona_nslvar_record; i++) {
+					dspaces_check_put(ds_client, coronaxz_dspaces_put_req_list[bufind][v][0], 1);
+				// }
+				// dspaces_check_put(ds_client, coronaxz_dspaces_put_req_list[bufind][v][0], 1);
+				double dspaces_check_time = MPI_Wtime() - clk;
+				// if(dspaces_check_time > dspaces_check_overhead) {
+				// 	dspaces_wait_time += MPI_Wtime() - clk - dspaces_check_overhead;
+				// }
+				dspaces_wait_time += MPI_Wtime() - clk;
+				free(coronaxz_dspaces_put_req_list[bufind][v]);
+			}
+		}
+
+		for(int i=0; i<nslvar*localsize; i++) {
+			io_buf[i+v*nslvar*localsize] = (float) los_sum[i+v*nslvar*localsize];
+		}
+
 	  if(xz_rank == 0) {
 	    if(v == 0)
 	      sprintf(filename,"%s%s.%06d",Run.path_2D,"corona_emission_adj_fil_y",Run.globiter);
@@ -421,7 +585,8 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 	
 	  //slice_write(Grid,0,&(io_buf[v*nslvar*localsize]),localsize,nslvar,d2,d3,fhandle);
 		clk = MPI_Wtime();
-	  slice_write_rebin(Grid,0,&(io_buf[v*nslvar*localsize]),localsize,nslvar,d2,d3,rebin[d2],rebin[d3],fhandle);
+	  slice_write_rebin(Grid,0,&(io_buf[v*nslvar*localsize]),localsize,nslvar,d2,d3,rebin[d2],rebin[d3],
+											fhandle, &file_pp_time, &file_api_time);
 	  file_time += MPI_Wtime() - clk;
 
 	  if(xz_rank == 0)
@@ -455,10 +620,20 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 	    	fwrite(header,sizeof(float),6,hfhandle);
 				fclose(hfhandle);
 			}
+			if(corona_ref_count == 0 || nslvar > corona_nslvar_max) {
+				uint64_t gdim[3];
+        		for(int i=0; i<2; i++) {
+          			gdim[i] = xzgsize[i];
+        		}
+				gdim[2] = nslvar;
+				dspaces_define_gdim(ds_client, filename, 3, gdim);
+			}
 			clk = MPI_Wtime();
-			dspaces_put_req_list = slice_write_rebin_dspaces(Grid, 0, &(io_buf[v*nslvar*localsize]), 
-															 localsize, nslvar, d2, d3, rebin[d2],
-															 rebin[d3], filename, Run.globiter, 2);
+			coronaxz_dspaces_put_req_list[bufind][v] = slice_write_rebin_ds2(Grid, 0,
+																&io_buf[v*nslvar*localsize], 
+															 	localsize, nslvar, d2, d3, rebin[d2],
+															 	rebin[d3], filename, Run.globiter,
+																&dspaces_pp_time, &dspaces_api_time);
 			dspaces_time += MPI_Wtime() - clk;
 		}
 	}
@@ -470,7 +645,7 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
       }
     }
       
-    if(d1 == 2){    
+    if(d1 == 2){ 
       MPI_Reduce(los_sum_loc,los_sum,nout*nslvar*localsize,MPI_DOUBLE,MPI_SUM,iroot,
 		 ZCOL_COMM);
     
@@ -488,24 +663,49 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
       }
 
 	  // check dspaces_iput() except for the first iter
-	  if(Run.use_dspaces_io && dspaces_put_req_list != NULL) {
-			double dspaces_overlap_time = MPI_Wtime() - clk;
-    	clk = MPI_Wtime();
-	  	for(int i=0; i<nslvar; i++) {
-		  	dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
-	  	}
-	  	double dspaces_wait_time = MPI_Wtime() - clk;
-	  	if(dspaces_wait_time > 1e-6) {
-		  	dspaces_wait_time += dspaces_wait_time + dspaces_overlap_time;
-	  	}
-	  	free(dspaces_put_req_list);	
-	  }
+	  // if(Run.use_dspaces_io && dspaces_put_req_list != NULL) {
+		// 	double dspaces_overlap_time = MPI_Wtime() - clk;
+    // 	clk = MPI_Wtime();
+	  // 	for(int i=0; i<nslvar; i++) {
+		//   	dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
+	  // 	}
+	  // 	double dspaces_wait_time = MPI_Wtime() - clk;
+	  // 	if(dspaces_wait_time > 1e-6) {
+		//   	dspaces_wait_time += dspaces_wait_time + dspaces_overlap_time;
+	  // 	}
+	  // 	free(dspaces_put_req_list);	
+	  // }
 	  // update io_buf values
-      for(v=0;v<nout*nslvar*localsize;v++)
-	io_buf[v] = (float) los_sum[v];
+      // for(v=0;v<nout*nslvar*localsize;v++) {
+			// 	io_buf[v] = (float) los_sum[v];
+			// 	coronaxy_buf[v] = (float) los_sum[v];
+			// }
 
       if (zcol_rank == iroot){
 	for (v=0;v<nout;v++){
+		if(Run.use_dspaces_io && corona_ref_count > corona_dspaces_bufnum-1) {
+			// int reqind = (corona_ref_count-1) % dspaces_bufnum;
+			clk = MPI_Wtime();
+			// slice_write_rebin() sometimes has all involved ranks write
+			// sometimes gather the data to the root rank
+			if(coronaxy_dspaces_put_req_list[bufind][v] != NULL) {
+				std::cout<< "2D/CORONA XY Check ... " << std::endl;
+				// for(int i=0; i<corona_nslvar_record; i++) {
+					dspaces_check_put(ds_client, coronaxy_dspaces_put_req_list[bufind][v][0], 1);	
+				// }
+				// dspaces_check_put(ds_client, coronaxy_dspaces_put_req_list[bufind][v][0], 1);	
+				double dspaces_check_time = MPI_Wtime() - clk;
+				// if(dspaces_check_time > dspaces_check_overhead) {
+				// 	dspaces_wait_time += MPI_Wtime() - clk - dspaces_check_overhead;
+				// }
+				dspaces_wait_time += MPI_Wtime() - clk;
+				free(coronaxy_dspaces_put_req_list[bufind][v]);
+			}
+		}
+		for(int i=0; i<nslvar*localsize; i++) {
+			io_buf[i+v*nslvar*localsize] = (float) los_sum[i+v*nslvar*localsize];
+		}
+
 	  if(xy_rank == 0) {
 	    if(v == 0)
 	      sprintf(filename,"%s%s.%06d",Run.path_2D,"corona_emission_adj_fil_z",Run.globiter);
@@ -530,7 +730,8 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 	
 	  //slice_write(Grid,0,&(io_buf[v*nslvar*localsize]),localsize,nslvar,d2,d3,fhandle);
 		clk = MPI_Wtime();
-	  slice_write_rebin(Grid,0,&(io_buf[v*nslvar*localsize]),localsize,nslvar,d2,d3,rebin[d2],rebin[d3],fhandle);
+	  slice_write_rebin(Grid,0,&(io_buf[v*nslvar*localsize]),localsize,nslvar,d2,d3,rebin[d2],rebin[d3],
+											fhandle, &file_pp_time, &file_api_time);
 	  file_time += MPI_Wtime() - clk;
 
 	  if(xy_rank == 0)
@@ -564,10 +765,21 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 	    	fwrite(header,sizeof(float),6,hfhandle);
 				fclose(hfhandle);
 			}
+			if(corona_ref_count == 0 || nslvar > corona_nslvar_max) {
+				uint64_t gdim[3];
+        		for(int i=0; i<2; i++) {
+          		gdim[i] = xygsize[i];
+        		}
+				gdim[2] = nslvar;
+				char vname[128];
+				dspaces_define_gdim(ds_client, filename, 3, gdim);
+			}
 			clk = MPI_Wtime();
-			dspaces_put_req_list = slice_write_rebin_dspaces(Grid, 0, &(io_buf[v*nslvar*localsize]),
-															 localsize, nslvar, d2, d3, rebin[d2],
-															 rebin[d3], filename, Run.globiter, 2);
+			coronaxy_dspaces_put_req_list[bufind][v] = slice_write_rebin_ds2(Grid, 0,
+														&io_buf[v*nslvar*localsize],
+														localsize, nslvar, d2, d3, rebin[d2],
+														rebin[d3], filename, Run.globiter,
+														&dspaces_pp_time, &dspaces_api_time);
 			dspaces_time += MPI_Wtime() - clk;
 		}
 	}
@@ -578,21 +790,21 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 	}
       }
 	
-    }
+	}
     
     delete[] los_sum_loc;
     delete[] los_sum;
-    // delete[] io_buf;
+    delete[] io_buf;
   }
 
-  if(Run.use_dspaces_io && dspaces_put_req_list != NULL) {
-    for(int i=0; i<nslvar; i++) {
-      dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
-    }
-    dspaces_wait_time += MPI_Wtime() - clk;
-    free(dspaces_put_req_list);
-  }
-  free(io_buf);
+  // if(Run.use_dspaces_io && dspaces_put_req_list != NULL) {
+  //   for(int i=0; i<nslvar; i++) {
+  //     dspaces_check_put(ds_client, dspaces_put_req_list[i], 1);
+  //   }
+  //   dspaces_wait_time += MPI_Wtime() - clk;
+  //   free(dspaces_put_req_list);
+  // }
+  
 
   delete[] tlev;
 
@@ -600,26 +812,37 @@ void corona_emission_dem_xyz(const RunData&  Run, const GridData& Grid,
 		io_file_log->corona->iter[io_file_log->corona->count] = Run.globiter;
 		io_file_log->corona->api_time[io_file_log->corona->count] = file_time;
 		io_file_log->corona->time[io_file_log->corona->count] = file_time;
+		io_file_log->corona->pp_time[io_file_log->corona->count] = file_pp_time;
+		io_file_log->corona->pure_api_time[io_file_log->corona->count] = file_api_time;
 		io_file_log->corona->count++ ;
 		if(Run.use_dspaces_io) {
 			io_dspaces_log->corona->iter[io_dspaces_log->corona->count] = Run.globiter;
       io_dspaces_log->corona->api_time[io_dspaces_log->corona->count] = dspaces_time;
-      io_dspaces_log->corona->wait_time[io_dspaces_log->corona->count] = dspaces_wait_time;
-      io_dspaces_log->corona->time[io_dspaces_log->corona->count] = dspaces_time+dspaces_wait_time;
+			io_dspaces_log->corona->pp_time[io_dspaces_log->corona->count] = dspaces_pp_time;
+			io_dspaces_log->corona->pure_api_time[io_dspaces_log->corona->count] = dspaces_api_time;
+      if(io_dspaces_log->corona->count > corona_dspaces_bufnum-1) {
+  io_dspaces_log->corona->wait_time[io_dspaces_log->corona->count-corona_dspaces_bufnum] = dspaces_wait_time;
+  io_dspaces_log->corona->time[io_dspaces_log->corona->count-corona_dspaces_bufnum] = dspaces_wait_time
+                    + io_dspaces_log->corona->api_time[io_dspaces_log->corona->count-corona_dspaces_bufnum];
+      }
 			io_dspaces_log->corona->count++ ;
 		}
 		if(Run.verbose > 0) {
 	  	std::cout << "File Output (Corona_XYZ) in " << file_time << " seconds" << std::endl;
       if(Run.use_dspaces_io) {
-				std::cout << "DataSpaces API Call (Corona_XYZ) in " << dspaces_time
-									<< " seconds" << std::endl;
+			std::cout << "DataSpaces API Call (Corona_XYZ) in " << dspaces_api_time
+									<< " seconds" << " Bin: " << bufind << std::endl;
     		std::cout << "DataSpaces Wait (Corona_XYZ) in " << dspaces_wait_time
 									<< " seconds" << std::endl;
-    		std::cout << "DataSpaces Output (Corona_XYZ) in " << dspaces_time+dspaces_wait_time
-									<< " seconds" << std::endl;
+    		// std::cout << "DataSpaces Output (Corona_XYZ) in " << dspaces_time
+				// 					<< " seconds" << std::endl;
 			}
 		}
 	}
-
+	if(nslvar>corona_nslvar_max) {
+		corona_nslvar_max = nslvar;
+	}
+	corona_nslvar_record = nslvar;
+	corona_ref_count++;
 }
 
