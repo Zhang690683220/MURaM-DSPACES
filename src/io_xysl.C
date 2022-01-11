@@ -563,7 +563,7 @@ void log_summary_print(struct log *io_log) {
   if(io_rank == 0) {
     std::cout << "********" << io_log->name << " IO SUMMARY ********" << std::endl;
   }
-  if(xy_rank == 0) {
+  if(io_rank == 0) {
     if(io_log->eos != NULL)
       std::cout << "Total EOS IO in " << io_log->eos->total_time << std::endl;
     if(io_log->diag != NULL)
@@ -581,7 +581,7 @@ void log_summary_print(struct log *io_log) {
     if(io_log->corona != NULL)
       std::cout << "Total CORONA_EMISSION IO in " << io_log->corona->total_time << std::endl;
   }
-  if(yz_rank == 0 && xcol_rank == 0) {
+  if(io_rank == 0) {
     if(io_log->analyze_vp != NULL)
       std::cout << "Total ANALYZE_VP IO in " << io_log->analyze_vp->total_time << std::endl;
   }
@@ -770,28 +770,13 @@ void IO_Finalize() {
     }
       for(int j=0; j<eos_dspaces_bufnum; j++) {
         int reqind = (io_dspaces_log->eos->count+j) % eos_dspaces_bufnum;
-
-        if(io_rank ==0) {
-      std::cout<< "3D/EOS Finalize 1... bufnum = " << reqind << std::endl;
-    }
         clk = MPI_Wtime();
         for(int i=0; i<eos_nvar; i++) {
-          if(io_rank ==0) {
-      std::cout<< "3D/EOS Finalize 1.1... vidx = " << i << std::endl;
-    }
           dspaces_check_put(ds_client, eos_dspaces_put_req_list[reqind][i], 1);
         }
         dspaces_check_time = MPI_Wtime() - clk;
-        if(dspaces_check_time > eos_nvar*dspaces_check_overhead) {
-          wait_time += MPI_Wtime() - clk - eos_nvar*dspaces_check_overhead;
-        }
-        if(io_rank ==0) {
-      std::cout<< "3D/EOS Finalize 2... bufnum = " << j << std::endl;
-    }
+        wait_time += MPI_Wtime() - clk;
         free(eos_dspaces_put_req_list[reqind]);
-        if(io_rank ==0) {
-      std::cout<< "3D/EOS Finalize 3... bufnum = " << j << std::endl;
-    }
         free(eos_buf[reqind]);
         if(io_rank == 0) {
           io_dspaces_log->eos->wait_time[io_dspaces_log->eos->count-eos_dspaces_bufnum+j] = wait_time;
@@ -799,9 +784,6 @@ void IO_Finalize() {
                           + io_dspaces_log->eos->api_time[io_dspaces_log->eos->count-eos_dspaces_bufnum+j];
         }
       }
-      if(io_rank ==0) {
-      std::cout<< "3D/EOS Finalize 4 ..." << std::endl;
-    }
       free(eos_dspaces_put_req_list);
       free(eos_buf);
     }
@@ -820,9 +802,7 @@ void IO_Finalize() {
           dspaces_check_put(ds_client, diag_dspaces_put_req_list[reqind][i], 1);
         }
         dspaces_check_time = MPI_Wtime() - clk;
-        if(dspaces_check_time > diag_nvar*dspaces_check_overhead) {
-          wait_time += MPI_Wtime() - clk - diag_nvar*dspaces_check_overhead;
-        }
+        wait_time += MPI_Wtime() - clk;
         free(diag_dspaces_put_req_list[reqind]);
         free(diag_buf[reqind]);
         if(io_rank == 0) {
@@ -853,9 +833,7 @@ void IO_Finalize() {
             free(tauslice_dspaces_put_req_list[reqind][j]);
           }
           dspaces_check_time = MPI_Wtime() - clk;
-          if(dspaces_check_time > tauslice_nslvar*tauslice_nslice*dspaces_check_overhead) {
-            wait_time += MPI_Wtime() - clk - tauslice_nslvar*tauslice_nslice*dspaces_check_overhead;  
-          }
+          wait_time += MPI_Wtime() - clk;  
           free(tauslice_dspaces_put_req_list[reqind]);
         }
         if(wait_time > 1e-8 && xcol_rank == 0 && yz_rank == 0) {
@@ -895,9 +873,7 @@ void IO_Finalize() {
           }
         }
         dspaces_check_time = MPI_Wtime() - clk;
-        if(dspaces_check_time > yzslice_nslvar*yzslice_nslice*dspaces_check_overhead) {
-          wait_time += MPI_Wtime() - clk - yzslice_nslvar*yzslice_nslice*dspaces_check_overhead;
-        }
+        wait_time += MPI_Wtime() - clk;
         free(yzslice_dspaces_put_req_list[reqind]);
         if(io_rank == 0) {
           io_dspaces_log->yz->wait_time[io_dspaces_log->yz->count-yz_dspaces_bufnum+k] = wait_time;
@@ -935,9 +911,7 @@ void IO_Finalize() {
           }
         }
         dspaces_check_time = MPI_Wtime() - clk;
-        if(dspaces_check_time > xyslice_nslvar*xyslice_nslice*dspaces_check_overhead) {
-          wait_time += MPI_Wtime() - clk - xyslice_nslvar*xyslice_nslice*dspaces_check_overhead;
-        }
+        wait_time += MPI_Wtime() - clk;
         free(xyslice_dspaces_put_req_list[reqind]);
         if(io_rank == 0) {
           io_dspaces_log->xy->wait_time[io_dspaces_log->xy->count-xy_dspaces_bufnum+k] = wait_time;
@@ -975,9 +949,7 @@ void IO_Finalize() {
           }
         }
         dspaces_check_time = MPI_Wtime() - clk;
-        if(dspaces_check_time > xzslice_nslvar*xzslice_nslice*dspaces_check_overhead) {
-          wait_time += MPI_Wtime() - clk - xzslice_nslvar*xzslice_nslice*dspaces_check_overhead;
-        }
+        wait_time += MPI_Wtime() - clk;
         free(xzslice_dspaces_put_req_list[reqind]);
         if(io_rank == 0) {
           io_dspaces_log->xz->wait_time[io_dspaces_log->xz->count-xz_dspaces_bufnum+k] = wait_time;
@@ -1015,9 +987,7 @@ void IO_Finalize() {
             }
           }
           dspaces_check_time = MPI_Wtime() - clk;
-          if(dspaces_check_time > corona_nslvar_record*corona_nout*dspaces_check_overhead) {
-            wait_time += MPI_Wtime() - clk - corona_nslvar_record*corona_nout*dspaces_check_overhead;
-          }
+          wait_time += MPI_Wtime() - clk;
           free(coronaxz_dspaces_put_req_list[reqind]);
         }
         if(coronayz_dspaces_put_req_list[reqind] != NULL) {
@@ -1031,9 +1001,7 @@ void IO_Finalize() {
             }
           }
           dspaces_check_time = MPI_Wtime() - clk;
-          if(dspaces_check_time > corona_nslvar_record*corona_nout*dspaces_check_overhead) {
-            wait_time += MPI_Wtime() - clk - corona_nslvar_record*corona_nout*dspaces_check_overhead;
-          }
+          wait_time += MPI_Wtime() - clk;
           free(coronayz_dspaces_put_req_list[reqind]);
         }
         if(coronaxy_dspaces_put_req_list[reqind] != NULL) {
@@ -1047,9 +1015,7 @@ void IO_Finalize() {
             }
           }
           dspaces_check_time = MPI_Wtime() - clk;
-          if(dspaces_check_time > corona_nslvar_record*corona_nout*dspaces_check_overhead) {
-            wait_time += MPI_Wtime() - clk - corona_nslvar_record*corona_nout*dspaces_check_overhead;
-          }
+          wait_time += MPI_Wtime() - clk;
           free(coronaxy_dspaces_put_req_list[reqind]);
         }
         if(io_rank == 0) {
@@ -1073,10 +1039,6 @@ void IO_Finalize() {
       // free(coronayz_buf);
     }
     wait_time = 0.0;
-    
-    if(io_rank ==0) {
-      std::cout<< "1D/ANALYZE_VP Finalize..." << std::endl;
-    }
 
     // 1D/ANALYZE_VP at YZ_ROOT only
     if(io_dspaces_log->analyze_vp != NULL) {
@@ -1092,9 +1054,7 @@ void IO_Finalize() {
             dspaces_check_put(ds_client, analyzevp_dspaces_put_req_list[reqind][i], 1);
           }
           dspaces_check_time = MPI_Wtime() - clk;
-          if(dspaces_check_time > analyzevp_nvar*dspaces_check_overhead) {
-            wait_time += MPI_Wtime() - clk - analyzevp_nvar*dspaces_check_overhead;  
-          }
+          wait_time += MPI_Wtime() - clk;  
         }
         free(analyzevp_dspaces_put_req_list[reqind]);
         if(wait_time > 1e-8 && yz_rank == 0 && xcol_rank == 0) {
