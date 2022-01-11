@@ -563,7 +563,7 @@ void log_summary_print(struct log *io_log) {
   if(io_rank == 0) {
     std::cout << "********" << io_log->name << " IO SUMMARY ********" << std::endl;
   }
-  if(xy_rank == 0) {
+  if(io_rank == 0) {
     if(io_log->eos != NULL)
       std::cout << "Total EOS IO in " << io_log->eos->total_time << std::endl;
     if(io_log->diag != NULL)
@@ -581,7 +581,7 @@ void log_summary_print(struct log *io_log) {
     if(io_log->corona != NULL)
       std::cout << "Total CORONA_EMISSION IO in " << io_log->corona->total_time << std::endl;
   }
-  if(yz_rank == 0 && xcol_rank == 0) {
+  if(io_rank == 0) {
     if(io_log->analyze_vp != NULL)
       std::cout << "Total ANALYZE_VP IO in " << io_log->analyze_vp->total_time << std::endl;
   }
