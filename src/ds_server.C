@@ -814,13 +814,13 @@ int main(int argc, char **argv)
         {
         // 3D vars
         case EOS:
-            fprintf(stdout, "Write EOS...\n");
+            fprintf(stdout, "Write EOS: GlobalIter = %d, Meta Version = %d ...\n", mdata->globiter, mver);
             write_eos(s, Run, Grid, Physics, mdata->globiter, gcomm);
             fprintf(stdout, "Write EOS Done...\n");
             break;
         case DIAG:
             // use nslvar as DIAG_flag only for DIAG
-            fprintf(stdout, "Write DIAG...\n");
+            fprintf(stdout, "Write DIAG: GlobalIter = %d, Meta Version = %d ...\n", mdata->globiter, mver);
             write_diag(s, Run, Grid, Physics, mdata->globiter, gcomm, mdata->nslvar);
             fprintf(stdout, "Write DIAG Done...\n");
             break;
