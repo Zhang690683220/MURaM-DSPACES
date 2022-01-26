@@ -785,7 +785,7 @@ void IO_Finalize() {
         MPI_Barrier(io_comm);
         if(io_rank == 0) {
           // TODO: only works for 1 bin now
-          publish_meta(ds_client, eos_globiter_record, EOS, v_max);
+          publish_meta(ds_client, eos_globiter_record, EOS, 0);
         }
 
         if(io_rank == 0) {
