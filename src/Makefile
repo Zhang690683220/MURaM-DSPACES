@@ -79,7 +79,7 @@ all:
 	$(LD) -o $(PROGRAM) $(OBJS) $(LIBS) $(LDFLAGS)
 	$(MAKE) $(DSOBJS) $(HEADERS)
 	@echo "Linking $(DSSERVER) ..."
-	$(LD) -o $(DSSERVER) $(DSOBJS) $(LIBS)  $(LDFLAGS)
+	$(LD) -o $(DSSERVER) $(DSOBJS) $(LIBS) $(DSPACES_SERVER_LIB_DIR)  $(LDFLAGS)
 	@echo "done"
 
 clean:

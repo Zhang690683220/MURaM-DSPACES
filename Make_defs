@@ -57,6 +57,7 @@ MPIOLIB=
 DSPACES_HOME = 
 DSPACES_INC_DIR = $(shell pkg-config --cflags dspaces)
 DSPACES_LIB_DIR = $(shell pkg-config --libs dspaces)
+DSPACES_SERVER_LIB_DIR = $(shell pkg-config --libs dspaces-server)
 
 ######### General options ##############################
 #
