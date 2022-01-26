@@ -223,23 +223,17 @@ void write_eos(dspaces_provider_t server, const RunData& Run, const GridData& Gr
     sprintf(eos_names[12],"%s","QxCa");
     sprintf(eos_names[13],"%s","QxChr");
 
-    fprintf(stdout, "Write EOS... DEBUG1\n");
-
     for(int d=0; d<3; d++) {
         gsz[d] = Grid.gsize[d];
     }
-
-    fprintf(stdout, "Write EOS... DEBUG2\n");
 
     for(int v=0; v<tot_vars; v++) {
         var = var_index[v];
         sprintf(ds_var_name, "%s%s", Run.path_3D, eos_names[var]);
         sprintf(filename,"%s%s.%06d",Run.path_3D, eos_names[var], globiter);
 
-        fprintf(stdout, "Write EOS... DEBUG3\n");
         struct dspaces_data_obj *objs;
         int obj_num = dspaces_server_find_objs(server, ds_var_name, globiter, &objs);
-        fprintf(stdout, "Find %d Objs at Local\n", obj_num);
 
         MPI_File_open(comm, filename, MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &mfh);
 
@@ -254,31 +248,23 @@ void write_eos(dspaces_provider_t server, const RunData& Run, const GridData& Gr
                 str[d] = objs[i].lb[d];
                 vol = vol * lsz[d];
             }
-            fprintf(stdout, "Write EOS... DEBUG4\n");
             void* buffer = (void*) malloc(elem_size*vol);
             dspaces_server_get_objdata(server, &objs[i], buffer);
-            fprintf(stdout, "Write EOS... DEBUG5\n");
 
             MPI_Type_create_subarray(3, gsz, lsz, str, MPI_ORDER_FORTRAN, MPI_FLOAT, &io_subarray[i]);
             MPI_Type_commit(&io_subarray[i]);
 
-            fprintf(stdout, "Write EOS... DEBUG6\n");
-
 	        MPI_File_set_view(mfh, 0, MPI_FLOAT, io_subarray[i], (char *) "native", MPI_INFO_NULL);
 	        MPI_File_write(mfh, buffer, vol, MPI_FLOAT, MPI_STATUS_IGNORE);
-
-            fprintf(stdout, "Write EOS... DEBUG7\n");
 	        
             MPI_Type_free(&io_subarray[i]);
             free(buffer);
         }
 
-        fprintf(stdout, "Write EOS... DEBUG8\n");
 
         free(io_subarray);
         MPI_File_close(&mfh);
 
-        fprintf(stdout, "Write EOS... DEBUG9\n");
     }
 }
 
