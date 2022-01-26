@@ -1680,6 +1680,7 @@ void diag_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phy
     if(diag_ref_count > diag_dspaces_bufnum-1+1) {
       MPI_Barrier(io_comm);
       if(io_rank == 0) {
+        std::cout << "DIAG Put Finished, Globaliter =  " << diag_globiter_record << ". Sending Meta to DS_SERVER..." << std::endl;
         publish_meta(ds_client, diag_globiter_record, DIAG, diag_flag_record);
       }
     }
@@ -1973,6 +1974,7 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
     if(eos_ref_count > eos_dspaces_bufnum-1) {
       MPI_Barrier(io_comm);
       if(io_rank == 0) {
+        std::cout << "EOS Put Finished, Globaliter =  " << eos_globiter_record << ". Sending Meta to DS_SERVER..." << std::endl;
         publish_meta(ds_client, eos_globiter_record, EOS, v_max);
       }
     }

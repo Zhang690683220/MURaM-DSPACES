@@ -152,9 +152,9 @@ void Initialize(RunData& Run,GridData& Grid, PhysicsData& Physics, MPI_Comm gcom
 //   comm_split_init(Run,Grid);
 
   if(rank == 0) {
-    Run.Show();
-    Grid.Show();
-    Physics.Show();
+    // Run.Show();
+    // Grid.Show();
+    // Physics.Show();
   }
   
 }
@@ -812,11 +812,15 @@ int main(int argc, char **argv)
         {
         // 3D vars
         case EOS:
+            fprintf(stdout, "Write EOS...\n");
             write_eos(s, Run, Grid, Physics, mdata->globiter, gcomm);
+            fprintf(stdout, "Write EOS Done...\n");
             break;
         case DIAG:
             // use nslvar as DIAG_flag only for DIAG
+            fprintf(stdout, "Write DIAG...\n");
             write_diag(s, Run, Grid, Physics, mdata->globiter, gcomm, mdata->nslvar);
+            fprintf(stdout, "Write DIAG Done...\n");
             break;
         case SOLUTION:
             // write_solution(s, Run, Grid, Physics, mdata->globiter, gcomm, metadata->nslvar);
