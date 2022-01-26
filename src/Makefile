@@ -70,7 +70,7 @@ DSOBJS = ACCH.o \
        boundary_pdmp_1_fftw3.o \
        eos_init.o \
        cons_to_prim.o \
-       ds_data_reader.o
+       ds_server.o
 
 all:
 	@list='$(SUBDIRS)' ; for subdir in $$list ; do $(MAKE) all -C   $$subdir ; done
@@ -78,8 +78,8 @@ all:
 	@echo "Linking $(PROGRAM) ..."
 	$(LD) -o $(PROGRAM) $(OBJS) $(LIBS) $(LDFLAGS)
 	$(MAKE) $(DSOBJS) $(HEADERS)
-	@echo "Linking $(DSREADER) ..."
-	$(LD) -o $(DSREADER) $(DSOBJS) $(LIBS)  $(LDFLAGS)
+	@echo "Linking $(DSSERVER) ..."
+	$(LD) -o $(DSSERVER) $(DSOBJS) $(LIBS)  $(LDFLAGS)
 	@echo "done"
 
 clean:

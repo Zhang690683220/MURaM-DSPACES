@@ -63,11 +63,14 @@ enum io_group {XY_ROOT, XZ_ROOT, YZ_ROOT, XCOL_ROOT, YCOL_ROOT, ZCOL_ROOT, ALL_I
 
 // extern const int dspaces_bufnum = 2;
 // 3D/EOS_OUTPUT
+int eos_globiter_record = 0;
 int eos_dspaces_bufnum = 1;
 float **eos_buf = NULL;
 int eos_nvar;
 dspaces_put_req_t** eos_dspaces_put_req_list = NULL;
 // 3D/DIAG_OUTPUT
+int diag_flag_record = 0;
+int diag_globiter_record = 0;
 int diag_dspaces_bufnum = 1;
 float **diag_buf = NULL;
 int diag_nvar;
@@ -778,6 +781,13 @@ void IO_Finalize() {
         wait_time += MPI_Wtime() - clk;
         free(eos_dspaces_put_req_list[reqind]);
         free(eos_buf[reqind]);
+
+        MPI_Barrier(io_comm);
+        if(io_rank == 0) {
+          // TODO: only works for 1 bin now
+          publish_meta(ds_client, eos_globiter_record, EOS, v_max);
+        }
+
         if(io_rank == 0) {
           io_dspaces_log->eos->wait_time[io_dspaces_log->eos->count-eos_dspaces_bufnum+j] = wait_time;
           io_dspaces_log->eos->time[io_dspaces_log->eos->count-eos_dspaces_bufnum+j] = wait_time
@@ -805,6 +815,13 @@ void IO_Finalize() {
         wait_time += MPI_Wtime() - clk;
         free(diag_dspaces_put_req_list[reqind]);
         free(diag_buf[reqind]);
+
+        MPI_Barrier(io_comm);
+        if(io_rank == 0) {
+          // TODO: only works for 1 bin now
+          publish_meta(ds_client, diag_globiter_record, DIAG, diag_flag_record);
+        }
+
         if(io_rank == 0) {
           io_dspaces_log->diag->wait_time[io_dspaces_log->diag->count-diag_dspaces_bufnum+j] = wait_time;
           io_dspaces_log->diag->time[io_dspaces_log->diag->count-diag_dspaces_bufnum+j] = wait_time
@@ -1081,13 +1098,18 @@ void IO_Finalize() {
   // log_summary_print(io_file_log);
   // log_free(io_file_log);
   if(ds_io) {
+
     dspaces_log_output(io_dspaces_log, io_log_path);
     log_summary_print(io_dspaces_log);
     log_free(io_dspaces_log);
     free(lb);
     free(ub);
-    if(ds_terminate && io_rank == 0) {
-      dspaces_kill(ds_client);
+    if(io_rank == 0) {
+      // Send all finished signal to server
+      publish_meta(ds_client, STEP_DONE, EOS, 0);
+      if(ds_terminate) {
+        dspaces_kill(ds_client);
+      }
     }
     dspaces_fini(ds_client);
   } 
@@ -1653,6 +1675,18 @@ void diag_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phy
                                                            &diag_buf[bufind][vi*lsize], 0, 0, 0);
       dspaces_time += MPI_Wtime() - clk;
     }
+
+    // DIAG finish the checkput for previous call, send a signal to file writer
+    if(diag_ref_count > diag_dspaces_bufnum-1+1) {
+      MPI_Barrier(io_comm);
+      if(io_rank == 0) {
+        publish_meta(ds_client, diag_globiter_record, DIAG, diag_flag_record);
+      }
+    }
+
+    // TODO: only works for 1 bin now
+    diag_globiter_record = Run.globiter;
+    diag_flag_record = Physics.params[i_param_ambipolar] > 0.0 ? 1:0;
     // if(Run.iteration > 0){
     // dspaces_check_put(ds_client, dspaces_put_req, 1);
     // dspaces_wait_time += MPI_Wtime() - clk;
@@ -1685,8 +1719,6 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
 
   static int ini_flag = 1;
   static int eos_ref_count = 0;
-
-  
 
   char filename[128];
 
@@ -1936,6 +1968,17 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
                                                           &eos_buf[bufind][vi*lsize], 0, 0, 0);
       dspaces_time += MPI_Wtime() - clk;
     }
+
+    // EOS finish the checkput for previous call, send a signal to file writer
+    if(eos_ref_count > eos_dspaces_bufnum-1) {
+      MPI_Barrier(io_comm);
+      if(io_rank == 0) {
+        publish_meta(ds_client, eos_globiter_record, EOS, v_max);
+      }
+    }
+
+    // TODO: only works for 1 bin now
+    eos_globiter_record = Run.globiter;
 
     // dspaces_check_put(ds_client, dspaces_put_req, 1);
     // dspaces_wait_time += MPI_Wtime() - clk;

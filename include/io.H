@@ -2,6 +2,7 @@
 #include <vector>
 #include <list>
 #include "dspaces.h"
+#include "ds_common.H"
 
 class RunData;
 class GridData;

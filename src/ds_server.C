@@ -169,9 +169,8 @@ void write_eos(dspaces_provider_t server, const RunData& Run, const GridData& Gr
     int max_vars = 14;
   
     char eos_names[max_vars][128];
-    double* eos_vars[max_vars];
 
-    //Only write out variables that re allocated based on phyasics configuration
+    //Only write out variables that re allocated based on physics configuration
     int var_init[max_vars];
     for(var=0;var<max_vars;var++) {
         var_init[var] = 0;
@@ -201,9 +200,9 @@ void write_eos(dspaces_provider_t server, const RunData& Run, const GridData& Gr
     int var_index[max_vars];
 
     int tot_vars = 0;
-    for(var=0;var<max_vars;var++){
-        if((Run.eos_output[var] == 1) && (var_init[var] == 1)) {
-            var_index[tot_vars]=var;
+    for(int v=0; v<max_vars; v++){
+        if((Run.eos_output[v] == 1) && (var_init[v] == 1)) {
+            var_index[tot_vars]=v;
             tot_vars +=1;
         }
     }
@@ -233,8 +232,8 @@ void write_eos(dspaces_provider_t server, const RunData& Run, const GridData& Gr
         sprintf(ds_var_name, "%s%s", Run.path_3D, eos_names[var]);
         sprintf(filename,"%s%s.%06d",Run.path_3D, eos_names[var], globiter);
 
-        struct dspaces_data_obj **objs;
-        int obj_num = dspaces_server_find_objs(server, ds_var_name, globiter, objs);
+        struct dspaces_data_obj *objs;
+        int obj_num = dspaces_server_find_objs(server, ds_var_name, globiter, &objs);
 
         MPI_File_open(comm, filename, MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &mfh);
 
@@ -243,20 +242,20 @@ void write_eos(dspaces_provider_t server, const RunData& Run, const GridData& Gr
 
         for(int i=0; i<obj_num; i++) {
             uint64_t vol = 1;
-            int elem_size = (*objs+i)->size;
-            for(int d=0; d<(*objs+i)->ndim; d++) {
-                lsz[d] = (*objs+i)->ub[d] - (*objs+i)->lb[d] + 1;
-                str[d] = (*objs+i)->lb[d];
+            int elem_size = objs[i].size;
+            for(int d=0; d<objs[i].ndim; d++) {
+                lsz[d] = objs[i].ub[d] - objs[i].lb[d] + 1;
+                str[d] = objs[i].lb[d];
                 vol = vol * lsz[d];
             }
             void* buffer = (void*) malloc(elem_size*vol);
-            dspaces_server_get_objdata(server, (*objs+i), buffer);
+            dspaces_server_get_objdata(server, &objs[i], buffer);
 
             MPI_Type_create_subarray(3, gsz, lsz, str, MPI_ORDER_FORTRAN, MPI_FLOAT, &io_subarray[i]);
             MPI_Type_commit(&io_subarray[i]);
 
 	        MPI_File_set_view(mfh, 0, MPI_FLOAT, io_subarray[i], NULL, MPI_INFO_NULL);
-	        MPI_File_write_all(mfh, buffer, vol, MPI_FLOAT, MPI_STATUS_IGNORE);
+	        MPI_File_write(mfh, buffer, vol, MPI_FLOAT, MPI_STATUS_IGNORE);
 	        
             MPI_Type_free(&io_subarray[i]);
             free(buffer);
@@ -265,6 +264,474 @@ void write_eos(dspaces_provider_t server, const RunData& Run, const GridData& Gr
         free(io_subarray);
         MPI_File_close(&mfh);
     }
+}
+
+// Physics is redundant in arguments
+void write_diag(dspaces_provider_t server, const RunData& Run, const GridData& Grid,const PhysicsData& Physics, int globiter, MPI_Comm comm, int var_flag)
+{
+    char ds_var_name[128];
+    char filename[128];
+    int gsz[3], lsz[3], str[3];
+    int var;
+    MPI_File mfh;
+    int max_vars = 11;
+  
+    int var_index[max_vars];
+    char diag_names[max_vars][128];
+
+    // first 10 vars are determined  in param.dat
+    for(int v=0; v<max_vars-1; v++) {
+        if(Run.diag_output[v] == 1) {
+	        var_index[tot_vars]=v;
+	        tot_vars +=1;
+        }
+    }
+
+    // get var_flag from meta sent by MURaM
+    if(var_flag) {
+        var_index[tot_vars] = max_vars-1;
+        tot_vars +=1;
+    }
+
+    sprintf(diag_names[0],"%s","tvar1");
+    sprintf(diag_names[1],"%s","tvar2");
+    sprintf(diag_names[2],"%s","tvar3");
+    sprintf(diag_names[3],"%s","tvar4");
+    sprintf(diag_names[4],"%s","tvar5");
+    sprintf(diag_names[5],"%s","tvar6");
+    sprintf(diag_names[6],"%s","tvar7");
+    sprintf(diag_names[7],"%s","tvar8");
+    sprintf(diag_names[8],"%s","Qres");
+    sprintf(diag_names[9],"%s","Qvis");
+    sprintf(diag_names[10],"%s","Qamb");
+
+    for(int d=0; d<3; d++) {
+        gsz[d] = Gird.gsize[d];
+    }
+
+    for(int v=0; v<tot_vars; v++) {
+        var = var_index[v];
+        sprintf(ds_var_name, "%s%s", Run.path_3D, diag_names[var]);
+        sprintf(filename,"%s%s.%06d",Run.path_3D, diag_names[var], globiter);
+
+        struct dspaces_data_obj *objs;
+        int obj_num = dspaces_server_find_objs(server, ds_var_name, globiter, &objs);
+
+        MPI_File_open(comm, filename, MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &mfh);
+
+        MPI_Datatype *io_subarray = (MPI_Datatype*) malloc(obj_num*sizeof(*io_subarray));
+
+
+        for(int i=0; i<obj_num; i++) {
+            uint64_t vol = 1;
+            int elem_size = objs[i].size;
+            for(int d=0; d<objs[i].ndim; d++) {
+                lsz[d] = objs[i].ub[d] - objs[i].lb[d] + 1;
+                str[d] = objs[i].lb[d];
+                vol = vol * lsz[d];
+            }
+            void* buffer = (void*) malloc(elem_size*vol);
+            dspaces_server_get_objdata(server, &objs[i], buffer);
+
+            MPI_Type_create_subarray(3, gsz, lsz, str, MPI_ORDER_FORTRAN, MPI_FLOAT, &io_subarray[i]);
+            MPI_Type_commit(&io_subarray[i]);
+
+	        MPI_File_set_view(mfh, 0, MPI_FLOAT, io_subarray[i], NULL, MPI_INFO_NULL);
+	        MPI_File_write(mfh, buffer, vol, MPI_FLOAT, MPI_STATUS_IGNORE);
+	        
+            MPI_Type_free(&io_subarray[i]);
+            free(buffer);
+        }
+
+        free(io_subarray);
+        MPI_File_close(&mfh);
+    }
+
+}
+
+void write_tau_slice(dspaces_provider_t server, const RunData& Run, const GridData& Grid,const PhysicsData& Physics, int globiter, MPI_Comm comm)
+{
+    // char ds_var_name[128];
+    // char filename[128];
+    // int gsz[2], lsz[2], str[2];
+    // MPI_File mfh;
+
+    // int nslice;
+    // double* tau_lev;
+    // int nslvar = 0;
+
+    // nslice = Physics.slice[i_sl_tau];
+    // tau_lev = (double*) malloc(nslice*sizeof(double));
+    // for(int i=0; i<nslice; i++) {
+    //     tau_lev[i] = Physics.tau_lev[i];
+    // }
+
+    // for(int v=0; v<14; v++) {
+    //     if(Physics.tau_var[v] == 1) {
+    //         nslvar+=1;
+    //     }
+    // }
+
+    // gsz[0] = Grid.gsize[1];
+    // gsz[1] = Grid.gsize[2];
+
+    // for(int nsl=0; nsl<nslice; nsl++) {
+    //     for()
+    //     if(tau_lev[nsl] >= 1e-3) {
+    //         sprintf(ds_var_name, "%s%s_%.3f_%d", Run.path_2D, "tau_slice", tau_lev[nsl]);
+    //     } else {
+	// 	    sprintf(ds_var_name, "%s%s_%.6f_%d", Run.path_2D, "tau_slice", tau_lev[nsl]);
+    //     }
+        
+    //     // flag for whether collecting slices in different iters into 1 file
+    //     if(Physics.slice[i_sl_collect] == 0) {
+    //         if(tau_lev[nsl] >= 1e-3) {
+    //             sprintf(filename, "%s%s_%.3f.%06d", Run.path_2D, "tau_slice", tau_lev[nsl], globiter);
+    //         } else {
+	// 	        sprintf(filename, "%s%s_%.6f.%06d", Run.path_2D, "tau_slice", tau_lev[nsl], globiter);
+    //         }
+    //         MPI_File_open(comm, filename, MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &mfh);
+    //     } else {
+    //         sprintf(filename, "%s_%.3f.dat", "tau_slice", tau_lev[nsl]);
+    //         MPI_File_open(comm, filename, MPI_MODE_CREATE | MPI_MODE_APPEND, MPI_INFO_NULL, &mfh);
+    //     }
+
+    //     struct dspaces_data_obj *objs;
+    //     int obj_num = dspaces_server_find_objs(server, ds_var_name, globiter, &objs);
+
+    //     MPI_Datatype *io_subarray = (MPI_Datatype*) malloc(obj_num*sizeof(*io_subarray));
+
+    //     for(int i=0; i<obj_num; i++) {
+    //         uint64_t vol = 1;
+    //         int elem_size = objs[i].size;
+    //         for(int d=0; d<objs[i].ndim; d++) {
+    //             lsz[d] = objs[i].ub[d] - objs[i].lb[d] + 1;
+    //             str[d] = objs[i].lb[d];
+    //             vol = vol * lsz[d];
+    //         }
+    //         void* buffer = (void*) malloc(elem_size*vol);
+    //         dspaces_server_get_objdata(server, &objs[i], buffer);
+
+    //         MPI_Type_create_subarray(2, gsz, lsz, str, MPI_ORDER_FORTRAN, MPI_FLOAT, &io_subarray[i]);
+    //         MPI_Type_commit(&io_subarray[i]);
+
+    //         MPI_File_set_view(mfh, 0, MPI_FLOAT, io_subarray[i], NULL, MPI_INFO_NULL);
+	//         MPI_File_write(mfh, buffer, vol, MPI_FLOAT, MPI_STATUS_IGNORE);
+	        
+    //         MPI_Type_free(&io_subarray[i]);
+    //         free(buffer);
+    //     }
+
+    //     free(io_subarray);
+    //     MPI_File_close(&mfh);
+    // }
+
+}
+
+void write_yz_slice(dspaces_provider_t server, const RunData& Run, const GridData& Grid,const PhysicsData& Physics, int globiter, MPI_Comm comm)
+{
+    // char ds_var_name[128];
+    // char filename[128];
+    // int gsz[2], lsz[2], str[2];
+    // MPI_File mfh;
+
+    // int nslice;
+    // int *ixpos;
+    // int nslvar = 0;
+
+    // nslice = Physics.slice[i_sl_yz];
+    // ixpos = (int*) malloc(nslice*sizeof(int));
+    // for(int i=0; i<nslice; i++) {
+    //     ixpos[i] = Physics.yz_lev[i];
+    // }
+
+    // for(int v=0; v<13; v++) {
+    //     if(Physics.yz_var[v] == 1) {
+    //         nslvar+=1;
+    //     }
+    // }
+
+    // for(int nsl=0; nsl<nslice; nsl++) {
+    //     sprintf(ds_var_name, "%s%s_%04d", Run.path_2D,"yz_slice",ixpos[nsl]);
+    //     // flag for whether collecting slices in different iters into 1 file
+    //     if(Physics.slice[i_sl_collect] == 0) {
+    //         sprintf(filename, "%s%s_%04d.%06d", Run.path_2D, "yz_slice", ixpos[nsl], globiter);
+    //         MPI_File_open(comm, filename, MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &mfh);
+    //     } else {
+    //         sprintf(filename,"%s_%04d.dat","yz_slice",ixpos[nsl]);
+    //         MPI_File_open(comm, filename, MPI_MODE_CREATE | MPI_MODE_APPEND, MPI_INFO_NULL, &mfh);
+    //     }
+
+    //     struct dspaces_data_obj *objs;
+    //     int obj_num = dspaces_server_find_objs(server, ds_var_name, globiter, &objs);
+
+    //     MPI_Datatype *io_subarray = (MPI_Datatype*) malloc(obj_num*sizeof(*io_subarray));
+
+    //     for(int i=0; i<obj_num; i++) {
+    //         uint64_t vol = 1;
+    //         int elem_size = objs[i].size;
+    //         for(int d=0; d<objs[i].ndim; d++) {
+    //             lsz[d] = objs[i].ub[d] - objs[i].lb[d] + 1;
+    //             str[d] = objs[i].lb[d];
+    //             vol = vol * lsz[d];
+    //         }
+    //         void* buffer = (void*) malloc(elem_size*vol);
+    //         dspaces_server_get_objdata(server, &objs[i], buffer);
+
+    //         MPI_Type_create_subarray(2, gsz, lsz, str, MPI_ORDER_FORTRAN, MPI_FLOAT, &io_subarray[i]);
+    //         MPI_Type_commit(&io_subarray[i]);
+
+    //         MPI_File_set_view(mfh, 0, MPI_FLOAT, io_subarray[i], NULL, MPI_INFO_NULL);
+	//         MPI_File_write(mfh, buffer, vol, MPI_FLOAT, MPI_STATUS_IGNORE);
+	        
+    //         MPI_Type_free(&io_subarray[i]);
+    //         free(buffer);
+
+    //     }
+
+    //     free(io_subarray);
+    //     MPI_File_close(&mfh);
+    // }
+
+}
+
+void write_xy_slice(dspaces_provider_t server, const RunData& Run, const GridData& Grid,const PhysicsData& Physics, int globiter, MPI_Comm comm)
+{
+    // char ds_var_name[128];
+    // char filename[128];
+    // int gsz[2], lsz[2], str[2];
+    // MPI_File mfh;
+
+    // int nslice;
+    // int *ixpos;
+    // int nslvar = 0;
+
+    // nslice = Physics.slice[i_sl_xy];
+    // ixpos = (int*) malloc(nslice*sizeof(int));
+    // for(int i=0; i<nslice; i++) {
+    //     ixpos[i] = Physics.xy_lev[i];
+    // }
+
+    // for(int v=0; v<12; v++) {
+    //     if(Physics.xy_var[v] == 1) {
+    //         nslvar+=1;
+    //     }
+    // }
+
+    // for(int nsl=0; nsl<nslice; nsl++) {
+    //     sprintf(ds_var_name, "%s%s_%04d", Run.path_2D,"xy_slice",ixpos[nsl]);
+    //     // flag for whether collecting slices in different iters into 1 file
+    //     if(Physics.slice[i_sl_collect] == 0) {
+    //         sprintf(filename, "%s%s_%04d.%06d", Run.path_2D, "xy_slice",ixpos[nsl], globiter);
+    //         MPI_File_open(comm, filename, MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &mfh);
+    //     } else {
+    //         sprintf(filename,"%s_%04d.dat","xy_slice",ixpos[nsl]);
+    //         MPI_File_open(comm, filename, MPI_MODE_CREATE | MPI_MODE_APPEND, MPI_INFO_NULL, &mfh);
+    //     }
+
+    //     struct dspaces_data_obj *objs;
+    //     int obj_num = dspaces_server_find_objs(server, ds_var_name, globiter, &objs);
+
+    //     MPI_Datatype *io_subarray = (MPI_Datatype*) malloc(obj_num*sizeof(*io_subarray));
+
+    //     for(int i=0; i<obj_num; i++) {
+    //         uint64_t vol = 1;
+    //         int elem_size = objs[i].size;
+    //         for(int d=0; d<objs[i].ndim; d++) {
+    //             lsz[d] = objs[i].ub[d] - objs[i].lb[d] + 1;
+    //             str[d] = objs[i].lb[d];
+    //             vol = vol * lsz[d];
+    //         }
+    //         void* buffer = (void*) malloc(elem_size*vol);
+    //         dspaces_server_get_objdata(server, &objs[i], buffer);
+
+    //         MPI_Type_create_subarray(2, gsz, lsz, str, MPI_ORDER_FORTRAN, MPI_FLOAT, &io_subarray[i]);
+    //         MPI_Type_commit(&io_subarray[i]);
+
+    //         MPI_File_set_view(mfh, 0, MPI_FLOAT, io_subarray[i], NULL, MPI_INFO_NULL);
+	//         MPI_File_write(mfh, buffer, vol, MPI_FLOAT, MPI_STATUS_IGNORE);
+	        
+    //         MPI_Type_free(&io_subarray[i]);
+    //         free(buffer);
+
+    //     }
+
+    //     free(io_subarray);
+    //     MPI_File_close(&mfh);
+    // }
+
+}
+
+void write_xz_slice(dspaces_provider_t server, const RunData& Run, const GridData& Grid,const PhysicsData& Physics, int globiter, MPI_Comm comm)
+{
+    // char ds_var_name[128];
+    // char filename[128];
+    // int gsz[2], lsz[2], str[2];
+    // MPI_File mfh;
+
+    // int nslice;
+    // int *ixpos;
+    // int nslvar = 0;
+
+    // nslice = Physics.slice[i_sl_xz];
+    // ixpos = (int*) malloc(nslice*sizeof(int));
+    // for(int i=0; i<nslice; i++) {
+    //     ixpos[i] = Physics.xz_lev[i];
+    // }
+
+    // for(int v=0; v<12; v++) {
+    //     if(Physics.xz_var[v] == 1) {
+    //         nslvar+=1;
+    //     }
+    // }
+
+    // for(int nsl=0; nsl<nslice; nsl++) {
+    //     // TODO: add nslvar to ds_var_name
+    //     sprintf(ds_var_name, "%s%s_%04d", Run.path_2D,"xz_slice",ixpos[nsl]);
+    //     // flag for whether collecting slices in different iters into 1 file
+    //     if(Physics.slice[i_sl_collect] == 0) {
+    //         sprintf(filename, "%s%s_%04d.%06d", Run.path_2D, "xz_slice", ixpos[nsl], globiter);
+    //         MPI_File_open(comm, filename, MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &mfh);
+    //     } else {
+    //         sprintf(filename,"%s_%04d.dat","xz_slice",ixpos[nsl]);
+    //         MPI_File_open(comm, filename, MPI_MODE_CREATE | MPI_MODE_APPEND, MPI_INFO_NULL, &mfh);
+    //     }
+
+    //     struct dspaces_data_obj *objs;
+    //     int obj_num = dspaces_server_find_objs(server, ds_var_name, globiter, &objs);
+
+    //     MPI_Datatype *io_subarray = (MPI_Datatype*) malloc(obj_num*sizeof(*io_subarray));
+
+    //     for(int i=0; i<obj_num; i++) {
+    //         uint64_t vol = 1;
+    //         int elem_size = objs[i].size;
+    //         for(int d=0; d<objs[i].ndim; d++) {
+    //             lsz[d] = objs[i].ub[d] - objs[i].lb[d] + 1;
+    //             str[d] = objs[i].lb[d];
+    //             vol = vol * lsz[d];
+    //         }
+    //         void* buffer = (void*) malloc(elem_size*vol);
+    //         dspaces_server_get_objdata(server, &objs[i], buffer);
+
+    //         MPI_Type_create_subarray(2, gsz, lsz, str, MPI_ORDER_FORTRAN, MPI_FLOAT, &io_subarray[i]);
+    //         MPI_Type_commit(&io_subarray[i]);
+
+    //         MPI_File_set_view(mfh, 0, MPI_FLOAT, io_subarray[i], NULL, MPI_INFO_NULL);
+	//         MPI_File_write(mfh, buffer, vol, MPI_FLOAT, MPI_STATUS_IGNORE);
+	        
+    //         MPI_Type_free(&io_subarray[i]);
+    //         free(buffer);
+
+    //     }
+
+    //     free(io_subarray);
+    //     MPI_File_close(&mfh);
+    // }
+}
+
+void write_corona(dspaces_provider_t server, const RunData& Run, const GridData& Grid, int globiter, MPI_Comm comm)
+{
+    // char ds_var_name[128];
+    // char filename[128];
+    // const int nout = 4;
+    // // YZ Slice
+
+    // for(int v=0; v<nout; v++) {
+    //     if(v == 0) {
+	//         sprintf(ds_var_name, "%s%s", Run.path_2D, "corona_emission_adj_fil_x");
+    //         sprintf(filename, "%s%s.%06d",Run.path_2D, "corona_emission_adj_fil_x", globiter);
+    //     }
+	//     if(v == 1) {
+	//         sprintf(ds_var_name, "%s%s", Run.path_2D, "corona_emission_adj_dem_x");
+    //         sprintf(filename, "%s%s.%06d", Run.path_2D, "corona_emission_adj_dem_x", globiter);
+    //     }
+	//     if(v == 2) {
+	//         sprintf(ds_var_name, "%s%s",Run.path_2D, "corona_emission_adj_vlos_x");
+    //         sprintf(filename, "%s%s.%06d", Run.path_2D, "corona_emission_adj_vlos_x", globiter);
+    //     }
+	//     if(v == 3) {
+	//       sprintf(ds_var_name, "%s%s", Run.path_2D, "corona_emission_adj_vrms_x");
+    //       sprintf(filename, "%s%s.%06d", Run.path_2D, "corona_emission_adj_vrms_x", globiter);
+    //     }
+    //     MPI_File_open(comm, filename, MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &mfh);
+
+    //     struct dspaces_data_obj *objs;
+    //     int obj_num = dspaces_server_find_objs(server, ds_var_name, globiter, &objs);
+
+    //     MPI_Datatype *io_subarray = (MPI_Datatype*) malloc(obj_num*sizeof(*io_subarray));
+
+    //     for(int i=0; i<obj_num; i++) {
+    //         uint64_t vol = 1;
+    //         int elem_size = objs[i].size;
+    //         for(int d=0; d<objs[i].ndim; d++) {
+    //             lsz[d] = objs[i].ub[d] - objs[i].lb[d] + 1;
+    //             str[d] = objs[i].lb[d];
+    //             vol = vol * lsz[d];
+    //         }
+    //         void* buffer = (void*) malloc(elem_size*vol);
+
+    //         dspaces_server_get_objdata(server, &objs[i], buffer);
+
+    //         // TODO: aggregate put should be reorganized
+
+    //         MPI_Type_create_subarray(2, gsz, lsz, str, MPI_ORDER_FORTRAN, MPI_FLOAT, &io_subarray[i]);
+    //         MPI_Type_commit(&io_subarray[i]);
+
+    //         MPI_File_set_view(mfh, 0, MPI_FLOAT, io_subarray[i], NULL, MPI_INFO_NULL);
+	//         MPI_File_write(mfh, buffer, vol, MPI_FLOAT, MPI_STATUS_IGNORE);
+	        
+    //         MPI_Type_free(&io_subarray[i]);
+    //         free(buffer);
+    //     }
+
+    //     free(io_subarray);
+    //     MPI_File_close(&mfh);
+    // }
+
+}
+
+void write_analyze_vp(dspaces_provider_t server, const RunData& Run, const GridData& Grid, int globiter, MPI_Comm comm)
+{
+    // char ds_var_name[128];
+    // char filename[128];
+    // static int nvar = 50;
+
+    // for(int v=0; v<nvar; v++) {
+    //     sprintf(ds_var_name, "%s%s_%d", Run.path_2D, "hmean1D", v);
+    //     sprintf(filename, "%s%s.%06d", Run.path_2D, "hmean1D", globiter);
+
+    //     MPI_File_open(comm, filename, MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &mfh);
+
+    //     // TODO: need a header
+
+    //     struct dspaces_data_obj *objs;
+    //     int obj_num = dspaces_server_find_objs(server, ds_var_name, globiter, &objs);
+
+    //     MPI_Datatype *io_subarray = (MPI_Datatype*) malloc(obj_num*sizeof(*io_subarray));
+
+    //     for(int i=0; i<obj_num; i++) {
+    //         uint64_t vol = 1;
+    //         int elem_size = objs[i].size;
+    //         for(int d=0; d<objs[i].ndim; d++) {
+    //             lsz[d] = objs[i].ub[d] - objs[i].lb[d] + 1;
+    //             str[d] = objs[i].lb[d];
+    //             vol = vol * lsz[d];
+    //         }
+    //         void* buffer = (void*) malloc(elem_size*vol);
+
+    //         dspaces_server_get_objdata(server, &objs[i], buffer);
+    //         MPI_Type_create_subarray(1, gsz, lsz, str, MPI_ORDER_FORTRAN, MPI_FLOAT, &io_subarray[i]);
+    //         MPI_Type_commit(&io_subarray[i]);
+
+    //         MPI_File_set_view(mfh, 4*sizeof(float), MPI_FLOAT, io_subarray[i], NULL, MPI_INFO_NULL);
+    //         MPI_File_write(mfh, buffer, vol, MPI_FLOAT, MPI_STATUS_IGNORE);
+
+    //         MPI_Type_free(&io_subarray[i]);
+    //         free(buffer);
+    //     }
+    //     free(io_subarray);
+    //     MPI_File_close(&mfh);
+    // }
 }
 
 int main(int argc, char **argv)
@@ -340,41 +807,80 @@ int main(int argc, char **argv)
             break;
         }
 
-        if(mdata->f_anl) {
-            // Nothing writes at anlfreq yet.
+        switch (mdata->var)
+        {
+        // 3D vars
+        case EOS:
+            write_eos(s, Run, Grid, Physics, mdata->globiter, gcomm);
+            break;
+        case DIAG:
+            // use nslvar as DIAG_flag only for DIAG
+            write_diag(s, Run, Grid, Physics, mdata->globiter, gcomm, metadata->nslvar);
+            break;
+        case SOLUTION:
+            // write_solution(s, Run, Grid, Physics, mdata->globiter, gcomm, metadata->nslvar);
+            break;
+        // 2D vars
+        case TAU_SLICE:
+            // write_tau_slice(s, Run, Grid, mdata->globiter, gcomm);
+            break;
+        case YZ_SLICE:
+            // write_yz_slice(s, Run, Grid, mdata->globiter, gcomm);
+            break;
+        case XY_SLICE:
+            // write_xy_slice(s, Run, Grid, mdata->globiter, gcomm);
+            break;
+        case XZ_SLICE:
+            // write_xz_slice(s, Run, Grid, mdata->globiter, gcomm);
+            break;
+        case CORONA:
+            // write_corona(s, Run, Grid, mdata->globiter, gcomm);
+            break;
+        // 1D vars
+        case ANALYZE_VP:
+            // write_analyze_vp(s, Grid, Run, mdata->globiter, gcomm);
+            break;
+        default:
+            break;
         }
-        if(mdata->f_res) {
-            // TODO: need to wait the entire EOS domain to finish then start
-            write_eos(Run, Grid, Physics, mdata->globiter, gcomm);
-            write_diag(Run, Grid, Physics, mdata->globiter, gcomm);
-        }
-        if(mdata->f_slice) {
-            if(Grid.NDIM > 1) {
-               if(Physics.slice[i_sl_tau] > 0) {
-                   write_tau_slice(Run, Grid, mdata->globiter, gcomm);
-               }
-               if(Physics.slice[i_sl_yz] > 0) {
-                   write_yz_slice(Run, Grid, mdata->globiter, gcomm);
-               }
-            }
-            if(Grid.NDIM == 3) {
-                if(Physics.slice[i_sl_xy] > 0) {
-                    write_yz_slice(Run, Grid, mdata->globiter, gcomm);
-                }
-                if(Physics.slice[i_sl_xz] > 0) {
-                    write_xz_slice(Run, Grid, mdata->globiter, gcomm);
-                }
-            }
-            if(Run.DEM){
-                write_corona(Run, Grid, mdata->globiter, gcomm);
-            }
-            if(mdata->globiter > 0 && Run.HAVG) {
-                write_analyze_vp(s, Grid, Run, mdata->globiter, gcomm);
-            }
-        }
-        if(mdata->f_back) {
-            write_solution(Run, Grid, mdata->globiter, gcomm);
-        }
+
+        // if(mdata->f_anl) {
+        //     // Nothing writes at anlfreq yet.
+        // }
+        // if(mdata->f_res) {
+        //     // TODO: need to wait the entire EOS domain to finish then start
+        //     write_eos(s, Run, Grid, Physics, mdata->globiter, gcomm);
+        //     // MURaM configures the proper diag var nums after 1st iter, so here we need to get metadata instead of reading param.dat
+        //     // TODO: get tot_vars and var_index from get_meta()
+        //     write_diag(s, Run, Grid, Physics, mdata->globiter, gcomm, var_flag);
+        // }
+        // if(mdata->f_slice) {
+        //     if(Grid.NDIM > 1) {
+        //        if(Physics.slice[i_sl_tau] > 0) {
+        //            write_tau_slice(s, Run, Grid, mdata->globiter, gcomm);
+        //        }
+        //        if(Physics.slice[i_sl_yz] > 0) {
+        //            write_yz_slice(s, Run, Grid, mdata->globiter, gcomm);
+        //        }
+        //     }
+        //     if(Grid.NDIM == 3) {
+        //         if(Physics.slice[i_sl_xy] > 0) {
+        //             write_xy_slice(s, Run, Grid, mdata->globiter, gcomm);
+        //         }
+        //         if(Physics.slice[i_sl_xz] > 0) {
+        //             write_xz_slice(s, Run, Grid, mdata->globiter, gcomm);
+        //         }
+        //     }
+        //     if(Run.DEM){
+        //         write_corona(s, Run, Grid, mdata->globiter, gcomm);
+        //     }
+        //     if(mdata->globiter > 0 && Run.HAVG) {
+        //         write_analyze_vp(s, Grid, Run, mdata->globiter, gcomm);
+        //     }
+        // }
+        // if(mdata->f_back) {
+        //     write_solution(Run, Grid, mdata->globiter, gcomm);
+        // }
     } while(1);
 
     MPI_Barrier(gcomm);
