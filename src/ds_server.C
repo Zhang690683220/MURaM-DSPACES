@@ -851,6 +851,8 @@ int main(int argc, char **argv)
             break;
         }
 
+        mverlast = mver;
+
         // if(mdata->f_anl) {
         //     // Nothing writes at anlfreq yet.
         // }
