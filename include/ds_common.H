@@ -34,7 +34,7 @@ inline void publish_meta(dspaces_client_t dsp, int globiter, enum muram_var var,
     mdata.var = var;
     mdata.nslvar = nslvar;
 
-    dspaces_put_meta(dsp, "muram_meta", int version, &mdata, sizeof(mdata));
+    dspaces_put_meta(dsp, "muram_meta", ver, &mdata, sizeof(mdata));
 
     ver++;
 }
