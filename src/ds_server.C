@@ -826,7 +826,7 @@ int main(int argc, char **argv)
         if(rank == 0) {
             clk = MPI_Wtime();
             dspaces_get_meta(dsp, "muram_meta", META_MODE_NEXT, mverlast, &mver, (void **)&mdata, &mdatalen);
-            fprintf(stdout, "Time of dspaces_get_meta = %lf, Meta Version = %d.\n", MPI_Wtime()-clk, mver)
+            fprintf(stdout, "Time of dspaces_get_meta = %lf, Meta Version = %d.\n", MPI_Wtime()-clk, mver);
             if(mdatalen != sizeof(*mdata)) {
                 fprintf(stderr, "ERROR: corrupt metadata of size %d\n", mdatalen);
                 free(mdata);
