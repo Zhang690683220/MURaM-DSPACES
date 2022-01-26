@@ -224,7 +224,7 @@ void write_eos(dspaces_provider_t server, const RunData& Run, const GridData& Gr
     sprintf(eos_names[13],"%s","QxChr");
 
     for(int d=0; d<3; d++) {
-        gsz[d] = Gird.gsize[d];
+        gsz[d] = Grid.gsize[d];
     }
 
     for(int v=0; v<tot_vars; v++) {
@@ -279,6 +279,7 @@ void write_diag(dspaces_provider_t server, const RunData& Run, const GridData& G
     int var_index[max_vars];
     char diag_names[max_vars][128];
 
+    int tot_vars = 0;
     // first 10 vars are determined  in param.dat
     for(int v=0; v<max_vars-1; v++) {
         if(Run.diag_output[v] == 1) {
@@ -306,7 +307,7 @@ void write_diag(dspaces_provider_t server, const RunData& Run, const GridData& G
     sprintf(diag_names[10],"%s","Qamb");
 
     for(int d=0; d<3; d++) {
-        gsz[d] = Gird.gsize[d];
+        gsz[d] = Grid.gsize[d];
     }
 
     for(int v=0; v<tot_vars; v++) {
@@ -815,7 +816,7 @@ int main(int argc, char **argv)
             break;
         case DIAG:
             // use nslvar as DIAG_flag only for DIAG
-            write_diag(s, Run, Grid, Physics, mdata->globiter, gcomm, metadata->nslvar);
+            write_diag(s, Run, Grid, Physics, mdata->globiter, gcomm, mdata->nslvar);
             break;
         case SOLUTION:
             // write_solution(s, Run, Grid, Physics, mdata->globiter, gcomm, metadata->nslvar);
