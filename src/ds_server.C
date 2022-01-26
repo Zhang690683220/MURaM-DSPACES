@@ -161,10 +161,12 @@ void Initialize(RunData& Run,GridData& Grid, PhysicsData& Physics, MPI_Comm gcom
 
 void write_eos(dspaces_provider_t server, const RunData& Run, const GridData& Grid,const PhysicsData& Physics, int globiter, MPI_Comm comm)
 {
+    double clk, time_find_objs = 0, time_get_objs = 0, time_mpi_file = 0;
     char ds_var_name[128];
     char filename[128];
     int gsz[3], lsz[3], str[3];
     int var;
+    int io_rank;
     MPI_File mfh;
     int max_vars = 14;
   
@@ -233,7 +235,9 @@ void write_eos(dspaces_provider_t server, const RunData& Run, const GridData& Gr
         sprintf(filename,"%s%s.%06d",Run.path_3D, eos_names[var], globiter);
 
         struct dspaces_data_obj *objs;
+        clk = MPI_Wtime();
         int obj_num = dspaces_server_find_objs(server, ds_var_name, globiter, &objs);
+        time_find_objs += MPI_Wtime() - clk;
 
         MPI_File_open(comm, filename, MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &mfh);
 
@@ -249,8 +253,12 @@ void write_eos(dspaces_provider_t server, const RunData& Run, const GridData& Gr
                 vol = vol * lsz[d];
             }
             void* buffer = (void*) malloc(elem_size*vol);
-            dspaces_server_get_objdata(server, &objs[i], buffer);
 
+            clk = MPI_Wtime();
+            dspaces_server_get_objdata(server, &objs[i], buffer);
+            time_get_objs += MPI_Wtime() - clk;
+
+            clk = MPI_Wtime();
             MPI_Type_create_subarray(3, gsz, lsz, str, MPI_ORDER_FORTRAN, MPI_FLOAT, &io_subarray[i]);
             MPI_Type_commit(&io_subarray[i]);
 
@@ -258,6 +266,7 @@ void write_eos(dspaces_provider_t server, const RunData& Run, const GridData& Gr
 	        MPI_File_write(mfh, buffer, vol, MPI_FLOAT, MPI_STATUS_IGNORE);
 	        
             MPI_Type_free(&io_subarray[i]);
+            time_mpi_file += MPI_Wtime() - clk;
             free(buffer);
         }
 
@@ -266,15 +275,23 @@ void write_eos(dspaces_provider_t server, const RunData& Run, const GridData& Gr
         MPI_File_close(&mfh);
 
     }
+
+    MPI_Comm_rank(comm, &io_rank);
+    if(io_rank == 0) {
+        fprintf(stdout, "Time of find_objs() = %lf, Time of get_objs() = %lf, Time of MPI_File_write() = %lf.\n",
+                time_find_objs, time_get_objs, time_mpi_file);
+    }
 }
 
 // Physics is redundant in arguments
 void write_diag(dspaces_provider_t server, const RunData& Run, const GridData& Grid,const PhysicsData& Physics, int globiter, MPI_Comm comm, int var_flag)
 {
+    double clk, time_find_objs = 0, time_get_objs = 0, time_mpi_file = 0;
     char ds_var_name[128];
     char filename[128];
     int gsz[3], lsz[3], str[3];
     int var;
+    int io_rank;
     MPI_File mfh;
     int max_vars = 11;
   
@@ -318,7 +335,9 @@ void write_diag(dspaces_provider_t server, const RunData& Run, const GridData& G
         sprintf(filename,"%s%s.%06d",Run.path_3D, diag_names[var], globiter);
 
         struct dspaces_data_obj *objs;
+        clk = MPI_Wtime();
         int obj_num = dspaces_server_find_objs(server, ds_var_name, globiter, &objs);
+        time_find_objs += MPI_Wtime() - clk;
 
         MPI_File_open(comm, filename, MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &mfh);
 
@@ -334,8 +353,12 @@ void write_diag(dspaces_provider_t server, const RunData& Run, const GridData& G
                 vol = vol * lsz[d];
             }
             void* buffer = (void*) malloc(elem_size*vol);
-            dspaces_server_get_objdata(server, &objs[i], buffer);
 
+            clk = MPI_Wtime();
+            dspaces_server_get_objdata(server, &objs[i], buffer);
+            time_get_objs += MPI_Wtime() - clk;
+
+            clk = MPI_Wtime();
             MPI_Type_create_subarray(3, gsz, lsz, str, MPI_ORDER_FORTRAN, MPI_FLOAT, &io_subarray[i]);
             MPI_Type_commit(&io_subarray[i]);
 
@@ -343,11 +366,18 @@ void write_diag(dspaces_provider_t server, const RunData& Run, const GridData& G
 	        MPI_File_write(mfh, buffer, vol, MPI_FLOAT, MPI_STATUS_IGNORE);
 	        
             MPI_Type_free(&io_subarray[i]);
+            time_mpi_file += MPI_Wtime() - clk;
             free(buffer);
         }
 
         free(io_subarray);
         MPI_File_close(&mfh);
+    }
+
+    MPI_Comm_rank(comm, &io_rank);
+    if(io_rank == 0) {
+        fprintf(stdout, "Time of find_objs() = %lf, Time of get_objs() = %lf, Time of MPI_File_write() = %lf.\n",
+                time_find_objs, time_get_objs, time_mpi_file);
     }
 
 }
@@ -751,6 +781,7 @@ int main(int argc, char **argv)
     GridData Grid;
     PhysicsData Physics;
     int ret;
+    double clk;
 
     if(argc < 2 || argc > 3) {
         fprintf(stderr, "Usage: %s <listen-address> [<conffile>]\n", argv[0]);
@@ -793,7 +824,9 @@ int main(int argc, char **argv)
     do {
         
         if(rank == 0) {
+            clk = MPI_Wtime();
             dspaces_get_meta(dsp, "muram_meta", META_MODE_NEXT, mverlast, &mver, (void **)&mdata, &mdatalen);
+            fprintf(stdout, "Time of dspaces_get_meta = %lf, Meta Version = %d.\n", MPI_Wtime()-clk, mver)
             if(mdatalen != sizeof(*mdata)) {
                 fprintf(stderr, "ERROR: corrupt metadata of size %d\n", mdatalen);
                 free(mdata);
@@ -814,15 +847,23 @@ int main(int argc, char **argv)
         {
         // 3D vars
         case EOS:
-            fprintf(stdout, "Write EOS: GlobalIter = %d, Meta Version = %d ...\n", mdata->globiter, mver);
+            if(rank == 0) {
+                fprintf(stdout, "Write EOS: GlobalIter = %d, Meta Version = %d ...\n", mdata->globiter, mver);
+            }
             write_eos(s, Run, Grid, Physics, mdata->globiter, gcomm);
-            fprintf(stdout, "Write EOS Done...\n");
+            if(rank == 0) {
+                fprintf(stdout, "Write EOS Done...\n");
+            }
             break;
         case DIAG:
             // use nslvar as DIAG_flag only for DIAG
-            fprintf(stdout, "Write DIAG: GlobalIter = %d, Meta Version = %d ...\n", mdata->globiter, mver);
+            if(rank == 0) {
+                fprintf(stdout, "Write DIAG: GlobalIter = %d, Meta Version = %d ...\n", mdata->globiter, mver);
+            }
             write_diag(s, Run, Grid, Physics, mdata->globiter, gcomm, mdata->nslvar);
-            fprintf(stdout, "Write DIAG Done...\n");
+            if(rank == 0) {
+                fprintf(stdout, "Write DIAG Done...\n");
+            }
             break;
         case SOLUTION:
             // write_solution(s, Run, Grid, Physics, mdata->globiter, gcomm, metadata->nslvar);
