@@ -149,7 +149,7 @@ void Initialize(RunData& Run,GridData& Grid, PhysicsData& Physics, MPI_Comm gcom
   //Run.Init(rank);
   //Physics.Init();
   //Grid.Init(Run,Physics);
-  comm_split_init(Run,Grid);
+//   comm_split_init(Run,Grid);
 
   if(rank == 0) {
     Run.Show();
