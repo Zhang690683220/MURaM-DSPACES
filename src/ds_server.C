@@ -239,7 +239,7 @@ void write_eos(dspaces_provider_t server, const RunData& Run, const GridData& Gr
         fprintf(stdout, "Write EOS... DEBUG3\n");
         struct dspaces_data_obj *objs;
         int obj_num = dspaces_server_find_objs(server, ds_var_name, globiter, &objs);
-        fprintf(stdout, "Find %d Objs at Local\n");
+        fprintf(stdout, "Find %d Objs at Local\n", obj_num);
 
         MPI_File_open(comm, filename, MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &mfh);
 
@@ -264,7 +264,7 @@ void write_eos(dspaces_provider_t server, const RunData& Run, const GridData& Gr
 
             fprintf(stdout, "Write EOS... DEBUG6\n");
 
-	        MPI_File_set_view(mfh, 0, MPI_FLOAT, io_subarray[i], NULL, MPI_INFO_NULL);
+	        MPI_File_set_view(mfh, 0, MPI_FLOAT, io_subarray[i], (char *) "native", MPI_INFO_NULL);
 	        MPI_File_write(mfh, buffer, vol, MPI_FLOAT, MPI_STATUS_IGNORE);
 
             fprintf(stdout, "Write EOS... DEBUG7\n");
@@ -353,7 +353,7 @@ void write_diag(dspaces_provider_t server, const RunData& Run, const GridData& G
             MPI_Type_create_subarray(3, gsz, lsz, str, MPI_ORDER_FORTRAN, MPI_FLOAT, &io_subarray[i]);
             MPI_Type_commit(&io_subarray[i]);
 
-	        MPI_File_set_view(mfh, 0, MPI_FLOAT, io_subarray[i], NULL, MPI_INFO_NULL);
+	        MPI_File_set_view(mfh, 0, MPI_FLOAT, io_subarray[i], (char *) "native", MPI_INFO_NULL);
 	        MPI_File_write(mfh, buffer, vol, MPI_FLOAT, MPI_STATUS_IGNORE);
 	        
             MPI_Type_free(&io_subarray[i]);
