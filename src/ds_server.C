@@ -169,6 +169,7 @@ void write_eos(dspaces_provider_t server, const RunData& Run, const GridData& Gr
     int io_rank;
     MPI_File mfh;
     int max_vars = 14;
+    int vol;
 
     MPI_Comm_rank(comm, &io_rank);
   
@@ -244,42 +245,57 @@ void write_eos(dspaces_provider_t server, const RunData& Run, const GridData& Gr
         time_find_objs += MPI_Wtime() - clk;
         fprintf(stdout, "Rank %d: dspaces_server_find_objs() Find %d objs.\n", io_rank, obj_num);
 
+        int obj_num_max;
+        MPI_Allreduce(&obj_num, &obj_num_max, 1, MPI_INT, MPI_MAX, comm);
+
         MPI_File_open(comm, filename, MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &mfh);
 
-        MPI_Datatype *io_subarray = (MPI_Datatype*) malloc(obj_num*sizeof(*io_subarray));
+        MPI_Datatype *io_subarray = (MPI_Datatype*) malloc(obj_num_max*sizeof(*io_subarray));
 
-        for(int i=0; i<obj_num; i++) {
-            uint64_t vol = 1;
-            int elem_size = objs[i].size;
-            for(int d=0; d<objs[i].ndim; d++) {
-                lsz[d] = objs[i].ub[d] - objs[i].lb[d] + 1;
-                str[d] = objs[i].lb[d];
-                vol = vol * lsz[d];
-            }
-            void* buffer = (void*) malloc(elem_size*vol);
+        for(int i=0; i<obj_num_max; i++) {
+            if(i < obj_num) {
+                uint64_t vol = 1;
+                int elem_size = objs[i].size;
+                for(int d=0; d<objs[i].ndim; d++) {
+                    lsz[d] = objs[i].ub[d] - objs[i].lb[d] + 1;
+                    str[d] = objs[i].lb[d];
+                    vol = vol * lsz[d];
+                }
+                void* buffer = (void*) malloc(elem_size*vol);
 
+                fprintf(stdout, "Rank %d: EOS DEBUG4\n", io_rank);
+                clk = MPI_Wtime();
+                int ret=dspaces_server_get_objdata(server, &objs[i], buffer);
+                if(ret !=0) {
+                    fprintf(stdout, "Rank %d: dspaces_server_get_objdata() falied! Total Objs = %d, Retriving Obj index = %d.\n", io_rank, obj_num, i);
+                }
+                time_get_objs += MPI_Wtime() - clk;
+                fprintf(stdout, "Rank %d: EOS DEBUG5\n", io_rank);
 
-            fprintf(stdout, "Rank %d: EOS DEBUG4\n", io_rank);
-            clk = MPI_Wtime();
-            int ret=dspaces_server_get_objdata(server, &objs[i], buffer);
-            if(ret !=0) {
-                fprintf(stdout, "Rank %d: dspaces_server_get_objdata() falied! Total Objs = %d, Retriving Obj index = %d.\n", io_rank, obj_num, i);
-            }
-            time_get_objs += MPI_Wtime() - clk;
-            fprintf(stdout, "Rank %d: EOS DEBUG5\n", io_rank);
+                clk = MPI_Wtime();
+                MPI_Type_create_subarray(3, gsz, lsz, str, MPI_ORDER_FORTRAN, MPI_FLOAT, &io_subarray[i]);
+                MPI_Type_commit(&io_subarray[i]);
 
-            clk = MPI_Wtime();
-            MPI_Type_create_subarray(3, gsz, lsz, str, MPI_ORDER_FORTRAN, MPI_FLOAT, &io_subarray[i]);
-            MPI_Type_commit(&io_subarray[i]);
+	            MPI_File_set_view(mfh, 0, MPI_FLOAT, io_subarray[i], (char *) "native", MPI_INFO_NULL);
 
-	        MPI_File_set_view(mfh, 0, MPI_FLOAT, io_subarray[i], (char *) "native", MPI_INFO_NULL);
-	        MPI_File_write(mfh, buffer, vol, MPI_FLOAT, MPI_STATUS_IGNORE);
+	            MPI_File_write(mfh, buffer, vol, MPI_FLOAT, MPI_STATUS_IGNORE);
 	        
-            MPI_Type_free(&io_subarray[i]);
-            time_mpi_file += MPI_Wtime() - clk;
-            fprintf(stdout, "Rank %d: EOS DEBUG6\n", io_rank);
-            free(buffer);
-            fprintf(stdout, "Rank %d: Total objs = %d, Write objs %d.\n", io_rank, obj_num,i);
+                MPI_Type_free(&io_subarray[i]);
+                time_mpi_file += MPI_Wtime() - clk;
+                fprintf(stdout, "Rank %d: EOS DEBUG6\n", io_rank);
+                free(buffer);
+                fprintf(stdout, "Rank %d: Total objs = %d, Write objs %d.\n", io_rank, obj_num,i);
+            } else {
+                memset(lsz, 0, 3*sizeof(int));
+                memset(str, 0, 3*sizeof(int));
+                MPI_Type_create_subarray(3, gsz, lsz, str, MPI_ORDER_FORTRAN, MPI_FLOAT, &io_subarray[i]);
+                MPI_Type_commit(&io_subarray[i]);
+                MPI_File_set_view(mfh, 0, MPI_FLOAT, io_subarray[i], (char *) "native", MPI_INFO_NULL);
+
+                // ! No MPI_File_write() here, Just to avoid stucking at MPI_File_set_view()
+
+                MPI_Type_free(&io_subarray[i]);
+            }
         }
         fprintf(stdout, "Rank %d: EOS DEBUG6\n", io_rank);
 
