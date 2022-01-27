@@ -261,11 +261,11 @@ void write_eos(dspaces_provider_t server, const RunData& Run, const GridData& Gr
             void* buffer = (void*) malloc(elem_size*vol);
 
 
-            fprintf(stdout, "Rank %d: EOS DEBUG4\n", io_rank);
+            // fprintf(stdout, "Rank %d: EOS DEBUG4\n", io_rank);
             clk = MPI_Wtime();
             dspaces_server_get_objdata(server, &objs[i], buffer);
             time_get_objs += MPI_Wtime() - clk;
-            fprintf(stdout, "Rank %d: EOS DEBUG5\n", io_rank);
+            // fprintf(stdout, "Rank %d: EOS DEBUG5\n", io_rank);
 
             clk = MPI_Wtime();
             MPI_Type_create_subarray(3, gsz, lsz, str, MPI_ORDER_FORTRAN, MPI_FLOAT, &io_subarray[i]);
@@ -276,7 +276,7 @@ void write_eos(dspaces_provider_t server, const RunData& Run, const GridData& Gr
 	        
             MPI_Type_free(&io_subarray[i]);
             time_mpi_file += MPI_Wtime() - clk;
-            fprintf(stdout, "Rank %d: EOS DEBUG6\n", io_rank);
+            // fprintf(stdout, "Rank %d: EOS DEBUG6\n", io_rank);
             free(buffer);
         }
 
