@@ -850,15 +850,15 @@ int main(int argc, char **argv)
         {
         // 3D vars
         case EOS:
-            // fprintf(stdout, "Rank %d: Write EOS: GlobalIter = %d ...\n", rank, mdata->globiter);
+            fprintf(stdout, "Write EOS: GlobalIter = %d ...\n", mdata->globiter);
             write_eos(s, Run, Grid, Physics, mdata->globiter, gcomm);
-            // fprintf(stdout, "Rank %d:  Write EOS Done...\n", rank);
+            fprintf(stdout, "Write EOS Done...\n");
             break;
         case DIAG:
             // use nslvar as DIAG_flag only for DIAG
-            // fprintf(stdout, "Rank %d: Write DIAG: GlobalIter = %d ...\n", rank, mdata->globiter);
+            fprintf(stdout, "Write DIAG: GlobalIter = %d ...\n", mdata->globiter);
             write_diag(s, Run, Grid, Physics, mdata->globiter, gcomm, mdata->nslvar);
-            // fprintf(stdout, "Rank %d: Write DIAG Done...\n");
+            fprintf(stdout, "Write DIAG Done...\n");
             
             break;
         case SOLUTION:
