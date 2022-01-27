@@ -282,6 +282,7 @@ void write_eos(dspaces_provider_t server, const RunData& Run, const GridData& Gr
 
 
         free(io_subarray);
+        MPI_Barrier(comm);
         MPI_File_close(&mfh);
         fprintf(stdout, "Rank %d: EOS DEBUG7\n", io_rank);
 
