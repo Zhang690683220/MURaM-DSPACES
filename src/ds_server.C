@@ -283,9 +283,10 @@ void write_eos(dspaces_provider_t server, const RunData& Run, const GridData& Gr
 
         free(io_subarray);
         MPI_File_close(&mfh);
+        fprintf(stdout, "Rank %d: EOS DEBUG7\n", io_rank);
 
     }
-
+    fprintf(stdout, "Rank %d: EOS DEBUG8\n", io_rank);
     
     if(io_rank == 0) {
         fprintf(stdout, "Time of find_objs() = %lf, Time of get_objs() = %lf, Time of MPI_File_write() = %lf.\n",
