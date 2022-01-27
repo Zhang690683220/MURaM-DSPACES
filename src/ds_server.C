@@ -276,7 +276,9 @@ void write_eos(dspaces_provider_t server, const RunData& Run, const GridData& Gr
             time_mpi_file += MPI_Wtime() - clk;
             // fprintf(stdout, "Rank %d: EOS DEBUG6\n", io_rank);
             free(buffer);
+            fprintf(stdout, "Rank %d: Total objs = %d, Write objs %d.\n", io_rank, obj_num,i);
         }
+        fprintf(stdout, "Rank %d: EOS DEBUG6\n", io_rank);
 
 
         free(io_subarray);
