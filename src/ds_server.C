@@ -229,6 +229,8 @@ void write_eos(dspaces_provider_t server, const RunData& Run, const GridData& Gr
         gsz[d] = Grid.gsize[d];
     }
 
+    fprintf(stdout, "Rank %d, EOS DEBUG1\n", io_rank);
+
     for(int v=0; v<tot_vars; v++) {
         var = var_index[v];
         sprintf(ds_var_name, "%s%s", Run.path_3D, eos_names[var]);
@@ -239,10 +241,13 @@ void write_eos(dspaces_provider_t server, const RunData& Run, const GridData& Gr
         int obj_num = dspaces_server_find_objs(server, ds_var_name, globiter, &objs);
         time_find_objs += MPI_Wtime() - clk;
 
+        fprintf(stdout, "Rank %d, EOS DEBUG2\n", io_rank);
+
         MPI_File_open(comm, filename, MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &mfh);
 
         MPI_Datatype *io_subarray = (MPI_Datatype*) malloc(obj_num*sizeof(*io_subarray));
 
+        fprintf(stdout, "Rank %d, EOS DEBUG3\n", io_rank);
 
         for(int i=0; i<obj_num; i++) {
             uint64_t vol = 1;
@@ -254,10 +259,12 @@ void write_eos(dspaces_provider_t server, const RunData& Run, const GridData& Gr
             }
             void* buffer = (void*) malloc(elem_size*vol);
 
+            fprintf(stdout, "Rank %d, EOS DEBUG4\n", io_rank);
             clk = MPI_Wtime();
             dspaces_server_get_objdata(server, &objs[i], buffer);
             time_get_objs += MPI_Wtime() - clk;
 
+            fprintf(stdout, "Rank %d, EOS DEBUG5\n", io_rank);
             clk = MPI_Wtime();
             MPI_Type_create_subarray(3, gsz, lsz, str, MPI_ORDER_FORTRAN, MPI_FLOAT, &io_subarray[i]);
             MPI_Type_commit(&io_subarray[i]);
@@ -266,6 +273,7 @@ void write_eos(dspaces_provider_t server, const RunData& Run, const GridData& Gr
 	        MPI_File_write(mfh, buffer, vol, MPI_FLOAT, MPI_STATUS_IGNORE);
 	        
             MPI_Type_free(&io_subarray[i]);
+            fprintf(stdout, "Rank %d, EOS DEBUG6\n", io_rank);
             time_mpi_file += MPI_Wtime() - clk;
             free(buffer);
         }
@@ -847,23 +855,19 @@ int main(int argc, char **argv)
         {
         // 3D vars
         case EOS:
-            if(rank == 0) {
-                fprintf(stdout, "Write EOS: GlobalIter = %d, Meta Version = %d ...\n", mdata->globiter, mver);
-            }
+                fprintf(stdout, "Rank %d: Write EOS: GlobalIter = %d, Meta Version = %d ...\n", rank, mdata->globiter, mver);
             write_eos(s, Run, Grid, Physics, mdata->globiter, gcomm);
-            if(rank == 0) {
-                fprintf(stdout, "Write EOS Done...\n");
-            }
+                fprintf(stdout, "Rank %d:  Write EOS Done...\n", rank);
             break;
         case DIAG:
             // use nslvar as DIAG_flag only for DIAG
-            if(rank == 0) {
-                fprintf(stdout, "Write DIAG: GlobalIter = %d, Meta Version = %d ...\n", mdata->globiter, mver);
-            }
+            
+                fprintf(stdout, "Rank %d: Write DIAG: GlobalIter = %d, Meta Version = %d ...\n", rank, mdata->globiter, mver);
+            
             write_diag(s, Run, Grid, Physics, mdata->globiter, gcomm, mdata->nslvar);
-            if(rank == 0) {
-                fprintf(stdout, "Write DIAG Done...\n");
-            }
+            
+                fprintf(stdout, "Rank %d: Write DIAG Done...\n");
+            
             break;
         case SOLUTION:
             // write_solution(s, Run, Grid, Physics, mdata->globiter, gcomm, metadata->nslvar);
