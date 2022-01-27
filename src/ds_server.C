@@ -169,7 +169,6 @@ void write_eos(dspaces_provider_t server, const RunData& Run, const GridData& Gr
     int io_rank;
     MPI_File mfh;
     int max_vars = 14;
-    int vol;
 
     MPI_Comm_rank(comm, &io_rank);
   
