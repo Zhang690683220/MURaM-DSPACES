@@ -261,7 +261,10 @@ void write_eos(dspaces_provider_t server, const RunData& Run, const GridData& Gr
 
             fprintf(stdout, "Rank %d: EOS DEBUG4\n", io_rank);
             clk = MPI_Wtime();
-            dspaces_server_get_objdata(server, &objs[i], buffer);
+            int ret=dspaces_server_get_objdata(server, &objs[i], buffer);
+            if(ret !=0) {
+                fprintf(stdout, "Rank %d: dspaces_server_get_objdata() falied! Total Objs = %d, Retriving Obj index = %d.\n", io_rank, obj_num, i);
+            }
             time_get_objs += MPI_Wtime() - clk;
             fprintf(stdout, "Rank %d: EOS DEBUG5\n", io_rank);
 
