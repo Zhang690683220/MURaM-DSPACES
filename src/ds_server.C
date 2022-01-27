@@ -169,6 +169,8 @@ void write_eos(dspaces_provider_t server, const RunData& Run, const GridData& Gr
     int io_rank;
     MPI_File mfh;
     int max_vars = 14;
+
+    MPI_Comm_rank(comm, &io_rank);
   
     char eos_names[max_vars][128];
 
@@ -284,7 +286,7 @@ void write_eos(dspaces_provider_t server, const RunData& Run, const GridData& Gr
 
     }
 
-    MPI_Comm_rank(comm, &io_rank);
+    
     if(io_rank == 0) {
         fprintf(stdout, "Time of find_objs() = %lf, Time of get_objs() = %lf, Time of MPI_File_write() = %lf.\n",
                 time_find_objs, time_get_objs, time_mpi_file);
@@ -302,6 +304,8 @@ void write_diag(dspaces_provider_t server, const RunData& Run, const GridData& G
     int io_rank;
     MPI_File mfh;
     int max_vars = 11;
+
+    MPI_Comm_rank(comm, &io_rank);
   
     int var_index[max_vars];
     char diag_names[max_vars][128];
@@ -382,7 +386,7 @@ void write_diag(dspaces_provider_t server, const RunData& Run, const GridData& G
         MPI_File_close(&mfh);
     }
 
-    MPI_Comm_rank(comm, &io_rank);
+    
     if(io_rank == 0) {
         fprintf(stdout, "Time of find_objs() = %lf, Time of get_objs() = %lf, Time of MPI_File_write() = %lf.\n",
                 time_find_objs, time_get_objs, time_mpi_file);
