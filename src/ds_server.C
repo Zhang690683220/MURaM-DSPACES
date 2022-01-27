@@ -849,7 +849,7 @@ int main(int argc, char **argv)
             }
         }
 
-        MPI_Bcast(mdata, sizeof(mdata), MPI_BYTE, 0, gcomm);
+        MPI_Bcast(mdata, sizeof(*mdata), MPI_BYTE, 0, gcomm);
 
         if(mdata->globiter == STEP_DONE || mdata->globiter == STEP_ERR) {
             break;
