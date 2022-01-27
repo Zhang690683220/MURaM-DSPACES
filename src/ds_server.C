@@ -239,16 +239,14 @@ void write_eos(dspaces_provider_t server, const RunData& Run, const GridData& Gr
         sprintf(filename,"%s%s.%06d",Run.path_3D, eos_names[var], globiter);
 
         struct dspaces_data_obj *objs;
-        fprintf(stdout, "Rank %d: EOS DEBUG1\n", io_rank);
         clk = MPI_Wtime();
         int obj_num = dspaces_server_find_objs(server, ds_var_name, globiter, &objs);
         time_find_objs += MPI_Wtime() - clk;
-        fprintf(stdout, "Rank %d: EOS DEBUG2\n", io_rank);
+        fprintf(stdout, "Rank %d: dspaces_server_find_objs() Find %d objs.\n", io_rank, obj_num);
 
         MPI_File_open(comm, filename, MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &mfh);
 
         MPI_Datatype *io_subarray = (MPI_Datatype*) malloc(obj_num*sizeof(*io_subarray));
-        fprintf(stdout, "Rank %d: EOS DEBUG3\n", io_rank);
 
         for(int i=0; i<obj_num; i++) {
             uint64_t vol = 1;
