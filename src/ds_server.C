@@ -231,23 +231,44 @@ void write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid
     sprintf(eos_names[12],"%s","QxCa");
     sprintf(eos_names[13],"%s","QxChr");
 
+    int decomp = -1;
     for(int d=0; d<3; d++) {
         gsz[d] = Grid.gsize[d];
+        if(gsz[d]>nprocs && decomp != -1) {
+            decomp = d;
+        }
     }
 
-    lb[0] = (gsz[0] / nprocs)*io_rank;
-    lb[1] = 0;
-    lb[2] = 0;
+    for(int d=0; d<3; d++) {
+        if(d == decomp) {
+            lb[d] = (gsz[d] / nprocs)*io_rank;
+            if(io_rank < (gsz[0] % nprocs)) {
+                lb[0] += io_rank;
+                ub[0] = lb[0] + (gsz[0] / nprocs);
+            } else {
+                lb[0] += gsz[0] % nprocs;
+                ub[0] = lb[0] + (gsz[0] / nprocs) -1;
+            }
+        }
 
-    if(io_rank < (gsz[0] % nprocs)) {
-        lb[0] += io_rank;
-        ub[0] = lb[0] + (gsz[0] / nprocs);
-    } else {
-        lb[0] += gsz[0] % nprocs;
-        ub[0] = lb[0] + (gsz[0] / nprocs) -1;
+        lb[d] = 0;
+        ub[d] = lb[d] + gsz[d] -1;
+
     }
-    ub[1] = lb[1] + gsz[1] -1;
-    ub[2] = lb[2] + gsz[2] -1;
+
+    // lb[0] = (gsz[0] / nprocs)*io_rank;
+    // lb[1] = 0;
+    // lb[2] = 0;
+
+    // if(io_rank < (gsz[0] % nprocs)) {
+    //     lb[0] += io_rank;
+    //     ub[0] = lb[0] + (gsz[0] / nprocs);
+    // } else {
+    //     lb[0] += gsz[0] % nprocs;
+    //     ub[0] = lb[0] + (gsz[0] / nprocs) -1;
+    // }
+    // ub[1] = lb[1] + gsz[1] -1;
+    // ub[2] = lb[2] + gsz[2] -1;
 
 
 
@@ -278,6 +299,10 @@ void write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid
         dspaces_get(client, ds_var_name, globiter, sizeof(float), 3, lb, ub, buffer, -1);
         time_get += MPI_Wtime() - clk;
 
+        if(io_rank == 0) {
+            fprintf(stdout, "dspaces_get() Time = %lf\n", time_get);
+        }
+
         // int obj_num_max;
         // MPI_Allreduce(&obj_num, &obj_num_max, 1, MPI_INT, MPI_MAX, comm);
 
@@ -297,7 +322,7 @@ void write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid
         MPI_File_write_all(mfh, buffer, vol, MPI_FLOAT, MPI_STATUS_IGNORE);
         time_mpi_file += MPI_Wtime() - clk;
         if(io_rank == 0) {
-            fprintf(stdout, "MPI_File_write()... Done! \n");
+            fprintf(stdout, "MPI_File_write()... Done! Time = %lf\n", time_mpi_file);
         }
 
         // for(int i=0; i<obj_num_max; i++) {
