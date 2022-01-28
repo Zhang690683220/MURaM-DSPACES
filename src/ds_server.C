@@ -278,11 +278,11 @@ void write_eos(dspaces_provider_t server, const RunData& Run, const GridData& Gr
 
 	            MPI_File_set_view(mfh, 0, MPI_FLOAT, io_subarray[i], (char *) "native", MPI_INFO_NULL);
 
-                if(i < obj_num_min) {
+                // if(i < obj_num_min) {
                     MPI_File_write_all(mfh, buffer, vol, MPI_FLOAT, MPI_STATUS_IGNORE);
-                } else {
-	                MPI_File_write(mfh, buffer, vol, MPI_FLOAT, MPI_STATUS_IGNORE);
-                }
+                // } else {
+	            //    MPI_File_write(mfh, buffer, vol, MPI_FLOAT, MPI_STATUS_IGNORE);
+                // }
 
                 MPI_Type_free(&io_subarray[i]);
                 time_mpi_file += MPI_Wtime() - clk;
@@ -299,6 +299,8 @@ void write_eos(dspaces_provider_t server, const RunData& Run, const GridData& Gr
                 MPI_Type_create_subarray(3, gsz, lsz, str, MPI_ORDER_FORTRAN, MPI_FLOAT, &io_subarray[i]);
                 MPI_Type_commit(&io_subarray[i]);
                 MPI_File_set_view(mfh, 0, MPI_FLOAT, io_subarray[i], (char *) "native", MPI_INFO_NULL);
+
+                MPI_File_write_all(mfh, NULL, 0, MPI_FLOAT, MPI_STATUS_IGNORE);
 
                 MPI_Type_free(&io_subarray[i]);
             }
