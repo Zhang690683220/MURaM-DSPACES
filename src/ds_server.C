@@ -250,12 +250,12 @@ void write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid
     for(int d=0; d<3; d++) {
         if(d == decomp) {
             lb[d] = (gsz[d] / nprocs)*io_rank;
-            if(io_rank < (gsz[0] % nprocs)) {
-                lb[0] += io_rank;
-                ub[0] = lb[0] + (gsz[0] / nprocs);
+            if(io_rank < (gsz[d] % nprocs)) {
+                lb[d] += io_rank;
+                ub[d] = lb[d] + (gsz[d] / nprocs);
             } else {
-                lb[0] += gsz[0] % nprocs;
-                ub[0] = lb[0] + (gsz[0] / nprocs) -1;
+                lb[d] += gsz[d] % nprocs;
+                ub[d] = lb[d] + (gsz[d] / nprocs) -1;
             }
         } else {
             lb[d] = 0;
