@@ -902,13 +902,13 @@ int main(int argc, char **argv)
         {
         // 3D vars
         case EOS:
-            // if(rank == 0) {
+            if(rank == 0) {
                 fprintf(stdout, "Rank: %d: Write EOS: GlobalIter = %d ...\n", rank, mdata->globiter);
-            // }
+            }
             write_eos(s, Run, Grid, Physics, mdata->globiter, gcomm);
-            // if(rank == 0) {
+            if(rank == 0) {
                 fprintf(stdout, "Rank: %d: Write EOS Done...\n", rank);
-            // }
+            }
             break;
         case DIAG:
             // use nslvar as DIAG_flag only for DIAG
@@ -989,9 +989,6 @@ int main(int argc, char **argv)
     } while(1);
 
     MPI_Barrier(gcomm);
-    if(rank == 0) {
-        dspaces_kill(dsp);
-    }
 
     dspaces_fini(dsp);
 
