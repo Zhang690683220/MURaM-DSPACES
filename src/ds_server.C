@@ -246,8 +246,8 @@ void write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid
         lb[0] += gsz[0] % nprocs;
         ub[0] = lb[0] + (gsz[0] / nprocs) -1;
     }
-    ub[1] = lb[1] + lsz[1];
-    ub[2] = lb[2] + lsz[2];
+    ub[1] = lb[1] + gsz[1] -1;
+    ub[2] = lb[2] + gsz[2] -1;
 
 
 
