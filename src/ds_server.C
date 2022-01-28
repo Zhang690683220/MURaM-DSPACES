@@ -253,6 +253,7 @@ void write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid
 
     uint64_t vol = 1;
     for(int d=0; d<3; d++) {
+        str[d] = lb[d];
         lsz[d] = ub[d] - lb[d] + 1;
         vol = vol * lsz[d];
     }
@@ -284,7 +285,7 @@ void write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid
         MPI_Datatype io_subarray;
 
         clk = MPI_Wtime();
-        MPI_Type_create_subarray(3, gsz, lsz, lb, MPI_ORDER_FORTRAN, MPI_FLOAT, &io_subarray);
+        MPI_Type_create_subarray(3, gsz, lsz, str, MPI_ORDER_FORTRAN, MPI_FLOAT, &io_subarray);
         MPI_Type_commit(&io_subarray);
         MPI_File_set_view(mfh, 0, MPI_FLOAT, io_subarray, (char *) "native", MPI_INFO_NULL);
         MPI_File_write_all(mfh, NULL, 0, MPI_FLOAT, MPI_STATUS_IGNORE);
