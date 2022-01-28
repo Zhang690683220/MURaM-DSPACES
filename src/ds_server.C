@@ -244,8 +244,9 @@ void write_eos(dspaces_provider_t server, const RunData& Run, const GridData& Gr
         time_find_objs += MPI_Wtime() - clk;
         fprintf(stdout, "Rank %d: dspaces_server_find_objs() Find %d objs.\n", io_rank, obj_num);
 
-        int obj_num_max;
+        int obj_num_max, obj_num_min;
         MPI_Allreduce(&obj_num, &obj_num_max, 1, MPI_INT, MPI_MAX, comm);
+        MPI_Allreduce(&obj_num, &obj_num_min, 1, MPI_INT, MPI_MIN, comm);
 
         MPI_File_open(comm, filename, MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &mfh);
 
@@ -277,8 +278,12 @@ void write_eos(dspaces_provider_t server, const RunData& Run, const GridData& Gr
 
 	            MPI_File_set_view(mfh, 0, MPI_FLOAT, io_subarray[i], (char *) "native", MPI_INFO_NULL);
 
-	            MPI_File_write(mfh, buffer, vol, MPI_FLOAT, MPI_STATUS_IGNORE);
-	        
+                if(i < obj_num_min) {
+                    MPI_File_write_all(mfh, buffer, vol, MPI_FLOAT, MPI_STATUS_IGNORE);
+                } else {
+	                MPI_File_write(mfh, buffer, vol, MPI_FLOAT, MPI_STATUS_IGNORE);
+                }
+
                 MPI_Type_free(&io_subarray[i]);
                 time_mpi_file += MPI_Wtime() - clk;
                 fprintf(stdout, "Rank %d: EOS DEBUG6\n", io_rank);
@@ -286,7 +291,7 @@ void write_eos(dspaces_provider_t server, const RunData& Run, const GridData& Gr
                 fprintf(stdout, "Rank %d: Total objs = %d, Write objs %d.\n", io_rank, obj_num,i);
             } else {
                 // ! No MPI_File_write() here, Just to avoid stucking at MPI_File_set_view()
-                // ! Fake code
+                // ! Fake code, doesn't do anything useful
                 for(int d=0; d<objs[i].ndim; d++) {
                     lsz[d] = 1;
                     str[d] = 0;
