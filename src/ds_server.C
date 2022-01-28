@@ -440,6 +440,8 @@ void write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid
         MPI_File_close(&mfh);
 
     }
+
+    free(buffer);
     
     if(io_rank == 0) {
         // fprintf(stdout, "Time of find_objs() = %lf, Time of get_objs() = %lf, Time of MPI_File_write() = %lf.\n",
