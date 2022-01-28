@@ -234,10 +234,12 @@ void write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid
     int decomp = -1;
     for(int d=0; d<3; d++) {
         gsz[d] = Grid.gsize[d];
-        if(gsz[d]>nprocs && decomp == -1) {
+        if(gsz[d]>nprocs && decomp < 0) {
             decomp = d;
         }
     }
+
+    fprintf(stdout, "decomp = %d\n", decomp);
 
     for(int d=0; d<3; d++) {
         if(d == decomp) {
