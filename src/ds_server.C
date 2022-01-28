@@ -288,7 +288,7 @@ void write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid
         MPI_Type_create_subarray(3, gsz, lsz, str, MPI_ORDER_FORTRAN, MPI_FLOAT, &io_subarray);
         MPI_Type_commit(&io_subarray);
         MPI_File_set_view(mfh, 0, MPI_FLOAT, io_subarray, (char *) "native", MPI_INFO_NULL);
-        MPI_File_write_all(mfh, NULL, 0, MPI_FLOAT, MPI_STATUS_IGNORE);
+        MPI_File_write_all(mfh, buffer, vol, MPI_FLOAT, MPI_STATUS_IGNORE);
         time_mpi_file += MPI_Wtime() - clk;
 
         // for(int i=0; i<obj_num_max; i++) {
