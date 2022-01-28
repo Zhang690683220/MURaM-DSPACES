@@ -328,6 +328,7 @@ void write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid
             fprintf(stdout, "MPI_File_write()... \n");
         }
         MPI_File_write_all(mfh, buffer, vol, MPI_FLOAT, MPI_STATUS_IGNORE);
+        MPI_File_sync(mfh);
         time_mpi_file += MPI_Wtime() - clk;
         if(io_rank == 0) {
             fprintf(stdout, "MPI_File_write()... Done! Time = %lf\n", MPI_Wtime() - clk);
