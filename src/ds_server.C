@@ -234,7 +234,7 @@ void write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid
     int decomp = -1;
     for(int d=0; d<3; d++) {
         gsz[d] = Grid.gsize[d];
-        if(gsz[d]>nprocs && decomp != -1) {
+        if(gsz[d]>nprocs && decomp == -1) {
             decomp = d;
         }
     }
@@ -300,7 +300,7 @@ void write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid
         time_get += MPI_Wtime() - clk;
 
         if(io_rank == 0) {
-            fprintf(stdout, "dspaces_get() Time = %lf\n", time_get);
+            fprintf(stdout, "dspaces_get() Time = %lf\n", MPI_Wtime() - clk);
         }
 
         // int obj_num_max;
@@ -322,7 +322,7 @@ void write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid
         MPI_File_write_all(mfh, buffer, vol, MPI_FLOAT, MPI_STATUS_IGNORE);
         time_mpi_file += MPI_Wtime() - clk;
         if(io_rank == 0) {
-            fprintf(stdout, "MPI_File_write()... Done! Time = %lf\n", time_mpi_file);
+            fprintf(stdout, "MPI_File_write()... Done! Time = %lf\n", MPI_Wtime() - clk);
         }
 
         // for(int i=0; i<obj_num_max; i++) {
