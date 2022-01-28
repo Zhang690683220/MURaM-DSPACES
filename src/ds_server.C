@@ -167,7 +167,7 @@ void write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid
     char ds_var_name[128];
     char filename[128];
     int gsz[3], lsz[3], str[3];
-    int lb[3], ub[3];
+    uint64_t lb[3], ub[3];
     int var;
     int io_rank, nprocs;
     MPI_File mfh;
@@ -253,7 +253,7 @@ void write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid
 
     uint64_t vol = 1;
     for(int d=0; d<3; d++) {
-        lsz = ub[d] - lb[d] + 1;
+        lsz[d] = ub[d] - lb[d] + 1;
         vol = vol * lsz[d];
     }
 
@@ -274,8 +274,8 @@ void write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid
         dspaces_get(client, ds_var_name, globiter, sizeof(float), 3, lb, ub, buffer, -1);
         time_get += MPI_Wtime() - clk;
 
-        int obj_num_max;
-        MPI_Allreduce(&obj_num, &obj_num_max, 1, MPI_INT, MPI_MAX, comm);
+        // int obj_num_max;
+        // MPI_Allreduce(&obj_num, &obj_num_max, 1, MPI_INT, MPI_MAX, comm);
 
         MPI_File_open(comm, filename, MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &mfh);
 
@@ -1014,7 +1014,7 @@ int main(int argc, char **argv)
             if(rank == 0) {
                 fprintf(stdout, "Rank: %d: Write EOS: GlobalIter = %d ...\n", rank, mdata->globiter);
             }
-            write_eos(s, Run, Grid, Physics, mdata->globiter, gcomm);
+            write_eos(dsp, Run, Grid, Physics, mdata->globiter, gcomm);
             if(rank == 0) {
                 fprintf(stdout, "Rank: %d: Write EOS Done...\n", rank);
             }
