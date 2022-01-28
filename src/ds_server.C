@@ -258,6 +258,9 @@ void write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid
         vol = vol * lsz[d];
     }
 
+    fprintf(stdout, "gsz = {%d, %d, %d}, lb = {%d, %d, %d}, ub = {%d, %d, %d}\n", gsz[0], gsz[1], gsz[2],
+            str[0], str[1], str[2], str[0]+lsz[0]-1, str[1]+lsz[1]-1, str[2]+lsz[2]-1);
+
     void* buffer = (void*) malloc(vol*sizeof(float));
 
     for(int v=0; v<tot_vars; v++) {
