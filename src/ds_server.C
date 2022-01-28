@@ -232,6 +232,12 @@ void write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid
     sprintf(eos_names[13],"%s","QxChr");
 
     int decomp = -1;
+
+    const char*envdecomp = getenv("DSPACES_DECOMP");
+    if(envdecomp) {
+        decomp = atoi(envdecomp);
+    }
+
     for(int d=0; d<3; d++) {
         gsz[d] = Grid.gsize[d];
         if(gsz[d]>nprocs && decomp < 0) {
