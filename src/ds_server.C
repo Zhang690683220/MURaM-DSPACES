@@ -912,13 +912,13 @@ int main(int argc, char **argv)
             break;
         case DIAG:
             // use nslvar as DIAG_flag only for DIAG
-            // if(rank == 0) {
+            if(rank == 0) {
                 fprintf(stdout, "Rank: %d: Write DIAG: GlobalIter = %d ...\n", rank, mdata->globiter);
-            // }
+            }
             write_diag(s, Run, Grid, Physics, mdata->globiter, gcomm, mdata->nslvar);
-            // if(rank == 0) {
+            if(rank == 0) {
                 fprintf(stdout, "Rank: %d: Write DIAG Done...\n", rank);
-            // }
+            }
             break;
         case SOLUTION:
             // write_solution(s, Run, Grid, Physics, mdata->globiter, gcomm, metadata->nslvar);
