@@ -285,13 +285,15 @@ void write_eos(dspaces_provider_t server, const RunData& Run, const GridData& Gr
                 free(buffer);
                 fprintf(stdout, "Rank %d: Total objs = %d, Write objs %d.\n", io_rank, obj_num,i);
             } else {
-                memset(lsz, 0, 3*sizeof(int));
-                memset(str, 0, 3*sizeof(int));
+                // ! No MPI_File_write() here, Just to avoid stucking at MPI_File_set_view()
+                // ! Fake code
+                for(int d=0; d<objs[i].ndim; d++) {
+                    lsz[d] = 1;
+                    str[d] = 0;
+                }
                 MPI_Type_create_subarray(3, gsz, lsz, str, MPI_ORDER_FORTRAN, MPI_FLOAT, &io_subarray[i]);
                 MPI_Type_commit(&io_subarray[i]);
                 MPI_File_set_view(mfh, 0, MPI_FLOAT, io_subarray[i], (char *) "native", MPI_INFO_NULL);
-
-                // ! No MPI_File_write() here, Just to avoid stucking at MPI_File_set_view()
 
                 MPI_Type_free(&io_subarray[i]);
             }
