@@ -18,6 +18,8 @@
 #include "grid.H"
 #include "run.H"
 #include "ds_common.H"
+#include <string>
+#include <iostream>
 
 void write_analyze_vp(dspaces_provider_t s, GridData Grid, RunData Run, int globiter, MPI_Comm gcomm)
 {
@@ -251,13 +253,24 @@ void write_eos(dspaces_provider_t server, const RunData& Run, const GridData& Gr
 
         for(int i=0; i<obj_num_max; i++) {
             if(i < obj_num) {
+                std::string lszmsg, strmsg;
+                lszmsg = "lsz = {";
+                strmsg = "str = {";
                 uint64_t vol = 1;
                 int elem_size = objs[i].size;
                 for(int d=0; d<objs[i].ndim; d++) {
                     lsz[d] = objs[i].ub[d] - objs[i].lb[d] + 1;
                     str[d] = objs[i].lb[d];
                     vol = vol * lsz[d];
+                    lszmsg += " " + lsz[d];
+                    strmsg += " " + str[d];
                 }
+
+                lszmsg += "}";
+                strmsg += "}";
+
+                std::cout<< "Rank" << io_rank << ": EOS Write: Obj index = " << i << ", " << lszmsg << ", " << strmsg << std::endl; 
+
                 void* buffer = (void*) malloc(elem_size*vol);
 
                 clk = MPI_Wtime();
@@ -299,6 +312,38 @@ void write_eos(dspaces_provider_t server, const RunData& Run, const GridData& Gr
                 MPI_Type_free(&io_subarray[i]);
             }
         }
+
+        // int bigbuf_size = 0;
+
+        // for(int i=0; i<obj_num; i++) {
+        //     uint64_t vol = 1;
+        //     int elem_size = objs[i].size;
+        //     for(int d=0; d<objs[i].ndim; d++) {
+        //         lsz[d] = objs[i].ub[d] - objs[i].lb[d] + 1;
+        //         str[d] = objs[i].lb[d];
+        //         vol = vol * lsz[d];
+        //     }
+        //     bigbuf_size += elem_size*vol;
+        // }
+
+        // void *buffer = (void*) malloc(bigbuf_size);
+
+        // int offset=0;
+        // for(int i=0; i<obj_num; i++) {
+        //     uint64_t vol = 1;
+        //     int elem_size = objs[i].size;
+        //     for(int d=0; d<objs[i].ndim; d++) {
+        //         lsz[d] = objs[i].ub[d] - objs[i].lb[d] + 1;
+        //         str[d] = objs[i].lb[d];
+        //         vol = vol * lsz[d];
+        //     }
+
+        //     dspaces_server_get_objdata(server, &objs[i], buffer[offset]);
+
+        //     offset = elem_size*vol;
+        // }
+
+
 
 
         free(io_subarray);
@@ -381,13 +426,23 @@ void write_diag(dspaces_provider_t server, const RunData& Run, const GridData& G
 
         for(int i=0; i<obj_num_max; i++) {
             if(i < obj_num) {
+                std::string lszmsg, strmsg;
+                lszmsg = "lsz = {";
+                strmsg = "str = {";
                 uint64_t vol = 1;
                 int elem_size = objs[i].size;
                 for(int d=0; d<objs[i].ndim; d++) {
                     lsz[d] = objs[i].ub[d] - objs[i].lb[d] + 1;
                     str[d] = objs[i].lb[d];
                     vol = vol * lsz[d];
+                    lszmsg += " " + lsz[d];
+                    strmsg += " " + str[d];
                 }
+
+                lszmsg += "}";
+                strmsg += "}";
+
+                std::cout<< "Rank" << io_rank << ": EOS Write: Obj index = " << i << ", " << lszmsg << ", " << strmsg << std::endl; 
                 void* buffer = (void*) malloc(elem_size*vol);
 
                 clk = MPI_Wtime();
