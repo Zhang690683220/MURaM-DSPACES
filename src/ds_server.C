@@ -161,17 +161,19 @@ void Initialize(RunData& Run,GridData& Grid, PhysicsData& Physics, MPI_Comm gcom
   
 }
 
-void write_eos(dspaces_provider_t server, const RunData& Run, const GridData& Grid,const PhysicsData& Physics, int globiter, MPI_Comm comm)
+void write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid,const PhysicsData& Physics, int globiter, MPI_Comm comm)
 {
-    double clk, time_find_objs = 0, time_get_objs = 0, time_mpi_file = 0;
+    double clk, time_find_objs = 0, time_get_objs = 0, time_mpi_file = 0, time_get = 0;
     char ds_var_name[128];
     char filename[128];
     int gsz[3], lsz[3], str[3];
+    int lb[3], ub[3];
     int var;
-    int io_rank;
+    int io_rank, nprocs;
     MPI_File mfh;
     int max_vars = 14;
 
+    MPI_Comm_size(comm, &nprocs);
     MPI_Comm_rank(comm, &io_rank);
   
     char eos_names[max_vars][128];
@@ -233,85 +235,122 @@ void write_eos(dspaces_provider_t server, const RunData& Run, const GridData& Gr
         gsz[d] = Grid.gsize[d];
     }
 
+    lb[0] = (gsz[0] / nprocs)*io_rank;
+    lb[1] = 0;
+    lb[2] = 0;
+
+    if(io_rank < (gsz[0] % nprocs)) {
+        lb[0] += io_rank;
+        ub[0] = lb[0] + (gsz[0] / nprocs);
+    } else {
+        lb[0] += gsz[0] % nprocs;
+        ub[0] = lb[0] + (gsz[0] / nprocs) -1;
+    }
+    ub[1] = lb[1] + lsz[1];
+    ub[2] = lb[2] + lsz[2];
+
+
+
+    uint64_t vol = 1;
+    for(int d=0; d<3; d++) {
+        lsz = ub[d] - lb[d] + 1;
+        vol = vol * lsz[d];
+    }
+
+    void* buffer = (void*) malloc(vol*sizeof(float));
+
     for(int v=0; v<tot_vars; v++) {
         var = var_index[v];
         sprintf(ds_var_name, "%s%s", Run.path_3D, eos_names[var]);
         sprintf(filename,"%s%s.%06d",Run.path_3D, eos_names[var], globiter);
 
-        struct dspaces_data_obj *objs;
-        clk = MPI_Wtime();
-        int obj_num = dspaces_server_find_objs(server, ds_var_name, globiter, &objs);
-        time_find_objs += MPI_Wtime() - clk;
+        // struct dspaces_data_obj *objs;
+        // clk = MPI_Wtime();
+        // int obj_num = dspaces_server_find_objs(server, ds_var_name, globiter, &objs);
+        // time_find_objs += MPI_Wtime() - clk;
         // fprintf(stdout, "Rank %d: dspaces_server_find_objs() Find %d objs.\n", io_rank, obj_num);
+
+        clk = MPI_Wtime();
+        dspaces_get(client, ds_var_name, globiter, sizeof(float), 3, lb, ub, buffer, -1);
+        time_get += MPI_Wtime() - clk;
 
         int obj_num_max;
         MPI_Allreduce(&obj_num, &obj_num_max, 1, MPI_INT, MPI_MAX, comm);
 
         MPI_File_open(comm, filename, MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &mfh);
 
-        MPI_Datatype *io_subarray = (MPI_Datatype*) malloc(obj_num_max*sizeof(*io_subarray));
+        // MPI_Datatype *io_subarray = (MPI_Datatype*) malloc(obj_num_max*sizeof(*io_subarray));
 
-        for(int i=0; i<obj_num_max; i++) {
-            if(i < obj_num) {
-                std::string lszmsg, strmsg;
-                lszmsg = "lsz = {";
-                strmsg = "str = {";
-                uint64_t vol = 1;
-                int elem_size = objs[i].size;
-                for(int d=0; d<objs[i].ndim; d++) {
-                    lsz[d] = objs[i].ub[d] - objs[i].lb[d] + 1;
-                    str[d] = objs[i].lb[d];
-                    vol = vol * lsz[d];
-                    lszmsg += " " + lsz[d];
-                    strmsg += " " + str[d];
-                }
+        MPI_Datatype io_subarray;
 
-                lszmsg += "}";
-                strmsg += "}";
+        clk = MPI_Wtime();
+        MPI_Type_create_subarray(3, gsz, lsz, lb, MPI_ORDER_FORTRAN, MPI_FLOAT, &io_subarray);
+        MPI_Type_commit(&io_subarray);
+        MPI_File_set_view(mfh, 0, MPI_FLOAT, io_subarray, (char *) "native", MPI_INFO_NULL);
+        MPI_File_write_all(mfh, NULL, 0, MPI_FLOAT, MPI_STATUS_IGNORE);
+        time_mpi_file += MPI_Wtime() - clk;
 
-                std::cout<< "Rank" << io_rank << ": EOS Write: Obj index = " << i << ", " << lszmsg << ", " << strmsg << std::endl; 
+        // for(int i=0; i<obj_num_max; i++) {
+        //     if(i < obj_num) {
+        //         std::string lszmsg, strmsg;
+        //         lszmsg = "lsz = {";
+        //         strmsg = "str = {";
+        //         uint64_t vol = 1;
+        //         int elem_size = objs[i].size;
+        //         for(int d=0; d<objs[i].ndim; d++) {
+        //             lsz[d] = objs[i].ub[d] - objs[i].lb[d] + 1;
+        //             str[d] = objs[i].lb[d];
+        //             vol = vol * lsz[d];
+        //             lszmsg += " " + lsz[d];
+        //             strmsg += " " + str[d];
+        //         }
 
-                void* buffer = (void*) malloc(elem_size*vol);
+        //         lszmsg += "}";
+        //         strmsg += "}";
 
-                clk = MPI_Wtime();
-                int ret=dspaces_server_get_objdata(server, &objs[i], buffer);
-                if(ret !=0) {
-                    fprintf(stdout, "Rank %d: EOS Write: dspaces_server_get_objdata() falied!"
-                                    "Total Objs = %d, Retriving Obj index = %d.\n", io_rank, obj_num, i);
-                }
-                time_get_objs += MPI_Wtime() - clk;
+        //         std::cout<< "Rank" << io_rank << ": EOS Write: Obj index = " << i << ", " << lszmsg << ", " << strmsg << std::endl; 
 
-                clk = MPI_Wtime();
-                MPI_Type_create_subarray(3, gsz, lsz, str, MPI_ORDER_FORTRAN, MPI_FLOAT, &io_subarray[i]);
-                MPI_Type_commit(&io_subarray[i]);
+        //         void* buffer = (void*) malloc(elem_size*vol);
 
-	            MPI_File_set_view(mfh, 0, MPI_FLOAT, io_subarray[i], (char *) "native", MPI_INFO_NULL);
+        //         clk = MPI_Wtime();
+        //         int ret=dspaces_server_get_objdata(server, &objs[i], buffer);
+        //         if(ret !=0) {
+        //             fprintf(stdout, "Rank %d: EOS Write: dspaces_server_get_objdata() falied!"
+        //                             "Total Objs = %d, Retriving Obj index = %d.\n", io_rank, obj_num, i);
+        //         }
+        //         time_get_objs += MPI_Wtime() - clk;
 
-                // if(i < obj_num_min) {
-                    MPI_File_write_all(mfh, buffer, vol, MPI_FLOAT, MPI_STATUS_IGNORE);
-                // } else {
-	            //    MPI_File_write(mfh, buffer, vol, MPI_FLOAT, MPI_STATUS_IGNORE);
-                // }
-                MPI_Type_free(&io_subarray[i]);
-                time_mpi_file += MPI_Wtime() - clk;
-                free(buffer);
-                // fprintf(stdout, "Rank %d: Total objs = %d, Write objs %d.\n", io_rank, obj_num,i);
-            } else {
-                // ! MPI_File_write_all() writes nothing here, Just to avoid collective stuck.
-                // ! Fake code, doesn't do anything useful
-                for(int d=0; d<3; d++) {
-                    lsz[d] = 1;
-                    str[d] = 0;
-                }
-                MPI_Type_create_subarray(3, gsz, lsz, str, MPI_ORDER_FORTRAN, MPI_FLOAT, &io_subarray[i]);
-                MPI_Type_commit(&io_subarray[i]);
-                MPI_File_set_view(mfh, 0, MPI_FLOAT, io_subarray[i], (char *) "native", MPI_INFO_NULL);
+        //         clk = MPI_Wtime();
+        //         MPI_Type_create_subarray(3, gsz, lsz, str, MPI_ORDER_FORTRAN, MPI_FLOAT, &io_subarray[i]);
+        //         MPI_Type_commit(&io_subarray[i]);
 
-                MPI_File_write_all(mfh, NULL, 0, MPI_FLOAT, MPI_STATUS_IGNORE);
+	    //         MPI_File_set_view(mfh, 0, MPI_FLOAT, io_subarray[i], (char *) "native", MPI_INFO_NULL);
 
-                MPI_Type_free(&io_subarray[i]);
-            }
-        }
+        //         // if(i < obj_num_min) {
+        //             MPI_File_write_all(mfh, buffer, vol, MPI_FLOAT, MPI_STATUS_IGNORE);
+        //         // } else {
+	    //         //    MPI_File_write(mfh, buffer, vol, MPI_FLOAT, MPI_STATUS_IGNORE);
+        //         // }
+        //         MPI_Type_free(&io_subarray[i]);
+        //         time_mpi_file += MPI_Wtime() - clk;
+        //         free(buffer);
+        //         // fprintf(stdout, "Rank %d: Total objs = %d, Write objs %d.\n", io_rank, obj_num,i);
+        //     } else {
+        //         // ! MPI_File_write_all() writes nothing here, Just to avoid collective stuck.
+        //         // ! Fake code, doesn't do anything useful
+        //         for(int d=0; d<3; d++) {
+        //             lsz[d] = 1;
+        //             str[d] = 0;
+        //         }
+        //         MPI_Type_create_subarray(3, gsz, lsz, str, MPI_ORDER_FORTRAN, MPI_FLOAT, &io_subarray[i]);
+        //         MPI_Type_commit(&io_subarray[i]);
+        //         MPI_File_set_view(mfh, 0, MPI_FLOAT, io_subarray[i], (char *) "native", MPI_INFO_NULL);
+
+        //         MPI_File_write_all(mfh, NULL, 0, MPI_FLOAT, MPI_STATUS_IGNORE);
+
+        //         MPI_Type_free(&io_subarray[i]);
+        //     }
+        // }
 
         // int bigbuf_size = 0;
 
@@ -342,19 +381,34 @@ void write_eos(dspaces_provider_t server, const RunData& Run, const GridData& Gr
 
         //     offset = elem_size*vol;
         // }
+        
+        // int *procoff = (int*) malloc(nprocs*sizeof(int));
+        // MPI_Allgather()
 
+        // clk = MPI_Wtime();
+        // MPI_Type_create_subarray(1, gsz, lsz, str, MPI_ORDER_FORTRAN, MPI_FLOAT, &io_subarray[i]);
+        // MPI_Type_commit(&io_subarray[i]);
 
+        // MPI_File_set_view(mfh, 0, MPI_FLOAT, io_subarray[i], (char *) "native", MPI_INFO_NULL);
 
-
-        free(io_subarray);
+        // // if(i < obj_num_min) {
+        //     MPI_File_write_all(mfh, buffer, vol, MPI_FLOAT, MPI_STATUS_IGNORE);
+        // // } else {
+        // //    MPI_File_write(mfh, buffer, vol, MPI_FLOAT, MPI_STATUS_IGNORE);
+        // // }
+        // MPI_Type_free(&io_subarray[i]);
+        // time_mpi_file += MPI_Wtime() - clk;
+        // free(io_subarray);
         MPI_Barrier(comm);
         MPI_File_close(&mfh);
 
     }
     
     if(io_rank == 0) {
-        fprintf(stdout, "Time of find_objs() = %lf, Time of get_objs() = %lf, Time of MPI_File_write() = %lf.\n",
-                time_find_objs, time_get_objs, time_mpi_file);
+        // fprintf(stdout, "Time of find_objs() = %lf, Time of get_objs() = %lf, Time of MPI_File_write() = %lf.\n",
+        //         time_find_objs, time_get_objs, time_mpi_file);
+        fprintf(stdout, "Time of dspaces_get() = %lf, Time of MPI_File_write() = %lf.\n",
+                time_get, time_mpi_file);
     }
 }
 
@@ -967,13 +1021,13 @@ int main(int argc, char **argv)
             break;
         case DIAG:
             // use nslvar as DIAG_flag only for DIAG
-            if(rank == 0) {
-                fprintf(stdout, "Rank: %d: Write DIAG: GlobalIter = %d ...\n", rank, mdata->globiter);
-            }
-            write_diag(s, Run, Grid, Physics, mdata->globiter, gcomm, mdata->nslvar);
-            if(rank == 0) {
-                fprintf(stdout, "Rank: %d: Write DIAG Done...\n", rank);
-            }
+            // if(rank == 0) {
+            //     fprintf(stdout, "Rank: %d: Write DIAG: GlobalIter = %d ...\n", rank, mdata->globiter);
+            // }
+            // write_diag(s, Run, Grid, Physics, mdata->globiter, gcomm, mdata->nslvar);
+            // if(rank == 0) {
+            //     fprintf(stdout, "Rank: %d: Write DIAG Done...\n", rank);
+            // }
             break;
         case SOLUTION:
             // write_solution(s, Run, Grid, Physics, mdata->globiter, gcomm, metadata->nslvar);
