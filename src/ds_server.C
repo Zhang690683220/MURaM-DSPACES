@@ -292,7 +292,7 @@ void write_eos(dspaces_provider_t server, const RunData& Run, const GridData& Gr
             } else {
                 // ! No MPI_File_write() here, Just to avoid stucking at MPI_File_set_view()
                 // ! Fake code, doesn't do anything useful
-                for(int d=0; d<objs[i].ndim; d++) {
+                for(int d=0; d<3; d++) {
                     lsz[d] = 1;
                     str[d] = 0;
                 }
