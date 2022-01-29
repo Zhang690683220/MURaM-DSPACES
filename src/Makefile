@@ -40,7 +40,7 @@ OBJS = ACCH.o \
        eos_init.o \
        cons_to_prim.o
 
-DSSEVEROBJS = ACCH.o \
+DSSERVEROBJS = ACCH.o \
        io_xysl.o \
        slice_write.o \
        slice_write_rebin.o \
@@ -109,9 +109,11 @@ all:
 	$(MAKE) $(OBJS) $(HEADERS)
 	@echo "Linking $(PROGRAM) ..."
 	$(LD) -o $(PROGRAM) $(OBJS) $(LIBS) $(LDFLAGS)
+
 	$(MAKE) $(DSSERVEROBJS) $(HEADERS)
 	@echo "Linking $(DSSERVER) ..."
-	$(LD) -o $(DSSERVER) $(DSSERVEROBJS) $(LIBS) $(DSPACES_SERVER_LIB_DIR)  $(LDFLAGS)
+	$(LD) -o $(DSSERVER) $(DSSERVEROBJS) $(LIBS) $(DSPACES_SERVER_LIB_DIR) $(LDFLAGS)
+
 	$(MAKE) $(DS_FILEWRITER_OBJS) $(HEADERS)
 	@echo "Linking $(DS_FILEWRITER) ..."
 	$(LD) -o $(DS_FILEWRITER) $(DS_FILEWRITER_OBJS) $(LIBS) $(LDFLAGS)
