@@ -4,6 +4,8 @@
 #include "mpi.h"
 
 class DSGridData{
+    
+public:
     MPI_Comm gcomm;
     MPI_Comm cart_comm;
     int grank;
@@ -18,7 +20,7 @@ class DSGridData{
 
     DSGridData();
     ~DSGridData() = default;
-    void Init();
+    void Init(MPI_Comm comm);
     void Show() const;
 
 };

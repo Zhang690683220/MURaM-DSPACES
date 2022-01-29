@@ -10,7 +10,7 @@
 #include "grid.H"
 #include "run.H"
 #include "ds_common.H"
-#include "ds_write_file.H"
+#include "ds_file_writer.H"
 
 DSGridData::DSGridData() {
     ndim = 3;
