@@ -40,7 +40,7 @@ OBJS = ACCH.o \
        eos_init.o \
        cons_to_prim.o
 
-DSOBJS = ACCH.o \
+DSSEVEROBJS = ACCH.o \
        io_xysl.o \
        slice_write.o \
        slice_write_rebin.o \
@@ -72,14 +72,49 @@ DSOBJS = ACCH.o \
        cons_to_prim.o \
        ds_server.o
 
+DS_FILEWRITER_OBJS = ACCH.o \
+       io_xysl.o \
+       slice_write.o \
+       slice_write_rebin.o \
+       Iout.o \
+       Qthin.o\
+       tau_slice.o \
+       xy_slice.o \
+       yz_slice.o \
+       xz_slice.o \
+       corona_emission_dem_xyz.o \
+       comm_split.o \
+       grid.o \
+       init.o \
+       run.o \
+       physics.o \
+       analysis_light.o \
+       analysis_hmean_Corona.o \
+       dfparser.o \
+       Adjust_Valf_Max.o \
+       Add_Sources_Integrate_SR.o \
+       mhdres_SR.o \
+       tvdlimit_SR.o \
+       clean_divB.o \
+       exchange.o \
+       potential_sd_fftw3.o \
+       potential_sd_fftw3_par.o \
+       boundary_pdmp_1_fftw3.o \
+       eos_init.o \
+       cons_to_prim.o \
+       ds_file_writer.o
+
 all:
 	@list='$(SUBDIRS)' ; for subdir in $$list ; do $(MAKE) all -C   $$subdir ; done
 	$(MAKE) $(OBJS) $(HEADERS)
 	@echo "Linking $(PROGRAM) ..."
 	$(LD) -o $(PROGRAM) $(OBJS) $(LIBS) $(LDFLAGS)
-	$(MAKE) $(DSOBJS) $(HEADERS)
+	$(MAKE) $(DSSERVEROBJS) $(HEADERS)
 	@echo "Linking $(DSSERVER) ..."
-	$(LD) -o $(DSSERVER) $(DSOBJS) $(LIBS) $(DSPACES_SERVER_LIB_DIR)  $(LDFLAGS)
+	$(LD) -o $(DSSERVER) $(DSSERVEROBJS) $(LIBS) $(DSPACES_SERVER_LIB_DIR)  $(LDFLAGS)
+       $(MAKE) $(DS_FILEWRITER_OBJS) $(HEADERS)
+	@echo "Linking $(DS_FILEWRITER) ..."
+	$(LD) -o $(DS_FILEWRITER) $(DS_FILEWRITER_OBJS) $(LIBS) $(LDFLAGS)
 	@echo "done"
 
 clean:

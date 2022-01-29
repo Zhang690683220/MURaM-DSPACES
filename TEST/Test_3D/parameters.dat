@@ -37,6 +37,7 @@ dspaces_optimized = 0
 dspaces_gpu = 0
 dspaces_manual_listen_addr = 1
 dspaces_client_listen_addr = verbs://mlx5_1
+dspaces_file_writer_procs = 4 1 1
 
 # Other Outputs, save 3D cubes of
 #             Tem Pre  ne rhoi amb Qrt Tau Jtot Stot Qcor QH QMg QCa QCro
