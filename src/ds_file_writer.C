@@ -212,7 +212,7 @@ void Initialize(RunData& Run,GridData& Grid, PhysicsData& Physics, DSGridData ds
             getvar(&Run.dspaces_client_listen_addr, "dspaces_client_listen_addr", "char*", datafile);
         }
         getvar(&Run.io_log_path, "io_log_path", "char*", datafile);
-        getvar_s(&ds_Grid.NDIM,"NDIM","int",datafile);
+        getvar_s(&ds_Grid.ndim,"NDIM","int",datafile);
         getvar_s(&Grid.NDIM,"NDIM","int",datafile);
 
         if( Grid.NDIM==3 ) {
@@ -289,7 +289,7 @@ void Initialize(RunData& Run,GridData& Grid, PhysicsData& Physics, DSGridData ds
     MPI_Bcast(Grid.periods,3,MPI_INT, 0,MPI_COMM_WORLD);
     MPI_Bcast(Grid.procs,3,MPI_INT, 0,MPI_COMM_WORLD);
 
-    MPI_Bcast(Grid.ds_wf_procs,3,MPI_INT, 0,MPI_COMM_WORLD);
+    MPI_Bcast(ds_Grid.procs,3,MPI_INT, 0,MPI_COMM_WORLD);
 
     MPI_Bcast(&Physics,sizeof(Physics),MPI_BYTE,0,MPI_COMM_WORLD);
 
@@ -348,7 +348,7 @@ int main(int argc, char** argv) {
 
         if(rank == 0) {
             clk = MPI_Wtime();
-            dspaces_get_meta(dsp, "muram_meta", META_MODE_NEXT, mverlast, &mver, (void **)&mdata, &mdatalen);
+            dspaces_get_meta(client, "muram_meta", META_MODE_NEXT, mverlast, &mver, (void **)&mdata, &mdatalen);
             fprintf(stdout, "Time of dspaces_get_meta = %lf, Meta Version = %d.\n", MPI_Wtime()-clk, mver);
             if(mdatalen != sizeof(*mdata)) {
                 fprintf(stderr, "ERROR: corrupt metadata of size %d\n", mdatalen);
@@ -373,7 +373,7 @@ int main(int argc, char** argv) {
             if(rank == 0) {
                 fprintf(stdout, "Rank: %d: Write EOS: GlobalIter = %d ...\n", rank, mdata->globiter);
             }
-            write_eos(dsp, Run, Grid, Physics, mdata->globiter, gcomm);
+            write_eos(client, Run, Grid, Physics, mdata->globiter, gcomm);
             if(rank == 0) {
                 fprintf(stdout, "Rank: %d: Write EOS Done...\n", rank);
             }
