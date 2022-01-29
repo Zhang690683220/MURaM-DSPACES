@@ -373,7 +373,7 @@ int main(int argc, char** argv) {
             if(rank == 0) {
                 fprintf(stdout, "Rank: %d: Write EOS: GlobalIter = %d ...\n", rank, mdata->globiter);
             }
-            write_eos(client, Run, Grid, Physics, mdata->globiter, gcomm);
+            write_eos(client, Run, Grid, Physics, DSGrid,mdata->globiter, gcomm);
             if(rank == 0) {
                 fprintf(stdout, "Rank: %d: Write EOS Done...\n", rank);
             }
