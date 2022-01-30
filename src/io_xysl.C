@@ -24,8 +24,8 @@ struct log *io_file_log, *io_dspaces_log;
 // 2D: TAU-2, YZ-3, XY-4, XZ-5, CORONA-6, ANALYZE_VP-7
 const int io_proc_num = 8;
 
-int mpi_io_in     = 0;
-int mpi_io_out    = 0;
+int mpi_io_in     = 1;
+int mpi_io_out    = 1;
 int blocksize     = 8; // has only effect for mpi_io = 0 !
 
 int nblocks,blsz;
