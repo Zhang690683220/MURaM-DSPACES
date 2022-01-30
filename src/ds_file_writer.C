@@ -295,6 +295,7 @@ void Initialize(RunData& Run,GridData& Grid, PhysicsData& Physics, DSGridData ds
     MPI_Bcast(Grid.procs,3,MPI_INT, 0,MPI_COMM_WORLD);
 
     MPI_Bcast(ds_Grid.procs,3,MPI_INT, 0,MPI_COMM_WORLD);
+    MPI_Bcast(ds_Grid.gsize,3,MPI_INT, 0,MPI_COMM_WORLD);
 
     MPI_Bcast(&Physics,sizeof(Physics),MPI_BYTE,0,MPI_COMM_WORLD);
 
