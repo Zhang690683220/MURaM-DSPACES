@@ -332,10 +332,13 @@ int main(int argc, char** argv) {
     MPI_Comm_split(MPI_COMM_WORLD, color, rank, &gcomm);
 
     ret = dspaces_init(rank, &client);
-    if(ret != 0)
+    if(ret != 0) {
         return ret;
+    }
 
-    Initialize(Run, Grid, Physics, DSGrid,gcomm);
+    fprintf(stdout, "DEBUG0\n");
+
+    Initialize(Run, Grid, Physics, DSGrid, gcomm);
 
     // make sure MPI IO errors leed to program termination
     MPI_File_set_errhandler(MPI_FILE_NULL,MPI_ERRORS_ARE_FATAL); 
