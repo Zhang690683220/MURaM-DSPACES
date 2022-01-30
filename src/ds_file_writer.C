@@ -68,7 +68,6 @@ void write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid
     double clk, time_get = 0, time_mpi_file = 0;
     char ds_var_name[128];
     char filename[128];
-    int gsz[3], lsz[3], str[3];
     uint64_t lb[3], ub[3];
     int var;
     MPI_File mfh;
@@ -130,20 +129,13 @@ void write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid
 
     uint64_t vol = 1;
     for(int d=0; d<3; d++) {
-        gsz[d] = DSGrid.gsize[d];
-        lsz[d] = DSGrid.lsize[d];
-        str[d] = DSGrid.start[d];
-
         lb[d] = DSGrid.start[d];
         ub[d] = DSGrid.end[d];
         vol *= DSGrid.lsize[d];
     }
 
-    fprintf(stdout, "gsz = {%d, %d, %d}, lb = {%d, %d, %d}, ub = {%d, %d, %d}\n", gsz[0], gsz[1], gsz[2],
-            str[0], str[1], str[2], str[0]+lsz[0]-1, str[1]+lsz[1]-1, str[2]+lsz[2]-1);
-
     MPI_Datatype io_subarray;
-    MPI_Type_create_subarray(3, gsz, lsz, str, MPI_ORDER_FORTRAN, MPI_FLOAT, &io_subarray);
+    MPI_Type_create_subarray(3, DSGrid.gsize, DSGrid.lsize, DSGrid.start, MPI_ORDER_FORTRAN, MPI_FLOAT, &io_subarray);
     MPI_Type_commit(&io_subarray);
 
     void* buffer = (void*) malloc(vol*sizeof(float));
@@ -162,6 +154,7 @@ void write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid
         MPI_File_set_view(mfh, 0, MPI_FLOAT, io_subarray, (char *) "native", MPI_INFO_NULL);
         MPI_File_write_all(mfh, buffer, vol, MPI_FLOAT, MPI_STATUS_IGNORE);
         MPI_File_close(&mfh);
+        time_mpi_file += MPI_Wtime() - clk;
     }
     free(buffer);
     if(DSGrid.grank == 0) {
@@ -318,12 +311,12 @@ void Initialize(RunData& Run,GridData& Grid, PhysicsData& Physics, DSGridData& d
     //Grid.Init(Run,Physics);
     //   comm_split_init(Run,Grid);
 
-    //if(rank == 0) {
+    if(rank == 0) {
         // Run.Show();
         // Grid.Show();
         // Physics.Show();
         ds_Grid.Show();
-    //}
+    }
   
 }
 
