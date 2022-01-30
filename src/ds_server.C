@@ -245,7 +245,7 @@ void write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid
         }
     }
 
-    fprintf(stdout, "decomp = %d\n", decomp);
+    // fprintf(stdout, "decomp = %d\n", decomp);
 
     for(int d=0; d<3; d++) {
         if(d == decomp) {
@@ -287,8 +287,12 @@ void write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid
         vol = vol * lsz[d];
     }
 
-    fprintf(stdout, "gsz = {%d, %d, %d}, lb = {%d, %d, %d}, ub = {%d, %d, %d}\n", gsz[0], gsz[1], gsz[2],
-            str[0], str[1], str[2], str[0]+lsz[0]-1, str[1]+lsz[1]-1, str[2]+lsz[2]-1);
+    MPI_Datatype io_subarray;
+    MPI_Type_create_subarray(3, gsz, lsz, str, MPI_ORDER_FORTRAN, MPI_FLOAT, &io_subarray);
+    MPI_Type_commit(&io_subarray);
+
+    // fprintf(stdout, "gsz = {%d, %d, %d}, lb = {%d, %d, %d}, ub = {%d, %d, %d}\n", gsz[0], gsz[1], gsz[2],
+    //         str[0], str[1], str[2], str[0]+lsz[0]-1, str[1]+lsz[1]-1, str[2]+lsz[2]-1);
 
     void* buffer = (void*) malloc(vol*sizeof(float));
 
@@ -307,32 +311,31 @@ void write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid
         dspaces_get(client, ds_var_name, globiter, sizeof(float), 3, lb, ub, buffer, -1);
         time_get += MPI_Wtime() - clk;
 
-        if(io_rank == 0) {
-            fprintf(stdout, "dspaces_get() Time = %lf\n", MPI_Wtime() - clk);
-        }
+        // if(io_rank == 0) {
+        //     fprintf(stdout, "dspaces_get() Time = %lf\n", MPI_Wtime() - clk);
+        // }
 
         // int obj_num_max;
         // MPI_Allreduce(&obj_num, &obj_num_max, 1, MPI_INT, MPI_MAX, comm);
-
+        clk = MPI_Wtime();
         MPI_File_open(comm, filename, MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &mfh);
 
         // MPI_Datatype *io_subarray = (MPI_Datatype*) malloc(obj_num_max*sizeof(*io_subarray));
 
-        MPI_Datatype io_subarray;
+        
 
-        clk = MPI_Wtime();
-        MPI_Type_create_subarray(3, gsz, lsz, str, MPI_ORDER_FORTRAN, MPI_FLOAT, &io_subarray);
-        MPI_Type_commit(&io_subarray);
+        
+        
         MPI_File_set_view(mfh, 0, MPI_FLOAT, io_subarray, (char *) "native", MPI_INFO_NULL);
-        if(io_rank == 0) {
-            fprintf(stdout, "MPI_File_write()... \n");
-        }
+        // if(io_rank == 0) {
+        //     fprintf(stdout, "MPI_File_write()... \n");
+        // }
         MPI_File_write_all(mfh, buffer, vol, MPI_FLOAT, MPI_STATUS_IGNORE);
-        MPI_File_sync(mfh);
+        // MPI_File_sync(mfh);
         time_mpi_file += MPI_Wtime() - clk;
-        if(io_rank == 0) {
-            fprintf(stdout, "MPI_File_write()... Done! Time = %lf\n", MPI_Wtime() - clk);
-        }
+        // if(io_rank == 0) {
+        //     fprintf(stdout, "MPI_File_write()... Done! Time = %lf\n", MPI_Wtime() - clk);
+        // }
 
         // for(int i=0; i<obj_num_max; i++) {
         //     if(i < obj_num) {
@@ -443,9 +446,8 @@ void write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid
         // MPI_Type_free(&io_subarray[i]);
         // time_mpi_file += MPI_Wtime() - clk;
         // free(io_subarray);
-        MPI_Barrier(comm);
         MPI_File_close(&mfh);
-
+        time_mpi_file += MPI_Wtime() - clk;
     }
 
     free(buffer);
