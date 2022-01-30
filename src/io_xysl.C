@@ -1583,30 +1583,34 @@ void diag_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phy
       if (zcol_rank == v2){
 	sprintf(filename,"%s%s.%06d",Run.path_3D,diag_names[var],Run.globiter);
 	if(xy_rank == 0) cout << "write " << filename << endl;
-	// if(mpi_io_out == 0) {
-    // clk = MPI_Wtime(); 
-	  // if(xy_rank == 0){
-	  //   fh=fopen(filename,"w");
-	  //   if(fh == NULL){
-	  //     cout << "Error opening " << filename << ". Aborting ... " << endl;
-		// MPI_Abort(MPI_COMM_WORLD,1);
-	  //   }
-	  // }
-	  // for (k=0;k<nblocks;k++)
-	  //   xy_slice_write(Grid,0,&(iobuf_glo[k*blsz*sizex*sizey]),sizex*sizey,
-		// 	   fh);
-	  // if(xy_rank == 0) fclose(fh);
-    // file_time += MPI_Wtime() -clk;
-	// } else {
-  //   clk = MPI_Wtime();
-	//   MPI_File_open(io_xy_comm,filename,MPI_MODE_CREATE | MPI_MODE_WRONLY,
-	// 		io_info,&mfh);
-	//   MPI_File_set_view(mfh,0,MPI_FLOAT,io_subarray,(char *) "native",
-	// 		    io_info);
-	//   MPI_File_write_all(mfh,iobuf_glo,gsize,MPI_FLOAT,MPI_STATUS_IGNORE);
-	//   MPI_File_close(&mfh);
-  //   file_time += MPI_Wtime() -clk;
-	// }
+
+  // !! not compatible with dataspaces at 1560x1008x1008 scale
+  if(!Run.use_dspaces_io) {
+    if(mpi_io_out == 0) {
+      clk = MPI_Wtime(); 
+      if(xy_rank == 0){
+        fh=fopen(filename,"w");
+        if(fh == NULL){
+          cout << "Error opening " << filename << ". Aborting ... " << endl;
+      MPI_Abort(MPI_COMM_WORLD,1);
+        }
+      }
+      for (k=0;k<nblocks;k++)
+        xy_slice_write(Grid,0,&(iobuf_glo[k*blsz*sizex*sizey]),sizex*sizey,
+          fh);
+      if(xy_rank == 0) fclose(fh);
+      file_time += MPI_Wtime() -clk;
+    } else {
+      clk = MPI_Wtime();
+      MPI_File_open(io_xy_comm,filename,MPI_MODE_CREATE | MPI_MODE_WRONLY,
+        io_info,&mfh);
+      MPI_File_set_view(mfh,0,MPI_FLOAT,io_subarray,(char *) "native",
+            io_info);
+      MPI_File_write_all(mfh,iobuf_glo,gsize,MPI_FLOAT,MPI_STATUS_IGNORE);
+      MPI_File_close(&mfh);
+      file_time += MPI_Wtime() -clk;
+    }
+  }
       }
     }
   }
@@ -1877,30 +1881,34 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
       if (zcol_rank == v2){
 	sprintf(filename,"%s%s.%06d",Run.path_3D,eos_names[var],Run.globiter);
 	if(xy_rank == 0) cout << "write " << filename << endl;
-	// if(mpi_io_out == 0) {
-    // clk = MPI_Wtime();
-	  // if(xy_rank == 0){
-	  //   fh=fopen(filename,"w");
-	  //   if(fh == NULL){
-	  //     cout << "Error opening " << filename << ". Aborting ... " << endl;
-	  //     MPI_Abort(MPI_COMM_WORLD,1);
-	  //   }
-	  // }
-	  // for (k=0;k<nblocks;k++)
-	  //   xy_slice_write(Grid,0,&(iobuf_glo[k*blsz*sizex*sizey]),sizex*sizey,
-		// 	   fh);
-	  // if(xy_rank == 0) fclose(fh);
-    // file_time += MPI_Wtime() -clk;
-	// } else {
-  //   clk = MPI_Wtime();
-	//   MPI_File_open(io_xy_comm,filename,MPI_MODE_CREATE | MPI_MODE_WRONLY,
-	// 		io_info,&mfh);
-	//   MPI_File_set_view(mfh,0,MPI_FLOAT,io_subarray,(char *) "native",
-	// 		    io_info);
-	//   MPI_File_write_all(mfh,iobuf_glo,gsize,MPI_FLOAT,MPI_STATUS_IGNORE);
-	//   MPI_File_close(&mfh);
-  //   file_time += MPI_Wtime() - clk;
-	// }
+
+  // !! not compatible with dataspaces at 1560x1008x1008 scale
+  if(!Run.use_dspaces_io) {
+    if(mpi_io_out == 0) {
+      clk = MPI_Wtime();
+      if(xy_rank == 0){
+        fh=fopen(filename,"w");
+        if(fh == NULL){
+          cout << "Error opening " << filename << ". Aborting ... " << endl;
+          MPI_Abort(MPI_COMM_WORLD,1);
+        }
+      }
+      for (k=0;k<nblocks;k++)
+        xy_slice_write(Grid,0,&(iobuf_glo[k*blsz*sizex*sizey]),sizex*sizey,
+          fh);
+      if(xy_rank == 0) fclose(fh);
+      file_time += MPI_Wtime() -clk;
+    } else {
+      clk = MPI_Wtime();
+      MPI_File_open(io_xy_comm,filename,MPI_MODE_CREATE | MPI_MODE_WRONLY,
+        io_info,&mfh);
+      MPI_File_set_view(mfh,0,MPI_FLOAT,io_subarray,(char *) "native",
+            io_info);
+      MPI_File_write_all(mfh,iobuf_glo,gsize,MPI_FLOAT,MPI_STATUS_IGNORE);
+      MPI_File_close(&mfh);
+      file_time += MPI_Wtime() - clk;
+    }
+  }
       }
     }
   }
@@ -1912,7 +1920,7 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
     io_file_log->eos->time[io_file_log->eos->count] = file_time;
     io_file_log->eos->count++ ;
     if(Run.verbose >0) {
-      cout << "MPI Output (EOS) in " << mpi_eos_time << " seconds" << endl;
+      cout << "MPI Output (EOS) in " << file_time << " seconds" << endl;
     }
   } 
   
