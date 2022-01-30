@@ -296,7 +296,7 @@ void Initialize(RunData& Run,GridData& Grid, PhysicsData& Physics, DSGridData ds
 
     int nprocs, tot_procs = 1;
     MPI_Rank_size(gcomm, &nprocs);
-    for(int d<ds_Grid.ndim; d++) {
+    for(int d=0; d<ds_Grid.ndim; d++) {
         tot_procs *= ds_Grid.procs[d];
     }
     if (tot_procs != nprocs) {
