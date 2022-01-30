@@ -22,6 +22,7 @@ DSGridData::DSGridData() {
 }
 
 void DSGridData::Init(MPI_Comm comm) {
+    gcomm = comm;
     int reorder = 0;
     int remain[3];
     MPI_Comm_rank(gcomm, &grank);
@@ -335,8 +336,6 @@ int main(int argc, char** argv) {
     if(ret != 0) {
         return ret;
     }
-
-    fprintf(stdout, "DEBUG0\n");
 
     Initialize(Run, Grid, Physics, DSGrid, gcomm);
 
