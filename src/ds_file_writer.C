@@ -139,6 +139,13 @@ void write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid
         vol *= DSGrid.lsize[d];
     }
 
+    fprintf(stdout, "gsz = {%d, %d, %d}, lb = {%d, %d, %d}, ub = {%d, %d, %d}\n", gsz[0], gsz[1], gsz[2],
+            str[0], str[1], str[2], str[0]+lsz[0]-1, str[1]+lsz[1]-1, str[2]+lsz[2]-1);
+
+    MPI_Datatype io_subarray;
+    MPI_Type_create_subarray(3, gsz, lsz, str, MPI_ORDER_FORTRAN, MPI_FLOAT, &io_subarray);
+    MPI_Type_commit(&io_subarray);
+
     void* buffer = (void*) malloc(vol*sizeof(float));
 
     for(int v=0; v<tot_vars; v++) {
@@ -149,10 +156,6 @@ void write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid
         clk = MPI_Wtime();
         dspaces_get(client, ds_var_name, globiter, sizeof(float), 3, lb, ub, buffer, -1);
         time_get += MPI_Wtime() - clk;
-
-        MPI_Datatype io_subarray;
-        MPI_Type_create_subarray(3, gsz, lsz, str, MPI_ORDER_FORTRAN, MPI_FLOAT, &io_subarray);
-        MPI_Type_commit(&io_subarray);
 
         clk = MPI_Wtime();
         MPI_File_open(DSGrid.gcomm, filename, MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &mfh);
