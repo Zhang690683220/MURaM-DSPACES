@@ -314,12 +314,12 @@ void Initialize(RunData& Run,GridData& Grid, PhysicsData& Physics, DSGridData ds
     //Grid.Init(Run,Physics);
     //   comm_split_init(Run,Grid);
 
-    if(rank == 0) {
+    //if(rank == 0) {
         // Run.Show();
         // Grid.Show();
         // Physics.Show();
         ds_Grid.Show();
-    }
+    //}
   
 }
 
