@@ -133,7 +133,7 @@ void write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid
         gsz[d] = DSGrid.gsize[d];
         lsz[d] = DSGrid.lsize[d];
         str[d] = DSGrid.start[d];
-        
+
         lb[d] = DSGrid.start[d];
         ub[d] = DSGrid.end[d];
         vol *= DSGrid.lsize[d];
@@ -389,7 +389,7 @@ int main(int argc, char** argv) {
             if(rank == 0) {
                 fprintf(stdout, "Rank: %d: Write EOS: GlobalIter = %d ...\n", rank, mdata->globiter);
             }
-            write_eos(client, Run, Grid, Physics, DSGrid,mdata->globiter, gcomm);
+            write_eos(client, Run, Grid, Physics, DSGrid,mdata->globiter);
             if(rank == 0) {
                 fprintf(stdout, "Rank: %d: Write EOS Done...\n", rank);
             }
