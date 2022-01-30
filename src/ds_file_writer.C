@@ -170,7 +170,7 @@ void write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid
     }
 }
 
-void Initialize(RunData& Run,GridData& Grid, PhysicsData& Physics, DSGridData ds_Grid, MPI_Comm gcomm) {
+void Initialize(RunData& Run,GridData& Grid, PhysicsData& Physics, DSGridData& ds_Grid, MPI_Comm gcomm) {
     char datafile[256] = "parameters.dat";
     char rtype[16] = "double";
     int i, rank;
