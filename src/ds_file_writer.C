@@ -151,7 +151,7 @@ void write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid
         time_get += MPI_Wtime() - clk;
 
         MPI_Datatype io_subarray;
-        MPI_Type_create_subarray(3, DSGrid.gsize, DSGrid.lsize, DSGrid.start, MPI_ORDER_FORTRAN, MPI_FLOAT, &io_subarray);
+        MPI_Type_create_subarray(3, gsz, lsz, str, MPI_ORDER_FORTRAN, MPI_FLOAT, &io_subarray);
         MPI_Type_commit(&io_subarray);
 
         clk = MPI_Wtime();
