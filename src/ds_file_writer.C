@@ -295,7 +295,7 @@ void Initialize(RunData& Run,GridData& Grid, PhysicsData& Physics, DSGridData ds
     MPI_Bcast(&Physics,sizeof(Physics),MPI_BYTE,0,MPI_COMM_WORLD);
 
     int nprocs, tot_procs = 1;
-    MPI_Rank_size(gcomm, &nprocs);
+    MPI_Comm_size(gcomm, &nprocs);
     for(int d=0; d<ds_Grid.ndim; d++) {
         tot_procs *= ds_Grid.procs[d];
     }
