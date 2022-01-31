@@ -18,7 +18,7 @@
 
 extern void ELTE_decon();
 
-double start_time,rst_time;
+double start_time,rst_time, end_time;
 
 int main(int argc, char** argv) {
 
@@ -56,6 +56,7 @@ int main(int argc, char** argv) {
   if (Physics.rt_ext[i_ext_cor]==2)
     ELTE_decon();
   if (Run.rank==0) fprintf(stderr,"deleted rts\n");
-       
+  end_time = MPI_Wtime();
+  fprintf(stdout,"MURaM Time = %lf\n", end_time-start_time);
   return 0;
 }
