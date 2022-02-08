@@ -181,6 +181,7 @@ void nc_write_eos(dspaces_client_t client, const RunData& Run, const GridData& G
     int nc_ret;
     int nc_dimid[3];
     char nc_dimname[3][128];
+    size_t nc_str[3], nc_lsize[3];
 
     //Only write out variables that re allocated based on physics configuration
     int var_init[max_vars];
@@ -242,6 +243,8 @@ void nc_write_eos(dspaces_client_t client, const RunData& Run, const GridData& G
     for(int d=0; d<3; d++) {
         lb[d] = DSGrid.start[d];
         ub[d] = DSGrid.end[d];
+        nc_str[d] = DSGrid.start[d];
+        nc_lsize[d] = DSGrid.lsize[d];
         vol *= DSGrid.lsize[d];
     }
 
@@ -294,7 +297,7 @@ void nc_write_eos(dspaces_client_t client, const RunData& Run, const GridData& G
 
         /* Write Data */
         clk = MPI_Wtime();
-        nc_ret = nc_put_vara_float(nc_fid, nc_varid[v], DSGrid.start, DSGrid.lsize, buffer);   
+        nc_ret = nc_put_vara_float(nc_fid, nc_varid[v], nc_str, nc_lsize, buffer);   
         time_mpi_file += MPI_Wtime() - clk;
         if(nc_ret != NC_NOERR) {
             fprintf(stderr, "ERROR: Rank %i: %s, line %i (%s): nc_put_vara_float() failed ! Error code: %s",
