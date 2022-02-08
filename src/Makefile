@@ -116,7 +116,7 @@ all:
 
 	$(MAKE) $(DS_FILEWRITER_OBJS) $(HEADERS)
 	@echo "Linking $(DS_FILEWRITER) ..."
-	$(LD) -o $(DS_FILEWRITER) $(DS_FILEWRITER_OBJS) $(LIBS) $(LDFLAGS)
+	$(LD) -o $(DS_FILEWRITER) $(DS_FILEWRITER_OBJS) $(LIBS) $(LDFLAGS) $(NetCDF_LIB)
 	@echo "done"
 
 clean:

@@ -163,6 +163,157 @@ void write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid
     }
 }
 
+void nc_write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid,const PhysicsData& Physics,
+                    const DSGridData & DSGrid, int globiter)
+{
+    double clk, time_get = 0, time_mpi_file = 0;
+    char ds_var_name[128];
+    char filename[128];
+    uint64_t lb[3], ub[3];
+    int var;
+    MPI_File mfh;
+    int max_vars = 14;
+    char eos_names[max_vars][128];
+    char nc_varname[128];
+    int nc_fid;
+    int nc_ret;
+    int nc_dimid[3];
+    char nc_dimname[3][128];
+
+    //Only write out variables that re allocated based on physics configuration
+    int var_init[max_vars];
+    for(var=0;var<max_vars;var++) {
+        var_init[var] = 0;
+    }
+  
+    var_init[0] = 1;
+    var_init[1] = 1;
+    var_init[2] = 1;
+    var_init[3] = 1;
+    var_init[4] = 1;
+    var_init[5] = 1;
+    var_init[6] = 1;
+    var_init[7] = 1;
+    var_init[8] = 1;
+
+    if(Physics.rt_ext[i_ext_cor] >= 1) {
+        var_init[9] = 1;
+    }
+
+    if(Physics.rt_ext[i_ext_cor] == 2) {
+        var_init[10] = 1;
+        var_init[11] = 1;
+        var_init[12] = 1;
+        var_init[13] = 1;
+    }
+
+    int var_index[max_vars];
+    
+
+    int tot_vars = 0;
+    for(int v=0; v<max_vars; v++){
+        if((Run.eos_output[v] == 1) && (var_init[v] == 1)) {
+            var_index[tot_vars] = v;
+            tot_vars += 1;
+        }
+    }
+
+    int* nc_varid = (int*) malloc(tot_vars*sizeof(int));
+
+    // This is ugly, but for now it works so I will stick with it -- DP 
+    sprintf(eos_names[0], "%s", "eosT");
+    sprintf(eos_names[1], "%s", "eosP");
+    sprintf(eos_names[2], "%s", "eosne");
+    sprintf(eos_names[3], "%s", "eosrhoi");
+    sprintf(eos_names[4], "%s", "eosamb");
+    sprintf(eos_names[5], "%s", "Qtot");
+    sprintf(eos_names[6], "%s", "tau");
+    sprintf(eos_names[7], "%s", "Jtot");
+    sprintf(eos_names[8], "%s", "Stot");
+    sprintf(eos_names[9], "%s", "QxCor");
+    sprintf(eos_names[10], "%s", "QxH");
+    sprintf(eos_names[11], "%s", "QxMg");
+    sprintf(eos_names[12], "%s", "QxCa");
+    sprintf(eos_names[13], "%s", "QxChr");
+
+    uint64_t vol = 1;
+    for(int d=0; d<3; d++) {
+        lb[d] = DSGrid.start[d];
+        ub[d] = DSGrid.end[d];
+        vol *= DSGrid.lsize[d];
+    }
+
+
+    /* create parallel NetCDF file */
+    sprintf(filename, "%sEOS.%06d", Run.path_3D, globiter);
+    nc_ret = nc_create_par(filename, NC_CLOBBER | NC_NETCDF4, DSGrid.gcomm, MPI_INFO_NULL, &nc_fid);
+    if(nc_ret != NC_NOERR) {
+        fprintf(stderr, "ERROR: Rank %i: %s, line %i (%s): nc_create_par() failed ! Error code: %s",
+                DSGrid.grank, __FILE__, __LINE__, __func__, nc_strerror(nc_ret));
+    }
+
+    /* Define the dimensions. */
+    sprintf(nc_dimname[0], "x");
+    sprintf(nc_dimname[1], "y");
+    sprintf(nc_dimname[2], "z");
+    for(int d=0; d<3; d++) {
+        nc_ret = nc_def_dim(nc_fid, nc_dimname[d], DSGrid.gsize[d], &nc_dimid[d]);
+        if(nc_ret != NC_NOERR) {
+            fprintf(stderr, "ERROR: Rank %i: %s, line %i (%s): nc_def_dim() failed ! Error code: %s",
+                    DSGrid.grank, __FILE__, __LINE__, __func__, nc_strerror(nc_ret));
+        }
+    }
+
+    void* buffer = (void*) malloc(vol*sizeof(float));
+
+    for(int v=0; v<tot_vars; v++) {
+        var = var_index[v];
+        sprintf(ds_var_name, "%s%s", Run.path_3D, eos_names[var]);
+
+        /* Define the netCDF variables. The dimids array is used to pass
+            the dimids of the dimensions of the variables.*/
+        nc_ret = nc_def_var(nc_fid, eos_names[var], NC_FLOAT, 3, nc_dimid, &nc_varid[v]);
+        if(nc_ret != NC_NOERR) {
+            fprintf(stderr, "ERROR: Rank %i: %s, line %i (%s): nc_def_dim() failed ! Error code: %s",
+                    DSGrid.grank, __FILE__, __LINE__, __func__, nc_strerror(nc_ret));
+        }
+
+        /* Define units attributes for vars. */
+        // char nc_var_unit[128];
+        // nc_ret = nc_put_att_text(nc_fid, nc_varid[v], "units", strlen(nc_var_unit), nc_var_unit)
+
+        /* End define mode. */
+        // TODO: maybe cannot be used here
+        // nc_ret = nc_enddef(nc_fid);
+
+        clk = MPI_Wtime();
+        dspaces_get(client, ds_var_name, globiter, sizeof(float), 3, lb, ub, buffer, -1);
+        time_get += MPI_Wtime() - clk;
+
+        /* Write Data */
+        clk = MPI_Wtime();
+        nc_ret = nc_put_vara_float(nc_fid, nc_varid[v], DSGrid.start, DSGrid.lsize, buffer);   
+        time_mpi_file += MPI_Wtime() - clk;
+        if(nc_ret != NC_NOERR) {
+            fprintf(stderr, "ERROR: Rank %i: %s, line %i (%s): nc_put_vara_float() failed ! Error code: %s",
+                    DSGrid.grank, __FILE__, __LINE__, __func__, nc_strerror(nc_ret));
+        }
+    }
+
+    free(buffer);
+    free(nc_varid);
+    nc_ret = nc_close(nc_fid);
+    if(nc_ret != NC_NOERR) {
+            fprintf(stderr, "ERROR: Rank %i: %s, line %i (%s): nc_close() failed ! Error code: %s",
+                    DSGrid.grank, __FILE__, __LINE__, __func__, nc_strerror(nc_ret));
+    }
+
+    if(DSGrid.grank == 0) {
+        fprintf(stdout, "Write EOS: GlobalIter = %d, Time of dspaces_get() = %lf, Time of MPI_File_write() = %lf.\n",
+                globiter, time_get, time_mpi_file);
+    }
+}
+
 void Initialize(RunData& Run,GridData& Grid, PhysicsData& Physics, DSGridData& ds_Grid, MPI_Comm gcomm) {
     char datafile[256] = "parameters.dat";
     char rtype[16] = "double";
@@ -386,7 +537,7 @@ int main(int argc, char** argv) {
             if(rank == 0) {
                 fprintf(stdout, "Rank: %d: Write EOS: GlobalIter = %d ...\n", rank, mdata->globiter);
             }
-            write_eos(client, Run, Grid, Physics, DSGrid,mdata->globiter);
+            nc_write_eos(client, Run, Grid, Physics, DSGrid,mdata->globiter);
             if(rank == 0) {
                 fprintf(stdout, "Rank: %d: Write EOS Done...\n", rank);
             }

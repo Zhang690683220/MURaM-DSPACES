@@ -60,6 +60,11 @@ DSPACES_INC_DIR = $(shell pkg-config --cflags dspaces)
 DSPACES_LIB_DIR = $(shell pkg-config --libs dspaces)
 DSPACES_SERVER_LIB_DIR = $(shell pkg-config --libs dspaces-server)
 
+######### NetCDF-MPI options ############################
+NetCDF_HOME = /glade/u/apps/ch/opt/netcdf-mpi/4.8.1/openmpi/4.1.1/gnu/11.1.0/
+NetCDF_INC_DIR = -I${NetCDF_HOME}/include
+NetCDF_LIB_DIR = -L${NetCDF_HOME}/lib
+NetCDF_LIB = -lnetcdf -lhdf5_hl -lhdf5 -lz -lm
 ######### General options ##############################
 #
 # All the relevant definitions are now in include/alconfig.h
@@ -68,12 +73,12 @@ DSPACES_SERVER_LIB_DIR = $(shell pkg-config --libs dspaces-server)
 DEFS = $(OPT) $(DBG) $(PRE)
 
 INCLUDES = -I../ -I$(MURaM_HOME_DIR)/include -I$(MURaM_HOME_DIR)/src/rt $(MPIINCDIR) $(MPIOINCDIR) \
-     $(CFDINCDIR) $(FFTWINCDIR) $(DSPACES_INC_DIR)
+     $(CFDINCDIR) $(FFTWINCDIR) $(DSPACES_INC_DIR) $(NetCDF_INC_DIR)
 
 LIBS = $(CFDLIBDIR) $(CFDLIB) \
        $(MPILIBDIR) $(MPIOLIB) $(MPILIB) \
        $(FFTWLIBDIR) $(FFTWLIB) $(MASSLIB) -lm \
-	   $(DSPACES_LIB_DIR)
+	   $(DSPACES_LIB_DIR) $(NetCDF_LIB_DIR)
 
 ######### C options #####################################
 CC     = mpicc
