@@ -12,6 +12,7 @@
 #include "ds_common.H"
 #include "ds_file_writer.H"
 #include <netcdf.h>
+#include <netcdf_par.h>
 
 DSGridData::DSGridData() {
     ndim = 3;
