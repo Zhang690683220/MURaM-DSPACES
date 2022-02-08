@@ -250,7 +250,7 @@ void nc_write_eos(dspaces_client_t client, const RunData& Run, const GridData& G
     sprintf(filename, "%sEOS.%06d", Run.path_3D, globiter);
     nc_ret = nc_create_par(filename, NC_CLOBBER | NC_NETCDF4, DSGrid.gcomm, MPI_INFO_NULL, &nc_fid);
     if(nc_ret != NC_NOERR) {
-        fprintf(stderr, "ERROR: Rank %i: %s, line %i (%s): nc_create_par() failed ! Error code: %s",
+        fprintf(stderr, "ERROR: Rank %i: %s, line %i (%s): nc_create_par() failed ! Error code: %s\n",
                 DSGrid.grank, __FILE__, __LINE__, __func__, nc_strerror(nc_ret));
     }
 
@@ -261,10 +261,12 @@ void nc_write_eos(dspaces_client_t client, const RunData& Run, const GridData& G
     for(int d=0; d<3; d++) {
         nc_ret = nc_def_dim(nc_fid, nc_dimname[d], DSGrid.gsize[d], &nc_dimid[d]);
         if(nc_ret != NC_NOERR) {
-            fprintf(stderr, "ERROR: Rank %i: %s, line %i (%s): nc_def_dim() failed ! Error code: %s",
+            fprintf(stderr, "ERROR: Rank %i: %s, line %i (%s): nc_def_dim() failed ! Error code: %s\n",
                     DSGrid.grank, __FILE__, __LINE__, __func__, nc_strerror(nc_ret));
         }
     }
+
+    DSGrid.show();
 
     void* buffer = (void*) malloc(vol*sizeof(float));
 
@@ -276,7 +278,7 @@ void nc_write_eos(dspaces_client_t client, const RunData& Run, const GridData& G
             the dimids of the dimensions of the variables.*/
         nc_ret = nc_def_var(nc_fid, eos_names[var], NC_FLOAT, 3, nc_dimid, &nc_varid[v]);
         if(nc_ret != NC_NOERR) {
-            fprintf(stderr, "ERROR: Rank %i: %s, line %i (%s): nc_def_dim() failed ! Error code: %s",
+            fprintf(stderr, "ERROR: Rank %i: %s, line %i (%s): nc_def_dim() failed ! Error code: %s\n",
                     DSGrid.grank, __FILE__, __LINE__, __func__, nc_strerror(nc_ret));
         }
 
@@ -297,7 +299,7 @@ void nc_write_eos(dspaces_client_t client, const RunData& Run, const GridData& G
         nc_ret = nc_put_vara_float(nc_fid, nc_varid[v], (size_t*) DSGrid.start, (size_t*) DSGrid.lsize, (float*) buffer);   
         time_mpi_file += MPI_Wtime() - clk;
         if(nc_ret != NC_NOERR) {
-            fprintf(stderr, "ERROR: Rank %i: %s, line %i (%s): nc_put_vara_float() failed ! Error code: %s",
+            fprintf(stderr, "ERROR: Rank %i: %s, line %i (%s): nc_put_vara_float() failed ! Error code: %s\n",
                     DSGrid.grank, __FILE__, __LINE__, __func__, nc_strerror(nc_ret));
         }
     }
@@ -306,7 +308,7 @@ void nc_write_eos(dspaces_client_t client, const RunData& Run, const GridData& G
     free(nc_varid);
     nc_ret = nc_close(nc_fid);
     if(nc_ret != NC_NOERR) {
-            fprintf(stderr, "ERROR: Rank %i: %s, line %i (%s): nc_close() failed ! Error code: %s",
+            fprintf(stderr, "ERROR: Rank %i: %s, line %i (%s): nc_close() failed ! Error code: %s\n",
                     DSGrid.grank, __FILE__, __LINE__, __func__, nc_strerror(nc_ret));
     }
 
