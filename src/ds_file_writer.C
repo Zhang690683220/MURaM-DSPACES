@@ -297,7 +297,7 @@ void nc_write_eos(dspaces_client_t client, const RunData& Run, const GridData& G
 
         /* Write Data */
         clk = MPI_Wtime();
-        nc_ret = nc_put_vara_float(nc_fid, nc_varid[v], nc_str, nc_lsize, buffer);   
+        nc_ret = nc_put_vara_float(nc_fid, nc_varid[v], (size_t*) DSGrid.start, (size_t*) DSGrid.lsize, (float*) buffer);   
         time_mpi_file += MPI_Wtime() - clk;
         if(nc_ret != NC_NOERR) {
             fprintf(stderr, "ERROR: Rank %i: %s, line %i (%s): nc_put_vara_float() failed ! Error code: %s",
