@@ -168,7 +168,7 @@ void write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid
 void nc_write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid,const PhysicsData& Physics,
                     const DSGridData & DSGrid, int globiter)
 {
-    double clk, time_get = 0, time_mpi_file = 0;
+    double clk, time_get = 0, time_nc_file = 0;
     char ds_var_name[128];
     char filename[128];
     uint64_t lb[3], ub[3];
@@ -298,7 +298,7 @@ void nc_write_eos(dspaces_client_t client, const RunData& Run, const GridData& G
         /* Write Data */
         clk = MPI_Wtime();
         nc_ret = nc_put_vara_float(nc_fid, nc_varid[v], nc_str, nc_lsize, (float*) buffer);   
-        time_mpi_file += MPI_Wtime() - clk;
+        time_nc_file += MPI_Wtime() - clk;
         if(nc_ret != NC_NOERR) {
             fprintf(stderr, "ERROR: Rank %i: %s, line %i (%s): nc_put_vara_float() failed ! Error code: %s\n",
                     DSGrid.grank, __FILE__, __LINE__, __func__, nc_strerror(nc_ret));
@@ -314,8 +314,8 @@ void nc_write_eos(dspaces_client_t client, const RunData& Run, const GridData& G
     }
 
     if(DSGrid.grank == 0) {
-        fprintf(stdout, "Write EOS: GlobalIter = %d, Time of dspaces_get() = %lf, Time of MPI_File_write() = %lf.\n",
-                globiter, time_get, time_mpi_file);
+        fprintf(stdout, "Write EOS: GlobalIter = %d, Time of dspaces_get() = %lf, Time of NetCDF_File_write() = %lf.\n",
+                globiter, time_get, time_nc_file);
     }
 }
 
