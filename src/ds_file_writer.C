@@ -266,7 +266,7 @@ void nc_write_eos(dspaces_client_t client, const RunData& Run, const GridData& G
         }
     }
 
-    DSGrid.show();
+    DSGrid.Show();
 
     void* buffer = (void*) malloc(vol*sizeof(float));
 
