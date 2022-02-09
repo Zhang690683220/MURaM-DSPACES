@@ -132,7 +132,7 @@ void DSGridData::Show() const {
               << "start         = " << start[0] << ' ' << start[1] << ' ' << start[2] << std::endl
               << "end           = " << end[0] << ' ' << end[1] << ' ' << end[2] << std::endl;
     std::cout << " ----------------------------------2D------------------------------------" << std::endl;
-    std::cout << "Decomposition = " << procs[0] << 'x' << procs[1] << 'x' << procs[2] << std::endl;
+    std::cout << "Decomposition = " << procs2d[0] << 'x' << procs2d[1] << std::endl;
     std::cout << " -------------------------------XY Plane---------------------------------" << std::endl;
     std::cout << "gsize         = " << xygsize[0] << ' ' << xygsize[1] << std::endl
               << "lsize         = " << xylsize[0] << ' ' << xylsize[1] << std::endl
