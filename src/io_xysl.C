@@ -1979,17 +1979,22 @@ void eos_output(const RunData& Run, const GridData& Grid,const PhysicsData& Phys
     }
 
     // EOS finish the checkput for previous call, send a signal to file writer
-    if(eos_ref_count > eos_dspaces_bufnum-1) {
-      MPI_Barrier(io_comm);
-      if(io_rank == 0) {
-        std::cout << "EOS Put Finished, Globaliter =  " << eos_globiter_record << ". Sending Meta to DS_SERVER..." << std::endl;
-        publish_meta(ds_client, eos_globiter_record, EOS, v_max);
-      }
+    // if(eos_ref_count > eos_dspaces_bufnum-1) {
+    //   MPI_Barrier(io_comm);
+    //   if(io_rank == 0) {
+    //     std::cout << "EOS Put Finished, Globaliter =  " << eos_globiter_record << ". Sending Meta to DS_SERVER..." << std::endl;
+    //     publish_meta(ds_client, eos_globiter_record, EOS, v_max);
+    //   }
+    // }
+
+    // // TODO: only works for 1 bin now
+    // eos_globiter_record = Run.globiter;
+
+    // !! Only works for dspaces_get() at the file_writer side
+    if(io_rank == 0) {
+      std::cout << "EOS Put Finished, Globaliter =  " << Run.globiter << ". Sending Meta to DS_SERVER..." << std::endl;
+      publish_meta(ds_client, Run.globiter, EOS, -1);
     }
-
-    // TODO: only works for 1 bin now
-    eos_globiter_record = Run.globiter;
-
     // dspaces_check_put(ds_client, dspaces_put_req, 1);
     // dspaces_wait_time += MPI_Wtime() - clk;
     if(io_rank == 0 && Run.verbose > 0) {

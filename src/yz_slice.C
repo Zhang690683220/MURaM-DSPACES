@@ -404,6 +404,12 @@ void yz_slice(const RunData&  Run, const GridData& Grid,
          
   }
 
+  // !! Only works for dspaces_get() at the file_writer side
+  if(Run.use_dspaces_io && Run.rank == 0) {
+    std::cout << "YZ_Slice iPut Finished, Globaliter =  " << Run.globiter << ". Sending Meta to DS_SERVER..." << std::endl;
+    publish_meta(ds_client, Run.globiter, YZ_SLICE, -1);
+  }
+
   // check if put finish for the last dspaces_iput() before iobuf free
   // if ( (Grid.beg[0] <= ixpos[nsl]+Grid.gbeg[0] ) and 
   //        (Grid.end[0] >= ixpos[nsl]+Grid.gbeg[0] )){
