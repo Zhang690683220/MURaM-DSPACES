@@ -478,7 +478,7 @@ void nc_write_yz_slice(dspaces_client_t client, const RunData& Run, const Physic
                             DSGrid.grank, __FILE__, __LINE__, __func__, nc_strerror(nc_ret));
                 }
             }
-            fprintf(stderr, "DEBUG1, Slice: %d\n", nsl);
+
             for(int v=0; v<nslvar; v++) {
                 var = var_index[v];
                 sprintf(ds_var_name, "%s%s_%04d_%d", Run.path_2D, "yz_slice", ixpos[nsl], v);
@@ -490,6 +490,8 @@ void nc_write_yz_slice(dspaces_client_t client, const RunData& Run, const Physic
                     fprintf(stderr, "ERROR: Rank %i: %s, line %i (%s): nc_def_var() failed ! Error code: %s\n",
                             DSGrid.grank, __FILE__, __LINE__, __func__, nc_strerror(nc_ret));
                 }
+
+                fprintf(stderr, "DEBUG1, Slice: %d\n", nsl);
 
                 clk = MPI_Wtime();
                 dspaces_get(client, ds_var_name, globiter, sizeof(float), 2, lb, ub, (void*) buffer, -1);
