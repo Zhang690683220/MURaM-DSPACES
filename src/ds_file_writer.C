@@ -21,6 +21,13 @@ DSGridData::DSGridData() {
         periods[i] = 0;
         procs[i] = 1;
     }
+
+    for(int i=0; i<2; i++) {
+        procs2d[i] = 1;
+        xygsize[i] = 1;
+        xzgsize[i] = 1
+        yzgsize[i] = 1;
+    }
 }
 
 void DSGridData::Init(MPI_Comm comm) {
@@ -28,6 +35,8 @@ void DSGridData::Init(MPI_Comm comm) {
     int reorder = 0;
     int remain[3];
     MPI_Comm_rank(gcomm, &grank);
+
+    /* Create 3D domain decomposition */
     MPI_Cart_create(gcomm, ndim, procs, periods, reorder, &cart_comm);
     MPI_Cart_coords(cart_comm, grank, ndim, coord);
 
@@ -53,15 +62,93 @@ void DSGridData::Init(MPI_Comm comm) {
         end[d] = start[d] + lsize[d] - 1;
     }
 
+    /* Create 2D domain decomposition */
+    MPI_Cart_create(gcomm, 2, procs2d, periods, reorder, &comm2d);
+    MPI_Cart_coords(comm2d, grank, 2, coord2d);
+
+    xygsize[0] = gsize[0];
+    xygsize[1] = gsize[1];
+
+    xzgsize[0] = gsize[0];
+    xzgsize[1] = gsize[2];
+
+    yzgsize[0] = gsize[1];
+    yzgsize[1] = gsize[2];
+
+    int xyremain[2], xzremain[2], yzremain[2];
+
+    for(int d=0; d<2; d++) {
+        /* XY Plane */
+        xylsize[d] = (int) xygsize[d]/procs2d[d];
+        xystart[d] = xylsize[d] * coord2d[d];
+        xyremain[d] = xygsize[d] % procs2d[d];
+
+        if(coord2d[d] < xyremain[d]) {
+            xystart[d] += coord2d[d];
+            xylsize[d] += 1;
+        } else {
+            xystart[d] += xyremain[d];
+        }
+
+        xyend[d] = xystart[d] + xylsize[d] - 1;
+
+        /* XZ Plane */
+        xzlsize[d] = (int) xzgsize[d]/procs2d[d];
+        xzstart[d] = xzlsize[d] * coord2d[d];
+        xzremain[d] = xzgsize[d] % procs2d[d];
+
+        if(coord2d[d] < xzremain[d]) {
+            xzstart[d] += coord2d[d];
+            xzlsize[d] += 1;
+        } else {
+            xzstart[d] += xzremain[d];
+        }
+
+        xzend[d] = xzstart[d] + xzlsize[d] - 1;
+
+        /* YZ Plane */
+        yzlsize[d] = (int) yzgsize[d]/procs2d[d];
+        yzstart[d] = yzlsize[d] * coord2d[d];
+        yzremain[d] = yzgsize[d] % procs2d[d];
+
+        if(coord2d[d] < yzremain[d]) {
+            yzstart[d] += coord2d[d];
+            yzlsize[d] += 1;
+        } else {
+            yzstart[d] += yzremain[d];
+        }
+
+        yzend[d] = yzstart[d] + yzlsize[d] - 1;
+    }
+
 }
 
 void DSGridData::Show() const {
     std::cout << " ------------DataSpaces_File_Writer Grid Parameter Settings -------------" << std::endl;
+    std::cout << " ----------------------------------3D------------------------------------" << std::endl;
     std::cout << "Decomposition = " << procs[0] << 'x' << procs[1] << 'x' << procs[2] << std::endl
               << "gsize         = " << gsize[0] << ' ' << gsize[1] << ' ' << gsize[2] << std::endl
               << "lsize         = " << lsize[0] << ' ' << lsize[1] << ' ' << lsize[2] << std::endl
               << "start         = " << start[0] << ' ' << start[1] << ' ' << start[2] << std::endl
               << "end           = " << end[0] << ' ' << end[1] << ' ' << end[2] << std::endl;
+    std::cout << " ----------------------------------2D------------------------------------" << std::endl;
+    std::cout << "Decomposition = " << procs[0] << 'x' << procs[1] << 'x' << procs[2] << std::endl;
+    std::cout << " -------------------------------XY Plane---------------------------------" << std::endl;
+    std::cout << "gsize         = " << xygsize[0] << ' ' << xygsize[1] << std::endl
+              << "lsize         = " << xylsize[0] << ' ' << xylsize[1] << std::endl
+              << "start         = " << xystart[0] << ' ' << xystart[1] << std::endl
+              << "end           = " << xyend[0] << ' ' << xyend[1] << std::endl;
+    std::cout << " -------------------------------XZ Plane---------------------------------" << std::endl;
+    std::cout << "gsize         = " << xzgsize[0] << ' ' << xzgsize[1] << std::endl
+              << "lsize         = " << xzlsize[0] << ' ' << xzlsize[1] << std::endl
+              << "start         = " << xzstart[0] << ' ' << xzstart[1] << std::endl
+              << "end           = " << xzend[0] << ' ' << xzend[1] << std::endl;
+    std::cout << " -------------------------------YZ Plane---------------------------------" << std::endl;
+    std::cout << "gsize         = " << yzgsize[0] << ' ' << yzgsize[1] << std::endl
+              << "lsize         = " << yzlsize[0] << ' ' << yzlsize[1] << std::endl
+              << "start         = " << yzstart[0] << ' ' << yzstart[1] << std::endl
+              << "end           = " << yzend[0] << ' ' << yzend[1] << std::endl;
+    std::cout << " ------------------------------------------------------------------------" << std::endl;
 }
 
 void write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid,const PhysicsData& Physics,
@@ -165,7 +252,7 @@ void write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid
     }
 }
 
-void nc_write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid,const PhysicsData& Physics,
+void nc_write_eos(dspaces_client_t client, const RunData& Run, const PhysicsData& Physics,
                     const DSGridData & DSGrid, int globiter)
 {
     double clk, time_get = 0, time_nc_file = 0;
@@ -173,7 +260,6 @@ void nc_write_eos(dspaces_client_t client, const RunData& Run, const GridData& G
     char filename[128];
     uint64_t lb[3], ub[3];
     int var;
-    MPI_File mfh;
     int max_vars = 14;
     char eos_names[max_vars][128];
     char nc_varname[128];
@@ -250,7 +336,7 @@ void nc_write_eos(dspaces_client_t client, const RunData& Run, const GridData& G
 
 
     /* create parallel NetCDF file */
-    sprintf(filename, "%sEOS.%06d", Run.path_3D, globiter);
+    sprintf(filename, "%seos.%06d", Run.path_3D, globiter);
     nc_ret = nc_create_par(filename, NC_CLOBBER | NC_NETCDF4, DSGrid.gcomm, MPI_INFO_NULL, &nc_fid);
     if(nc_ret != NC_NOERR) {
         fprintf(stderr, "ERROR: Rank %i: %s, line %i (%s): nc_create_par() failed ! Error code: %s\n",
@@ -269,7 +355,7 @@ void nc_write_eos(dspaces_client_t client, const RunData& Run, const GridData& G
         }
     }
 
-    void* buffer = (void*) malloc(vol*sizeof(float));
+    float* buffer = (float*) malloc(vol*sizeof(float));
 
     for(int v=0; v<tot_vars; v++) {
         var = var_index[v];
@@ -279,7 +365,7 @@ void nc_write_eos(dspaces_client_t client, const RunData& Run, const GridData& G
             the dimids of the dimensions of the variables.*/
         nc_ret = nc_def_var(nc_fid, eos_names[var], NC_FLOAT, 3, nc_dimid, &nc_varid[v]);
         if(nc_ret != NC_NOERR) {
-            fprintf(stderr, "ERROR: Rank %i: %s, line %i (%s): nc_def_dim() failed ! Error code: %s\n",
+            fprintf(stderr, "ERROR: Rank %i: %s, line %i (%s): nc_def_var() failed ! Error code: %s\n",
                     DSGrid.grank, __FILE__, __LINE__, __func__, nc_strerror(nc_ret));
         }
 
@@ -292,12 +378,12 @@ void nc_write_eos(dspaces_client_t client, const RunData& Run, const GridData& G
         // nc_ret = nc_enddef(nc_fid);
 
         clk = MPI_Wtime();
-        dspaces_get(client, ds_var_name, globiter, sizeof(float), 3, lb, ub, buffer, -1);
+        dspaces_get(client, ds_var_name, globiter, sizeof(float), 3, lb, ub, (void*) buffer, -1);
         time_get += MPI_Wtime() - clk;
 
         /* Write Data */
         clk = MPI_Wtime();
-        nc_ret = nc_put_vara_float(nc_fid, nc_varid[v], nc_str, nc_lsize, (float*) buffer);   
+        nc_ret = nc_put_vara_float(nc_fid, nc_varid[v], nc_str, nc_lsize, buffer);   
         time_nc_file += MPI_Wtime() - clk;
         if(nc_ret != NC_NOERR) {
             fprintf(stderr, "ERROR: Rank %i: %s, line %i (%s): nc_put_vara_float() failed ! Error code: %s\n",
@@ -315,6 +401,176 @@ void nc_write_eos(dspaces_client_t client, const RunData& Run, const GridData& G
 
     if(DSGrid.grank == 0) {
         fprintf(stdout, "Write EOS: GlobalIter = %d, Time of dspaces_get() = %lf, Time of NetCDF_File_write() = %lf.\n",
+                globiter, time_get, time_nc_file);
+    }
+}
+
+void nc_write_yz_slice(dspaces_client_t client, const RunData& Run, const PhysicsData& Physics,
+                        const DSGridData & DSGrid, int globiter)
+{
+    double clk, time_get = 0, time_nc_file = 0;
+    char ds_var_name[128];
+    char filename[128];
+    uint64_t lb[2], ub[2];
+
+    int var;
+    int max_vars = 13;
+    char yz_slice_names[max_vars][128];
+    int var_index[max_vars];
+
+    int nc_fid;
+    int nc_ret;
+    char nc_varname[128];
+    int nc_dimid[2];
+    char nc_dimname[2][128];
+    size_t nc_str[2], nc_lsize[2];
+
+    int nslice = Physics.slice[i_sl_yz];
+    int *ixpos = (int*) malloc(nslice*sizeof(int));
+    int nslvar = 0;
+
+    for(int i=0; i<nslice; i++) {
+        ixpos[i] = Physics.yz_lev[i];
+    }
+
+    for (int v=0; v<max_vars; v++) {
+        sprintf(yz_slice_names[v], "var%d", v);
+        if(Physics.yz_var[v] == 1) {
+            var_index[nslvar] = v;
+            nslvar += 1;
+        }
+    }
+
+    int* nc_varid = (int*) malloc(nslvar*sizeof(int));
+
+    uint64_t vol = 1;
+    for(int d=0; d<3; d++) {
+        lb[d] = DSGrid.yzstart[d];
+        ub[d] = DSGrid.yzend[d];
+        nc_str[d] = DSGrid.yzstart[d];
+        nc_lsize[d] = DSGrid.yzlsize[d];
+        vol *= DSGrid.yzlsize[d];
+    }
+
+    float* buffer = (float*) malloc(vol*sizeof(float));
+
+    /* Define the dimensions. */
+    sprintf(nc_dimname[0], "y");
+    sprintf(nc_dimname[1], "z");
+
+    for(int nsl=0; nsl<nslice; nsl++) {
+        if(Physics.slice[i_sl_collect] == 0) {
+            /* create parallel NetCDF file */
+            sprintf(filename, "%syz_slice_%04d.%06d", Run.path_2D, ixpos[nsl], globiter);
+            nc_ret = nc_create_par(filename, NC_CLOBBER | NC_NETCDF4, DSGrid.gcomm, MPI_INFO_NULL, &nc_fid);
+            if(nc_ret != NC_NOERR) {
+                fprintf(stderr, "ERROR: Rank %i: %s, line %i (%s): nc_create_par() failed ! Error code: %s\n",
+                        DSGrid.grank, __FILE__, __LINE__, __func__, nc_strerror(nc_ret));
+            }
+
+            /* Define the dimensions. */
+            for(int d=0; d<2; d++) {
+                nc_ret = nc_def_dim(nc_fid, nc_dimname[d], DSGrid.yzgsize[d], &nc_dimid[d]);
+                if(nc_ret != NC_NOERR) {
+                    fprintf(stderr, "ERROR: Rank %i: %s, line %i (%s): nc_def_dim() failed ! Error code: %s\n",
+                            DSGrid.grank, __FILE__, __LINE__, __func__, nc_strerror(nc_ret));
+                }
+            }
+
+            for(int v=0; v<nslvar; v++) {
+                var = var_index[v];
+                sprintf(ds_var_name, "%s%s_%04d_%d", Run.path_2D, "yz_slice", ixpos[nsl], v);
+
+                /* Define the netCDF variables. The dimids array is used to pass
+                    the dimids of the dimensions of the variables.*/
+                nc_ret = nc_def_var(nc_fid, yz_slice_names[var], NC_FLOAT, 2, nc_dimid, &nc_varid[v]);
+                if(nc_ret != NC_NOERR) {
+                    fprintf(stderr, "ERROR: Rank %i: %s, line %i (%s): nc_def_var() failed ! Error code: %s\n",
+                            DSGrid.grank, __FILE__, __LINE__, __func__, nc_strerror(nc_ret));
+                }
+
+                clk = MPI_Wtime();
+                dspaces_get(client, ds_var_name, globiter, sizeof(float), 2, lb, ub, (void*) buffer, -1);
+                time_get += MPI_Wtime() - clk;
+
+                /* Write Data */
+                clk = MPI_Wtime();
+                nc_ret = nc_put_vara_float(nc_fid, nc_varid[v], nc_str, nc_lsize, buffer);   
+                time_nc_file += MPI_Wtime() - clk;
+                if(nc_ret != NC_NOERR) {
+                    fprintf(stderr, "ERROR: Rank %i: %s, line %i (%s): nc_put_vara_float() failed ! Error code: %s\n",
+                            DSGrid.grank, __FILE__, __LINE__, __func__, nc_strerror(nc_ret));
+                }
+            }
+        
+        } else {
+            // collective means write all iterations into the same file
+            char nc_var_name[128];
+            /* create parallel NetCDF file */
+            sprintf(filename, "yz_slice_%04d.dat", ixpos[nsl]);
+            nc_ret = nc_create_par(filename, NC_NOCLOBBER | NC_NETCDF4, DSGrid.gcomm, MPI_INFO_NULL, &nc_fid);
+            if(nc_ret == NC_EEXIST) {
+                // File Exist. Open it
+                nc_ret = nc_open_par(filename, NC_WRITE, DSGrid.gcomm, MPI_INFO_NULL, &nc_fid);
+                if(nc_ret != NC_NOERR) {
+                    fprintf(stderr, "ERROR: Rank %i: %s, line %i (%s): nc_open_par() failed ! Error code: %s\n",
+                            DSGrid.grank, __FILE__, __LINE__, __func__, nc_strerror(nc_ret));
+                }
+            } else if(nc_ret != NC_NOERR) {
+                fprintf(stderr, "ERROR: Rank %i: %s, line %i (%s): nc_create_par() failed ! Error code: %s\n",
+                        DSGrid.grank, __FILE__, __LINE__, __func__, nc_strerror(nc_ret));
+            }
+
+            /* Define the dimensions. */
+            for(int d=0; d<2; d++) {
+                nc_ret = nc_def_dim(nc_fid, nc_dimname[d], DSGrid.yzgsize[d], &nc_dimid[d]);
+                if(nc_ret != NC_NOERR) {
+                    fprintf(stderr, "ERROR: Rank %i: %s, line %i (%s): nc_def_dim() failed ! Error code: %s\n",
+                            DSGrid.grank, __FILE__, __LINE__, __func__, nc_strerror(nc_ret));
+                }
+            }
+
+            for(int v=0; v<nslvar; v++) {
+                var = var_index[v];
+                sprintf(ds_var_name, "%s%s_%04d_%d", Run.path_2D, "yz_slice", ixpos[nsl], v);
+
+                /* Define the netCDF variables. The dimids array is used to pass
+                    the dimids of the dimensions of the variables.*/
+                sprintf(nc_var_name, "%s.%06d", yz_slice_names[var], globiter);
+                nc_ret = nc_def_var(nc_fid, nc_var_name, NC_FLOAT, 2, nc_dimid, &nc_varid[v]);
+                if(nc_ret != NC_NOERR) {
+                    fprintf(stderr, "ERROR: Rank %i: %s, line %i (%s): nc_def_var() failed ! Error code: %s\n",
+                            DSGrid.grank, __FILE__, __LINE__, __func__, nc_strerror(nc_ret));
+                }
+
+                clk = MPI_Wtime();
+                dspaces_get(client, ds_var_name, globiter, sizeof(float), 2, lb, ub, (void*) buffer, -1);
+                time_get += MPI_Wtime() - clk;
+
+                /* Write Data */
+                clk = MPI_Wtime();
+                nc_ret = nc_put_vara_float(nc_fid, nc_varid[v], nc_str, nc_lsize, buffer);   
+                time_nc_file += MPI_Wtime() - clk;
+                if(nc_ret != NC_NOERR) {
+                    fprintf(stderr, "ERROR: Rank %i: %s, line %i (%s): nc_put_vara_float() failed ! Error code: %s\n",
+                            DSGrid.grank, __FILE__, __LINE__, __func__, nc_strerror(nc_ret));
+                }
+            }
+            
+        }
+
+        nc_ret = nc_close(nc_fid);
+        if(nc_ret != NC_NOERR) {
+            fprintf(stderr, "ERROR: Rank %i: %s, line %i (%s): nc_close() failed ! Error code: %s\n",
+                    DSGrid.grank, __FILE__, __LINE__, __func__, nc_strerror(nc_ret));
+        }
+    }
+
+    free(buffer);
+    free(nc_varid);
+
+    if(DSGrid.grank == 0) {
+        fprintf(stdout, "Write YZ_Slice: GlobalIter = %d, Time of dspaces_get() = %lf, Time of NetCDF_File_write() = %lf.\n",
                 globiter, time_get, time_nc_file);
     }
 }
@@ -383,7 +639,10 @@ void Initialize(RunData& Run,GridData& Grid, PhysicsData& Physics, DSGridData& d
 
             // Only works for 3D now
             getvar(ds_Grid.gsize,"gsize","int[3]",datafile);
-            getvar(ds_Grid.procs, "dspaces_file_writer_procs", "int[3]", datafile);
+            getvar(ds_Grid.procs, "dspaces_file_writer_3Dprocs", "int[3]", datafile);
+
+            // 2D only read procs now, use the same decomposition for xy, xz, yz plane
+            getvar(ds_Grid.procs2d, "dspaces_file_writer_2Dprocs", "int[2]", datafile);
 
             flag = getvar(Grid.ghosts,"ghosts","int[3]",datafile);
         } else if (Grid.NDIM==2) {
@@ -448,6 +707,7 @@ void Initialize(RunData& Run,GridData& Grid, PhysicsData& Physics, DSGridData& d
 
     MPI_Bcast(ds_Grid.procs,3,MPI_INT, 0,MPI_COMM_WORLD);
     MPI_Bcast(ds_Grid.gsize,3,MPI_INT, 0,MPI_COMM_WORLD);
+    MPI_Bcast(ds_Grid.procs2d,2,MPI_INT, 0,MPI_COMM_WORLD);
 
     MPI_Bcast(&Physics,sizeof(Physics),MPI_BYTE,0,MPI_COMM_WORLD);
 
@@ -457,7 +717,15 @@ void Initialize(RunData& Run,GridData& Grid, PhysicsData& Physics, DSGridData& d
         tot_procs *= ds_Grid.procs[d];
     }
     if (tot_procs != nprocs) {
-        fprintf(stdout, "ERROR !!! : dspaces_file_writer_procs set in parameters.dat != number of processors!!\n");
+        fprintf(stdout, "ERROR !!! : dspaces_file_writer_3Dprocs set in parameters.dat != number of processors!!\n");
+        MPI_Abort(MPI_COMM_WORLD,1);
+    }
+    tot_procs = 1
+    for(int d=0; d<2; d++) {
+        tot_procs *= ds_Grid.procs2d[d];
+    }
+    if (tot_procs != nprocs) {
+        fprintf(stdout, "ERROR !!! : dspaces_file_writer_2Dprocs set in parameters.dat != number of processors!!\n");
         MPI_Abort(MPI_COMM_WORLD,1);
     }
 
@@ -542,7 +810,7 @@ int main(int argc, char** argv) {
             if(rank == 0) {
                 fprintf(stdout, "Rank: %d: Write EOS: GlobalIter = %d ...\n", rank, mdata->globiter);
             }
-            nc_write_eos(client, Run, Grid, Physics, DSGrid,mdata->globiter);
+            nc_write_eos(client, Run, Physics, DSGrid, mdata->globiter);
             if(rank == 0) {
                 fprintf(stdout, "Rank: %d: Write EOS Done...\n", rank);
             }
@@ -565,7 +833,7 @@ int main(int argc, char** argv) {
             // write_tau_slice(s, Run, Grid, mdata->globiter, gcomm);
             break;
         case YZ_SLICE:
-            // write_yz_slice(s, Run, Grid, mdata->globiter, gcomm);
+            nc_write_yz_slice(client, Run, Physics, DSGrid, mdata->globiter);
             break;
         case XY_SLICE:
             // write_xy_slice(s, Run, Grid, mdata->globiter, gcomm);
