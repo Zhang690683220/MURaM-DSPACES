@@ -833,7 +833,13 @@ int main(int argc, char** argv) {
             // write_tau_slice(s, Run, Grid, mdata->globiter, gcomm);
             break;
         case YZ_SLICE:
+            if(rank == 0) {
+                fprintf(stdout, "Rank: %d: Write YZ_Slice: GlobalIter = %d ...\n", rank, mdata->globiter);
+            }
             nc_write_yz_slice(client, Run, Physics, DSGrid, mdata->globiter);
+            if(rank == 0) {
+                fprintf(stdout, "Rank: %d: Write YZ_Slice Done...\n", rank);
+            }
             break;
         case XY_SLICE:
             // write_xy_slice(s, Run, Grid, mdata->globiter, gcomm);
