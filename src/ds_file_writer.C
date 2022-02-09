@@ -25,7 +25,7 @@ DSGridData::DSGridData() {
     for(int i=0; i<2; i++) {
         procs2d[i] = 1;
         xygsize[i] = 1;
-        xzgsize[i] = 1；
+        xzgsize[i] = 1;
         yzgsize[i] = 1;
     }
 }
@@ -720,7 +720,7 @@ void Initialize(RunData& Run,GridData& Grid, PhysicsData& Physics, DSGridData& d
         fprintf(stdout, "ERROR !!! : dspaces_file_writer_3Dprocs set in parameters.dat != number of processors!!\n");
         MPI_Abort(MPI_COMM_WORLD,1);
     }
-    tot_procs = 1；
+    tot_procs = 1;
     for(int d=0; d<2; d++) {
         tot_procs *= ds_Grid.procs2d[d];
     }
