@@ -444,7 +444,7 @@ void nc_write_yz_slice(dspaces_client_t client, const RunData& Run, const Physic
     int* nc_varid = (int*) malloc(nslvar*sizeof(int));
 
     uint64_t vol = 1;
-    for(int d=0; d<3; d++) {
+    for(int d=0; d<2 d++) {
         lb[d] = DSGrid.yzstart[d];
         ub[d] = DSGrid.yzend[d];
         nc_str[d] = DSGrid.yzstart[d];
@@ -458,7 +458,10 @@ void nc_write_yz_slice(dspaces_client_t client, const RunData& Run, const Physic
     sprintf(nc_dimname[0], "y");
     sprintf(nc_dimname[1], "z");
 
+    fprintf(stderr, "DEBUG0\n")
+
     for(int nsl=0; nsl<nslice; nsl++) {
+        fprintf(stderr, "DEBUG1, Slice: %d\n", nsl)
         if(Physics.slice[i_sl_collect] == 0) {
             /* create parallel NetCDF file */
             sprintf(filename, "%syz_slice_%04d.%06d", Run.path_2D, ixpos[nsl], globiter);
@@ -564,6 +567,8 @@ void nc_write_yz_slice(dspaces_client_t client, const RunData& Run, const Physic
             fprintf(stderr, "ERROR: Rank %i: %s, line %i (%s): nc_close() failed ! Error code: %s\n",
                     DSGrid.grank, __FILE__, __LINE__, __func__, nc_strerror(nc_ret));
         }
+
+        fprintf(stderr, "DEBUG2, Time of dspaces_get() = %lf, Time of NetCDF_File_write() = %lf.\n", time_get, time_nc_file)
     }
 
     free(buffer);
