@@ -458,10 +458,9 @@ void nc_write_yz_slice(dspaces_client_t client, const RunData& Run, const Physic
     sprintf(nc_dimname[0], "y");
     sprintf(nc_dimname[1], "z");
 
-    fprintf(stderr, "DEBUG0\n");
 
     for(int nsl=0; nsl<nslice; nsl++) {
-        fprintf(stderr, "DEBUG1, Slice: %d\n", nsl);
+
         if(Physics.slice[i_sl_collect] == 0) {
             /* create parallel NetCDF file */
             sprintf(filename, "%syz_slice_%04d.%06d", Run.path_2D, ixpos[nsl], globiter);
@@ -479,7 +478,7 @@ void nc_write_yz_slice(dspaces_client_t client, const RunData& Run, const Physic
                             DSGrid.grank, __FILE__, __LINE__, __func__, nc_strerror(nc_ret));
                 }
             }
-
+            fprintf(stderr, "DEBUG1, Slice: %d\n", nsl);
             for(int v=0; v<nslvar; v++) {
                 var = var_index[v];
                 sprintf(ds_var_name, "%s%s_%04d_%d", Run.path_2D, "yz_slice", ixpos[nsl], v);
@@ -495,6 +494,8 @@ void nc_write_yz_slice(dspaces_client_t client, const RunData& Run, const Physic
                 clk = MPI_Wtime();
                 dspaces_get(client, ds_var_name, globiter, sizeof(float), 2, lb, ub, (void*) buffer, -1);
                 time_get += MPI_Wtime() - clk;
+
+                fprintf(stderr, "DEBUG1, dspaces_get(): %d\n", v);
 
                 /* Write Data */
                 clk = MPI_Wtime();
