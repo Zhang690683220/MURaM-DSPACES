@@ -349,7 +349,7 @@ void nc_write_eos(dspaces_client_t client, const RunData& Run, const PhysicsData
 
 
     /* create parallel NetCDF file */
-    sprintf(filename, "%seos.%06d", Run.path_3D, globiter);
+    sprintf(filename, "%snc_eos.%06d", Run.path_3D, globiter);
     nc_ret = nc_create_par(filename, NC_CLOBBER | NC_NETCDF4, DSGrid.gcomm, MPI_INFO_NULL, &nc_fid);
     if(nc_ret != NC_NOERR) {
         fprintf(stderr, "ERROR: Rank %i: %s, line %i (%s): nc_create_par() failed ! Error code: %s\n",
@@ -486,7 +486,7 @@ void nc_write_yz_slice(dspaces_client_t client, const RunData& Run, const Physic
 
         if(Physics.slice[i_sl_collect] == 0) {
             /* create parallel NetCDF file */
-            sprintf(filename, "%syz_slice_%04d.%06d", Run.path_2D, ixpos[nsl], globiter);
+            sprintf(filename, "%snc_yz_slice_%04d.%06d", Run.path_2D, ixpos[nsl], globiter);
             nc_ret = nc_create_par(filename, NC_CLOBBER | NC_NETCDF4, DSGrid.gcomm, MPI_INFO_NULL, &nc_fid);
             if(nc_ret != NC_NOERR) {
                 fprintf(stderr, "ERROR: Rank %i: %s, line %i (%s): nc_create_par() failed ! Error code: %s\n",
