@@ -467,8 +467,9 @@ void nc_write_eos(dspaces_client_t client, const RunData& Run, const GridData& G
 {
     static int f_gdim = 1;
 
-    int grank;
-    MPI_Comm_rank(&grank, comm);
+    int grank, nprocs;
+    MPI_Comm_rank(comm, &grank);
+    MPI_Comm_size(comm, &nprocs);
 
     double clk, time_get = 0, time_nc_file = 0;
     char ds_var_name[128];
@@ -549,13 +550,13 @@ void nc_write_eos(dspaces_client_t client, const RunData& Run, const GridData& G
 
     for(int d=0; d<3; d++) {
         gsz[d] = Grid.gsize[d];
-        if(gsz[d]>nprocs && decomp < 0) {
-            decomp = d;
+        if(gsz[d]>nprocs && decomp3d < 0) {
+            decomp3d = d;
         }
     }
 
     for(int d=0; d<3; d++) {
-        if(d == decomp) {
+        if(d == decomp3d) {
             lb[d] = (gsz[d] / nprocs)*io_rank;
             if(io_rank < (gsz[d] % nprocs)) {
                 lb[d] += io_rank;
@@ -924,13 +925,14 @@ void write_yz_slice(dspaces_provider_t server, const RunData& Run, const GridDat
 
 }
 
-void nc_write_yz_slice(dspaces_provider_t server, const RunData& Run, const GridData& Grid,
+void nc_write_yz_slice(dspaces_client_t client, const RunData& Run, const GridData& Grid,
                     const PhysicsData& Physics, int globiter, MPI_Comm comm)
 {
     static int f_gdim = 1;
 
-    int grank;
+    int grank, nprocs;
     MPI_Comm_rank(&grank, comm);
+    MPI_Comm_size(comm, &nprocs);
 
     double clk, time_get = 0, time_nc_file = 0;
     char ds_var_name[128];
@@ -977,13 +979,13 @@ void nc_write_yz_slice(dspaces_provider_t server, const RunData& Run, const Grid
 
     for(int d=0; d<2; d++) {
         gsz[d] = Grid.gsize[d];
-        if(gsz[d]>nprocs && decomp < 0) {
-            decomp = d;
+        if(gsz[d]>nprocs && decomp2d < 0) {
+            decomp2d = d;
         }
     }
 
     for(int d=0; d<2; d++) {
-        if(d == decomp) {
+        if(d == decomp2d) {
             lb[d] = (gsz[d] / nprocs)*io_rank;
             if(io_rank < (gsz[d] % nprocs)) {
                 lb[d] += io_rank;
@@ -1068,14 +1070,14 @@ void nc_write_yz_slice(dspaces_provider_t server, const RunData& Run, const Grid
             nc_ret = nc_create_par(filename, NC_NOCLOBBER | NC_NETCDF4, comm, MPI_INFO_NULL, &nc_fid);
             if(nc_ret == NC_EEXIST) {
                 // File Exist. Open it
-                nc_ret = nc_open_par(filename, NC_WRITE, gcomm, MPI_INFO_NULL, &nc_fid);
+                nc_ret = nc_open_par(filename, NC_WRITE, comm, MPI_INFO_NULL, &nc_fid);
                 if(nc_ret != NC_NOERR) {
                     fprintf(stderr, "ERROR: Rank %i: %s, line %i (%s): nc_open_par() failed ! Error code: %s\n",
                             grank, __FILE__, __LINE__, __func__, nc_strerror(nc_ret));
                 }
             } else if(nc_ret != NC_NOERR) {
                 fprintf(stderr, "ERROR: Rank %i: %s, line %i (%s): nc_create_par() failed ! Error code: %s\n",
-                        DSGrid.grank, __FILE__, __LINE__, __func__, nc_strerror(nc_ret));
+                        grank, __FILE__, __LINE__, __func__, nc_strerror(nc_ret));
             }
 
             /* Define the dimensions. */
