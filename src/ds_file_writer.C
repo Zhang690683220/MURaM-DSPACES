@@ -491,8 +491,6 @@ void nc_write_yz_slice(dspaces_client_t client, const RunData& Run, const Physic
                             DSGrid.grank, __FILE__, __LINE__, __func__, nc_strerror(nc_ret));
                 }
 
-                fprintf(stderr, "DEBUG1, Slice: %d\n", nsl);
-
                 clk = MPI_Wtime();
                 dspaces_get(client, ds_var_name, globiter, sizeof(float), 2, lb, ub, (void*) buffer, -1);
                 time_get += MPI_Wtime() - clk;
