@@ -526,8 +526,6 @@ void nc_write_yz_slice(dspaces_client_t client, const RunData& Run, const Physic
                 dspaces_get(client, ds_var_name, globiter, sizeof(float), 2, lb, ub, (void*) buffer, -1);
                 time_get += MPI_Wtime() - clk;
 
-                fprintf(stderr, "DEBUG1, dspaces_get(): %d\n", v);
-
                 /* Write Data */
                 clk = MPI_Wtime();
                 nc_ret = nc_put_vara_float(nc_fid, nc_varid[v], nc_str, nc_lsize, buffer);   
@@ -599,8 +597,6 @@ void nc_write_yz_slice(dspaces_client_t client, const RunData& Run, const Physic
             fprintf(stderr, "ERROR: Rank %i: %s, line %i (%s): nc_close() failed ! Error code: %s\n",
                     DSGrid.grank, __FILE__, __LINE__, __func__, nc_strerror(nc_ret));
         }
-
-        fprintf(stderr, "DEBUG2, Time of dspaces_get() = %lf, Time of NetCDF_File_write() = %lf.\n", time_get, time_nc_file);
     }
     f_gdim = 0;
     free(buffer);
