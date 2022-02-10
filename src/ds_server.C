@@ -931,7 +931,7 @@ void nc_write_yz_slice(dspaces_client_t client, const RunData& Run, const GridDa
     static int f_gdim = 1;
 
     int grank, nprocs;
-    MPI_Comm_rank(&grank, comm);
+    MPI_Comm_rank(comm, &grank);
     MPI_Comm_size(comm, &nprocs);
 
     double clk, time_get = 0, time_nc_file = 0;
@@ -1108,7 +1108,7 @@ void nc_write_yz_slice(dspaces_client_t client, const RunData& Run, const GridDa
 
                 /* Write Data */
                 clk = MPI_Wtime();
-                nc_ret = nc_put_vara_float(nc_fid, nc_varid[v], nc_str, nc_lsize, buffer);   
+                nc_ret = nc_put_vara_float(nc_fid, nc_varid[v], str, lsz, buffer);   
                 time_nc_file += MPI_Wtime() - clk;
                 if(nc_ret != NC_NOERR) {
                     fprintf(stderr, "ERROR: Rank %i: %s, line %i (%s): nc_put_vara_float() failed ! Error code: %s\n",
