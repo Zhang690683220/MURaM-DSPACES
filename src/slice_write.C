@@ -47,7 +47,11 @@ void slice_write(const GridData& Grid,const int iroot,float* vloc,int nloc,
   bounds[0]=Grid.beg[n0];
   bounds[1]=Grid.end[n0];
   bounds[2]=Grid.beg[n1];
-  bounds[3]=Grid.end[n1];  
+  bounds[3]=Grid.end[n1];
+
+  if((Grid.beg[n0] - Grid.gbeg[n0] == 0) && (Grid.beg[n1] - Grid.gbeg[n1] == 0)) {
+    fprintf(stderr, "YZ_Slice : Rank = %d !!!!!!!!!!!!!!!!!!! \n", io_rank);
+  }
   
   MPI_Allgather(bounds,4,MPI_INT,proc_bounds,4,MPI_INT,comm);
     
