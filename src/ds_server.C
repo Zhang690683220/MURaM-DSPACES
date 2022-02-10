@@ -977,8 +977,9 @@ void nc_write_yz_slice(dspaces_client_t client, const RunData& Run, const GridDa
         decomp2d = atoi(envdecomp2d);
     }
 
+    gsz[0] = Grid.gsize[1];
+    gsz[1] = Grid.gsize[2];
     for(int d=0; d<2; d++) {
-        gsz[d] = Grid.gsize[d];
         if(gsz[d]>nprocs && decomp2d < 0) {
             decomp2d = d;
         }
