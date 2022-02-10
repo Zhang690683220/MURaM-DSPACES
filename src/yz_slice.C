@@ -405,17 +405,23 @@ void yz_slice(const RunData&  Run, const GridData& Grid,
          
   }
 
-  // YZ_Slice finish the checkput for previous call, send a signal to file writer
-  if(yzslice_ref_count > yz_dspaces_bufnum-1) {
-    MPI_Barrier(io_comm);
-    if(io_rank == 0) {
-      std::cout << "YZ_Slice Put Finished, Globaliter =  " << yz_globiter_record << ". Sending Meta to DS_SERVER..." << std::endl;
-      publish_meta(ds_client, yz_globiter_record, YZ_SLICE, -1);
-    }
-  }
+  // // YZ_Slice finish the checkput for previous call, send a signal to file writer
+  // if(yzslice_ref_count > yz_dspaces_bufnum-1) {
+  //   MPI_Barrier(io_comm);
+  //   if(io_rank == 0) {
+  //     std::cout << "YZ_Slice Put Finished, Globaliter =  " << yz_globiter_record << ". Sending Meta to DS_SERVER..." << std::endl;
+  //     publish_meta(ds_client, yz_globiter_record, YZ_SLICE, -1);
+  //   }
+  // }
 
-  // TODO: only works for 1 bin now
-  yz_globiter_record = Run.globiter;
+  // // TODO: only works for 1 bin now
+  //   eos_globiter_record = Run.globiter;
+
+  // !! Only works for dspaces_get() at the file_writer side
+  if(Run.use_dspaces_io && io_rank == 0) {
+    std::cout << "YZ_Slice iPut Finished, Globaliter =  " << Run.globiter << ". Sending Meta to DS_SERVER..." << std::endl;
+    publish_meta(ds_client, Run.globiter, YZ_SLICE, -1);
+  }
 
   // check if put finish for the last dspaces_iput() before iobuf free
   // if ( (Grid.beg[0] <= ixpos[nsl]+Grid.gbeg[0] ) and 
