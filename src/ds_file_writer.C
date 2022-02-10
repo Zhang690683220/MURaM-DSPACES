@@ -154,6 +154,8 @@ void DSGridData::Show() const {
 void write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid,const PhysicsData& Physics,
                 const DSGridData & DSGrid, int globiter)
 {
+    static int f_gdim=1;
+
     double clk, time_get = 0, time_mpi_file = 0;
     char ds_var_name[128];
     char filename[128];
@@ -234,6 +236,14 @@ void write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid
         sprintf(ds_var_name, "%s%s", Run.path_3D, eos_names[var]);
         sprintf(filename,"%s%s.%06d",Run.path_3D, eos_names[var], globiter);
 
+        if(f_gdim) {
+            uint64_t gdim[3];
+            for(int d=0; d<3; d++) {
+                gdim[d] = DSGrid.gsize[d];
+            }
+            dspaces_define_gdim(client, ds_var_name, 3, gdim);
+        }
+
         clk = MPI_Wtime();
         dspaces_get(client, ds_var_name, globiter, sizeof(float), 3, lb, ub, buffer, -1);
         time_get += MPI_Wtime() - clk;
@@ -245,6 +255,7 @@ void write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid
         MPI_File_close(&mfh);
         time_mpi_file += MPI_Wtime() - clk;
     }
+    f_gdim = 0;
     free(buffer);
     if(DSGrid.grank == 0) {
         fprintf(stdout, "Write EOS: GlobalIter = %d, Time of dspaces_get() = %lf, Time of MPI_File_write() = %lf.\n",
@@ -255,6 +266,8 @@ void write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid
 void nc_write_eos(dspaces_client_t client, const RunData& Run, const PhysicsData& Physics,
                     const DSGridData & DSGrid, int globiter)
 {
+    static int f_gdim = 1;
+
     double clk, time_get = 0, time_nc_file = 0;
     char ds_var_name[128];
     char filename[128];
@@ -361,6 +374,14 @@ void nc_write_eos(dspaces_client_t client, const RunData& Run, const PhysicsData
         var = var_index[v];
         sprintf(ds_var_name, "%s%s", Run.path_3D, eos_names[var]);
 
+        if(f_gdim) {
+            uint64_t gdim[3];
+            for(int d=0; d<3; d++) {
+                gdim[d] = DSGrid.gsize[d];
+            }
+            dspaces_define_gdim(client, ds_var_name, 3, gdim);
+        }
+
         /* Define the netCDF variables. The dimids array is used to pass
             the dimids of the dimensions of the variables.*/
         nc_ret = nc_def_var(nc_fid, eos_names[var], NC_FLOAT, 3, nc_dimid, &nc_varid[v]);
@@ -390,7 +411,7 @@ void nc_write_eos(dspaces_client_t client, const RunData& Run, const PhysicsData
                     DSGrid.grank, __FILE__, __LINE__, __func__, nc_strerror(nc_ret));
         }
     }
-
+    f_gdim = 0;
     free(buffer);
     free(nc_varid);
     nc_ret = nc_close(nc_fid);
@@ -408,6 +429,8 @@ void nc_write_eos(dspaces_client_t client, const RunData& Run, const PhysicsData
 void nc_write_yz_slice(dspaces_client_t client, const RunData& Run, const PhysicsData& Physics,
                         const DSGridData & DSGrid, int globiter)
 {
+    static int f_gdim = 1;
+
     double clk, time_get = 0, time_nc_file = 0;
     char ds_var_name[128];
     char filename[128];
@@ -482,6 +505,14 @@ void nc_write_yz_slice(dspaces_client_t client, const RunData& Run, const Physic
             for(int v=0; v<nslvar; v++) {
                 var = var_index[v];
                 sprintf(ds_var_name, "%s%s_%04d_%d", Run.path_2D, "yz_slice", ixpos[nsl], v);
+
+                if(f_gdim) {
+                    uint64_t gdim[2];
+                    for(int d=0; d<2; d++) {
+                        gdim[d] = DSGrid.yzgsize[d];
+                    }
+                    dspaces_define_gdim(client, ds_var_name, 2, gdim);
+                }
 
                 /* Define the netCDF variables. The dimids array is used to pass
                     the dimids of the dimensions of the variables.*/
@@ -571,7 +602,7 @@ void nc_write_yz_slice(dspaces_client_t client, const RunData& Run, const Physic
 
         fprintf(stderr, "DEBUG2, Time of dspaces_get() = %lf, Time of NetCDF_File_write() = %lf.\n", time_get, time_nc_file);
     }
-
+    f_gdim = 0;
     free(buffer);
     free(nc_varid);
 
