@@ -161,9 +161,7 @@ dspaces_put_req_t* slice_write_dspaces(const GridData& Grid, const int iroot,
 	ub[0] = lb[0] + Grid.lsize[n0] - 1;
 	ub[1] = lb[1] + Grid.lsize[n1] - 1;
 
-  if((Grid.beg[n0] - Grid.gbeg[n0] == 0) && (Grid.beg[n1] - Grid.gbeg[n1] == 0)) {
-    fprintf(stderr, "YZ_Slice : Rank = %d !!!!!!!!!!!!!!!!!!! \n", io_rank);
-  }
+  fprintf(stderr, "Rank %d: lb = {%ull, %ull}, ub = {%ull, %ull}\n", io_rank, lb[0], lb[1], ub[0], ub[1]);
 
   // use dspaces_iput for nvars inside one buffer with different offset
   dspaces_put_req_t* dspaces_put_req_list = (dspaces_put_req_t*) malloc(nvar*sizeof(dspaces_put_req_t));
