@@ -151,7 +151,7 @@ void DSGridData::Show() const {
     std::cout << " ------------------------------------------------------------------------" << std::endl;
 }
 
-void write_eos(dspaces_client_t client, const RunData& Run, const GridData& Grid,const PhysicsData& Physics,
+void write_eos(dspaces_client_t client, const RunData& Run, const PhysicsData& Physics,
                 const DSGridData & DSGrid, int globiter)
 {
     static int f_gdim=1;
@@ -444,6 +444,8 @@ void write_yz_slice(dspaces_client_t client, const RunData& Run, const PhysicsDa
     int nslice = Physics.slice[i_sl_yz];
     int *ixpos = (int*) malloc(nslice*sizeof(int));
     int nslvar = 0;
+
+    MPI_File mfh;
 
     for(int i=0; i<nslice; i++) {
         ixpos[i] = Physics.yz_lev[i];
