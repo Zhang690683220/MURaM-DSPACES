@@ -499,9 +499,6 @@ void write_yz_slice(dspaces_client_t client, const RunData& Run, const PhysicsDa
                 MPI_File_write_all(mfh, buffer, vol, MPI_FLOAT, MPI_STATUS_IGNORE);
                 time_mpi_file += MPI_Wtime() - clk;
             }
-
-            MPI_File_close(&mfh);
-
         } else {
             // collective means write all iterations into the same file
             sprintf(filename,"%s_%04d.dat","yz_slice",ixpos[nsl]);
