@@ -882,6 +882,8 @@ void write_yz_slice(dspaces_client_t client, const RunData& Run, const GridData&
     int *ixpos = (int*) malloc(nslice*sizeof(int));
     int nslvar = 0;
 
+    MPI_File mfh;
+
     for(int i=0; i<nslice; i++) {
         ixpos[i] = Physics.yz_lev[i];
     }
@@ -950,7 +952,7 @@ void write_yz_slice(dspaces_client_t client, const RunData& Run, const GridData&
                 if(f_gdim) {
                     uint64_t gdim[2];
                     for(int d=0; d<2; d++) {
-                        gdim[d] = DSGrid.yzgsize[d];
+                        gdim[d] = gsz[d];
                     }
                     dspaces_define_gdim(client, ds_var_name, 2, gdim);
                 }
@@ -976,7 +978,7 @@ void write_yz_slice(dspaces_client_t client, const RunData& Run, const GridData&
                 if(f_gdim) {
                     uint64_t gdim[2];
                     for(int d=0; d<2; d++) {
-                        gdim[d] = DSGrid.yzgsize[d];
+                        gdim[d] = gsz[d];
                     }
                     dspaces_define_gdim(client, ds_var_name, 2, gdim);
                 }
