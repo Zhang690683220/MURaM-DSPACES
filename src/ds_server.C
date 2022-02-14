@@ -1533,7 +1533,7 @@ int main(int argc, char **argv)
             if(rank == 0) {
                 fprintf(stdout, "Rank: %d: Write EOS: GlobalIter = %d ...\n", rank, mdata->globiter);
             }
-            nc_write_eos(dsp, Run, Grid, Physics, mdata->globiter, gcomm);
+            write_eos(dsp, Run, Grid, Physics, mdata->globiter, gcomm);
             if(rank == 0) {
                 fprintf(stdout, "Rank: %d: Write EOS Done...\n", rank);
             }
@@ -1559,7 +1559,7 @@ int main(int argc, char **argv)
             if(rank == 0) {
                 fprintf(stdout, "Rank: %d: Write YZ_Slice: GlobalIter = %d ...\n", rank, mdata->globiter);
             }
-            nc_write_yz_slice(dsp, Run, Grid, Physics, mdata->globiter, gcomm);
+            write_yz_slice(dsp, Run, Grid, Physics, mdata->globiter, gcomm);
             if(rank == 0) {
                 fprintf(stdout, "Rank: %d: Write YZ_Slice Done...\n", rank);
             }
