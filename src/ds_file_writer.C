@@ -438,7 +438,6 @@ void write_yz_slice(dspaces_client_t client, const RunData& Run, const PhysicsDa
 
     int var;
     int max_vars = 13;
-    char yz_slice_names[max_vars][128];
     int var_index[max_vars];
 
     int nslice = Physics.slice[i_sl_yz];
@@ -452,7 +451,6 @@ void write_yz_slice(dspaces_client_t client, const RunData& Run, const PhysicsDa
     }
 
     for (int v=0; v<max_vars; v++) {
-        sprintf(yz_slice_names[v], "var%d", v);
         if(Physics.yz_var[v] == 1) {
             var_index[nslvar] = v;
             nslvar += 1;
