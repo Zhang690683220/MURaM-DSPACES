@@ -72,12 +72,8 @@ int ds_IO_Init(const GridData& Grid, const RunData& Run) {
             op_ub[2] = op_lb[2] + Grid.lsize[2] - 1;
         }
 
-        if(Run.dspaces_manual_listen_addr) {
-            sprintf(listen_addr_str, "%s", Run.dspaces_client_listen_addr);
-            dspaces_init(dspaces_rank, &ndcl, listen_addr_str);
-        } else {
-            dspaces_init(dspaces_rank, &ndcl, NULL);
-        }
+        dspaces_init(dspaces_rank, &ndcl);
+
     } else {
         return -1;
     }
